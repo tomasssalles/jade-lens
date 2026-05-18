@@ -75,6 +75,19 @@ Bot adapter  ←→  Anthropic API
 
 On **desktop with Claude Code installed**, the user can additionally invoke JADE LENS through a `/jade` slash command in the Claude Code TUI (§12). That path operates on a local clone of the data and is a separate code path from the web app.
 
+### Repository structure
+
+JADE LENS lives in **two separate repositories**:
+
+| Repo | Holds | Visibility |
+|---|---|---|
+| **Code repo** (this one — `jade-lens`) | The web app, the `/jade` Claude Code skill, supporting scripts (probably Python), migration scripts (§14), documentation | Public-capable; may eventually become an app others can use |
+| **Data repo** | JSON + markdown data files only — no code. The bot reads from and writes to this repo. | Private (the user's personal data) |
+
+The web app and `/jade` skill take the data-repo location as a per-install setting (and/or env var). In a hypothetical future public scenario, every user gets their own private data repo and points the app at it — no multi-tenant backend required.
+
+The "GitHub repo" in the diagram above is the **data** repo. The web app is *served from* the code repo's GitHub Pages deployment but *reads and writes* the data repo at runtime.
+
 ### Local-first principle
 
 The UI reads and writes only **local state**. It never blocks on the network. Sync to the remote store is a separate, background concern that emits events the UI subscribes to.
@@ -207,7 +220,26 @@ This way the bot's interface is uniform (always JSON in, JSON Patch out) regardl
 | **DB-backed (lazy JSON)** | Fast queries, fast bulk updates, native indexing for filtering by date / priority / etc. | Harder to inspect manually (degrades the secondary goal); third-party signup; vendor lock-in concern |
 | **JSON-file-only** | Simple, fully inspectable, single substrate | Linear scan for query; large all-tasks file when the to-do list grows |
 
-*Whether to adopt a DB in v1 is open* (§16). Working assumption for v1: no DB.
+*Whether to adopt a DB in v1 is open* (§17). Working assumption for v1: no DB.
+
+### 4.8 Schemas and the view registry are the same set
+
+The bot has wide autonomy in designing the data structure (§5) — file shapes, schemas, organisation. That autonomy is **constrained inside a small, fixed registry of "first-class" data types**. The registry is the same set of types that have specialised UI views (§9.4):
+
+| Type | Schema (data shape) | View (UI affordance) |
+|---|---|---|
+| `calendar` | Event records (title, time, location, attendees, recurrence, …) | Calendar grid |
+| `kanban` | Card records (title, column, ordering, metadata) | Kanban board |
+| `table` | Tabular records with a defined column schema | Table view |
+| `timeline` | Time-ordered records | Timeline view |
+| … | … | … |
+
+(Exact registry contents are TBD and will grow over time; the principle above is the union.)
+
+- **First-class type → schema + view, registered together.** Adding a new specialised data type is one decision (schema + view), not two.
+- **Anything outside the registry** is bot-designed freeform data, rendered by the default typed-structured viewer (§9.4) and with no schema enforcement.
+- **For v1: start small.** Pick one or two registered types (calendar is the obvious candidate given §10). Add more only when real usage shows clear evidence the data shape and the UI both benefit.
+- **Schema evolution** — adding a new registered type, or evolving an existing one — is handled by the migration system (§14).
 
 ---
 
@@ -237,7 +269,7 @@ When a query comes in, the runtime cannot programmatically determine which files
 
 ### 6.1 Sessions and prompt-cache structure
 
-**Sessions are chat threads.** A "session" is a chat the user thinks of as one continuous thing — short most of the time (sometimes just one input + one response), with a new chat usually starting per "thing I want to tell or ask the bot." Threads persist in the interaction log and can be reopened later (though cross-chat history re-loading is deferred — §14.2).
+**Sessions are chat threads.** A "session" is a chat the user thinks of as one continuous thing — short most of the time (sometimes just one input + one response), with a new chat usually starting per "thing I want to tell or ask the bot." Threads persist in the interaction log and can be reopened later (though cross-chat history re-loading is deferred — §15.2).
 
 **UI-level turn vs. API-level rounds.** A single chat turn from the user's perspective can be **multiple API rounds** the runtime handles transparently:
 
@@ -298,7 +330,7 @@ Escape hatch: per-file `lazyLoadSidecars: true` in the index for unusual cases.
 
 ### 6.4 Cross-chat history
 
-Within a chat, the chat's history is part of the chat-specific cacheable section. **Cross-chat history** — re-loading prior chat threads when continuing a multi-day project conversation — is deferred (§14.2). Each new chat starts with an empty history; the chat-independent prefix is still shared and cache-friendly.
+Within a chat, the chat's history is part of the chat-specific cacheable section. **Cross-chat history** — re-loading prior chat threads when continuing a multi-day project conversation — is deferred (§15.2). Each new chat starts with an empty history; the chat-independent prefix is still shared and cache-friendly.
 
 ---
 
@@ -380,7 +412,7 @@ Two candidate approaches:
 | **Three-way semantic merge on JSON** (compare base, remote, local field-by-field; auto-merge non-overlapping fields; surface true conflicts) | Robust; handles any data shape | Real implementation effort; per-domain conflict UI |
 | **Data-shape choices that make conflicts vanishingly rare** (append-only logs, narrow scoped updates, time-keyed records) | Most conflicts dodge themselves | Limits how the bot can structure data; doesn't eliminate the residual case |
 
-Hybrid is plausible: prefer conflict-rare shapes; fall back to semantic merge for the residual. *Open* (§16).
+Hybrid is plausible: prefer conflict-rare shapes; fall back to semantic merge for the residual. *Open* (§17).
 
 ---
 
@@ -432,7 +464,9 @@ A search / filter affordance covers the cases where navigation isn't fast enough
 
 The bot maintains the annotation when it creates or restructures the file. The UI honors it from a fixed **view registry** (a first-class concept in the runtime). The UI doesn't recognise data shapes itself — the bot tells it.
 
-This keeps the surface finite: new domains don't require new UI screens; only the truly common shapes get specialised affordances. The same view registry is reusable by future features (§14.2) that let the bot embed rich payloads directly in chat responses.
+This keeps the surface finite: new domains don't require new UI screens; only the truly common shapes get specialised affordances. The same view registry is reusable by future features (§15.2) that let the bot embed rich payloads directly in chat responses.
+
+The view registry is also the **schema registry** (§4.8) — registered types come with both a data shape (schema, enforced by the runtime) and a UI affordance (view). The bot's data-structure-design autonomy applies everywhere outside the registry; inside it, the bot follows the schema.
 
 ### 9.5 Other UI responsibilities
 
@@ -519,7 +553,7 @@ Even so, in-app browsers (Calendar's webview, Slack previewer, etc.) bypass this
 1. **Fresh-load + deep-link is a first-class app entry path.** The SPA must read the URL fragment / query on startup, hydrate from IndexedDB or GitHub, and navigate to the right record. This is just standard SPA routing, but it has to work in a cold-start context.
 2. **Multiple JADE LENS instances may be open simultaneously** (e.g. the standalone PWA window plus an in-app-browser tab from a calendar link). They share data via the remote substrate but not in-memory state — each is its own independent client. Slightly clunky but workable.
 
-For users who find the round-trip UX too clunky, a **Trusted Web Activity** (TWA) escape hatch is available as future work — see §14.2.
+For users who find the round-trip UX too clunky, a **Trusted Web Activity** (TWA) escape hatch is available as future work — see §15.2.
 
 ### 10.4 Multi-calendar awareness
 
@@ -681,9 +715,89 @@ Output-token frugality drives several choices throughout the design:
 
 ---
 
-## 14. v1 Scope and Future Work
+## 14. Versioning and Migration
 
-### 14.1 Roughly in v1
+The mechanism that lets v0.1.0 ship with an imperfect design and evolve safely. Many design choices will only crystallise with real day-to-day usage; this strategy lets the user start using a working-but-incomplete app and reshape both code and data in lockstep across releases.
+
+### 14.1 Versions
+
+- The **code repo** has a code version (e.g. `1.5.42`), embedded in the build.
+- The **data repo** has a `version` file containing the current data version as a string.
+- **Migration scripts** live in the code repo under `migrations/<target-version>.md`. The filename target version determines order; semver-sorted by the runtime.
+
+### 14.2 Migration script format
+
+Each migration is a markdown file with instructions the bot follows — structurally similar to a Claude Code skill. The bot reads the instructions and transforms the data from the previous version to the target version.
+
+Migration scripts mix two registers:
+
+- **Natural-language instructions** for semantic / subjective work the bot is well-suited for — *"make all task descriptions more concise,"* *"merge any duplicate research records on the same topic."*
+- **Tool calls to Python helpers** in the code repo for mechanical work — *"for every task record, rename field `description` to `summary`."*
+
+The mix is cost-disciplined: bulk-mechanical work goes through deterministic Python (free, fast, reliable); semantic work goes through the bot (the only thing that can do it). Renaming a field across a year of accumulated records via JSON Patches emitted by the bot would be prohibitively expensive in tokens; running a 10-line Python script over the same data is free.
+
+### 14.3 Self-update
+
+The running code keeps itself current before any data work happens.
+
+**Web app**:
+- Embed the current version in a `<meta name="app-version">` tag in `index.html` (rarely cached aggressively).
+- Bundle the same version into a JS constant in the application bundle (heavily cached).
+- On every startup, compare the two. Mismatch → cache is stale → reload with cache-bust (and/or unregister the Service Worker if we ship one).
+- Works around GitHub Pages caching without anything exotic. Service Worker integration can come later as polish.
+
+**`/jade` Claude Code skill**:
+- On invocation, `git pull` the code-repo local clone.
+- **Caveat**: a running Claude Code session does not re-read its skills mid-session. So a `pull` mid-session doesn't propagate. Mitigation: the skill checks its own version on every invocation and refuses to proceed if stale, asking the user to restart Claude Code so the new skill version is loaded.
+
+### 14.4 Version comparison on every load
+
+After self-update completes and the code is at its latest, the runtime compares the data-version against the code-version:
+
+| Comparison | Action |
+|---|---|
+| `data > code` | **Error.** Refuse to proceed. Ask the user to handle — typically means another device has migrated the data forward and this device's code is behind. |
+| `data == code` | Normal operation. |
+| `data < code` | Run the migration flow (§14.5). |
+
+### 14.5 Migration flow
+
+1. **Pre-check.** Ask the user to review the data — especially recent changes — and fix any mistakes manually or via replay-based correction (§7.2). **This is the user's explicit accept-replay-boundary moment** (§14.6).
+2. **Checkpoint.** Once the user confirms the data is correct, create a checkpoint tag in the data repo (named after the version transition, e.g. `pre-migration-1.5.41-to-1.5.42`).
+3. **Collect.** Gather all migration scripts whose target version lies in `(data-version, code-version]`, sorted in semver order.
+4. **Dry-run summary.** Show the user a per-script summary of what each migration will do. Ask for confirmation before applying.
+5. **Apply.** Run the migrations in order. The bot follows each script's instructions; Python helpers run when invoked.
+6. **Bump version.** Set the data-version to the current code-version — *always*, even if no migrations applied (covers the "no relevant migrations existed in this release range" case cleanly).
+7. **Commit.** Commit the data changes + the new version file. Optionally tag a successful-migration marker.
+8. **New interaction log.** Start a new interaction-log file for the new version (naming convention TBD — likely `interactions/<version>.log` or similar). The old log remains for historical reference but is not actively appended to anymore.
+
+### 14.6 Crossing the replay-boundary
+
+Replay-based correction (§7.2) does **not** compose freely with migrations. Once a migration has changed the data shape, interaction-log entries from before the migration reference shapes that no longer exist; replaying them may not work.
+
+The pre-checkpoint verification step in §14.5 IS the user's explicit acknowledgment that they're crossing this boundary. UI messaging at that step must make it clear:
+
+> *After this checkpoint, mistakes made before the migration cannot be fixed via replay anymore. Please make sure the data is correct now, before we proceed.*
+
+### 14.7 Interrupted migration recovery
+
+If a migration is interrupted partway through — browser crash, power loss, user closes the tab, Claude Code session kills mid-tool-call — the data may be in an intermediate state.
+
+Because the data-version file is updated only at step 6 (the very end of `§14.5`), the next startup still sees `data < code` and re-engages the migration flow. The recovery action is:
+
+> **Reset to the pre-migration checkpoint tag (created in step 2) and retry the migration from scratch.**
+
+**Idempotency is NOT required of individual migration scripts.** Idempotence is realistic only for purely mechanical changes; subjective natural-language instructions to the bot cannot be guaranteed idempotent. The reset-then-retry pattern sidesteps the issue entirely.
+
+### 14.8 Migration testing discipline
+
+Release-time concern, not a runtime concern: before shipping a migration in a release, run it against a snapshot of pre-version data locally and verify the result. Catch breakage at release time, not at the user's startup.
+
+This is especially important because the bot is involved in execution — a migration that worked yesterday may behave subtly differently if model versions or prompt shapes have drifted. Pinning the model version used during migration runs is worth considering.
+
+## 15. v1 Scope and Future Work
+
+### 15.1 Roughly in v1
 
 - React + Vite static SPA on GitHub Pages.
 - Linux desktop, macOS, Android (same static web build).
@@ -700,8 +814,10 @@ Output-token frugality drives several choices throughout the design:
 - Chat UI with prominent input + default typed-structured rendering of JSON data + WYSIWYG markdown editor for sidecars. The promoted-view registry (calendar / kanban / table / timeline) is in place as a concept, but specialised renderers can be implemented incrementally as the data shapes that need them emerge.
 - **Manual calendar event import** via chat paste — the bot creates augmentation records and lightweight local shadow records for offline reasoning. No live external-calendar API integration yet (§10).
 - **`/jade` Claude Code skill** for in-IDE use — a SKILL.md describing the data conventions + the `handle_bot_response` custom tool that routes mutations through the same pipeline as the web app (§12). Lightweight; ships with v1 because the mutation pipeline is already built for the web app and the skill is a thin tool wrapper around it.
+- **Versioning and migration system** (§14). Both clients carry a code version, the data repo carries a `version` file, the runtime self-updates and runs the migration flow on every load. v0.1.0 ships with the framework in place (version files, comparison logic, self-update mechanism, migration script discovery + execution, checkpoint tagging), even if the only "migration script" so far is the trivial v0.0.0 → v0.1.0 bootstrap.
+- **Two-repo split** (§3) — this code repo plus a separate private data repo. The web app and `/jade` skill read the data-repo location from a setting (or env var, for a single-user install).
 
-### 14.2 Future work (post-v1 or as the project matures)
+### 15.2 Future work (post-v1 or as the project matures)
 
 - **`/jade` Claude Code skill polish.** The skill itself is planned for v1 (§12.6). Future polish: richer shell helpers, smarter SKILL.md heuristics shaped by observed bot compliance, optional bot self-reported load-bearing-read logging (§12.5).
 - **Multi-vendor active support** — Gemini and OpenAI adapters, parallel to Anthropic.
@@ -726,7 +842,7 @@ Output-token frugality drives several choices throughout the design:
 
 ---
 
-## 15. Guiding Principles (compressed)
+## 16. Guiding Principles (compressed)
 
 - **The bot designs the data structure.** Files, schemas, organisation evolve with use; no upfront schema design.
 - **Files (JSON + markdown) are the source of truth.** Human-readable, LLM-friendly, version-controllable.
@@ -738,7 +854,7 @@ Output-token frugality drives several choices throughout the design:
 
 ---
 
-## 16. Open Questions
+## 17. Open Questions
 
 The following are explicitly not yet decided. Each may close out during implementation as the constraints become concrete.
 

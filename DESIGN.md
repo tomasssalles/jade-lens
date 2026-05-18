@@ -31,7 +31,7 @@ The to-do list is one example. The same reasoning applies to whatever domain the
 ### Secondary and tertiary goals
 
 - **Secondary: human-readable, human-editable data.** Mistakes are expected early on — both bot mistakes and unclear user prompts. Inspectable files make debugging and manual correction feasible. This shapes the data-format choices (JSON + markdown) but is not a primary driver.
-- **Tertiary: full audit trail of interactions and data changes.** Useful for debugging, conflict resolution, and *replay-based correction* when a mistake is only noticed after later interactions have built on top of it (§7).
+- **Tertiary: full audit trail of data changes.** Every atomic data change is one git commit + one operations-log entry (§7). Useful for debugging, conflict resolution, and giving the user (and the bot, during a correction) a clear record of what was changed when.
 
 ---
 
@@ -67,7 +67,7 @@ Static SPA  (React + Vite, served from GitHub Pages)
 Local data layer  (IndexedDB, or local filesystem where available)
     ↓
 Sync adapter  ←→  GitHub repo
-    │           ( ←→  Supabase or similar, if/when a DB is adopted for some data — §4.7 )
+    │           ( ←→  Supabase or similar, if/when a DB is adopted for some data — §4.8 )
     ↓
 Bot adapter  ←→  Anthropic API
               ( + Gemini, OpenAI as multi-vendor matures — §11 )
@@ -107,18 +107,63 @@ Two file types live in the data repository:
 - **JSON files** carry all structured data — records, schemas, the index, configuration.
 - **Markdown files** carry prose content — long-form notes, presentation drafts, research write-ups, brainstorms.
 
-These are *separate files*. Prose can also live **inline** as a JSON string value when small; the promotion rule (§4.3) decides which case applies.
+These are *separate files*. Prose can also live **inline** as a JSON string value when small; the promotion rule (§4.4) decides which case applies.
 
 ### 4.2 Change format
 
-The bot emits compact, machine-applicable changes:
+The bot mutates the data exclusively through a single tool (the web app's API or the `/jade` skill's `handle_bot_response` — same shape, see §12.2). Its input is a list of typed operations, applied in order as one atomic change:
 
-- **JSON Patch (RFC 6902)** for JSON files.
-- **Unified diff** for markdown files, with **0 context lines** as the default to minimise output tokens.
+| Op | Use |
+|---|---|
+| `json_patch` | RFC 6902 patch against a JSON file. |
+| `unified_diff` | Unified diff against an existing markdown file, with **0 context lines** as the default to minimise output tokens. |
+| `create_file` | Create a new file (JSON or markdown) with initial content. Missing parent directories are auto-created (`mkdir -p`). |
+| `delete_file` | Delete an existing file. Refused if any path reference still points to it (see §4.3). |
+| `rename_path` | Rename a file or a directory. Content is preserved verbatim; path references elsewhere are auto-rewritten by the runtime (see §4.3). |
 
-For unified diffs, the runtime verifies that the line at the claimed line number matches the claimed old content before applying. Failed verifications surface to the user for manual intervention and signal that the bot made a mistake worth investigating.
+**Verification.**
+- For `unified_diff`: the runtime checks that the line at each claimed line number matches the claimed old content before applying.
+- For `json_patch`: the runtime applies normally; RFC 6902 already raises on missing paths or value mismatches in `test`/`remove`/`replace` ops.
+- Failed verifications abort the whole atomic change (no partial application) and surface to the user as a bot mistake worth investigating.
 
-### 4.3 Inline-vs-sidecar promotion (programmatic)
+**Atomicity.** All operations in a single tool call are applied together and produce **one git commit + one log entry** (§7). If any operation fails verification, the whole batch is rolled back.
+
+**Typo risk for `create_file`.** Auto-creating parents means a typo in a path (`fooo/` instead of `foo/`) silently creates a new directory tree. Accepted risk for v0.1.0; mitigation (e.g. confirmation when a `create_file` would establish a new top-level directory) can come later if observed in practice.
+
+### 4.3 Path references: wikilink convention
+
+Every reference *from data to a data-repo file* — whether embedded in prose inside a markdown file or held in a JSON string value — is written as a wikilink:
+
+```
+[[path]]
+```
+
+The path is **relative to the data-repo root**, not relative to the file containing the link. (This costs click-navigability when browsing the repo with a plain text editor or IDE, but the web app's renderer resolves repo-root paths fine, and the rename-safety win is much larger.)
+
+**Why this form rather than standard markdown links.** A standard markdown link `[label](path)` has two halves — a display label and a path — which means rename safety requires either keeping them in lockstep (forcing `label == path`, doubling tokens) or accepting label staleness when the path changes (label may name an old filename). Wikilinks have one slot. The same string is both the path and the display fallback; rename rewrites one place, done. The bot also pays roughly half the output tokens per reference. The form is borrowed from Obsidian / MediaWiki and is familiar from the assistant's own memory system.
+
+External URLs (`http://...`, `https://...`, etc.) are NOT written as wikilinks — they use normal markdown link syntax `[label](url)` or autolink syntax `<url>` and are ignored by reference-tracking. Wikilinks are reserved for data-repo paths exclusively.
+
+**Rename mechanics (`rename_path`).**
+
+1. Runtime stages the filesystem rename (`git mv`).
+2. Runtime scans every data-repo file for wikilinks whose path is `from` or starts with `from/` (directory case).
+3. Each matching wikilink is rewritten in place — path swapped from `from` to `to`.
+4. All rewrites + the rename land in a single git commit, atomic.
+
+**Delete mechanics (`delete_file`).**
+
+1. Runtime scans every data-repo file for wikilinks pointing to the target path.
+2. If any exist, the tool fails and reports the referencing paths back to the bot. The bot clears the references (rewrite or remove) and re-issues the delete.
+3. If clean, runtime deletes and commits.
+
+**Uniformity in JSON.** A sidecar reference produced by inline-to-sidecar promotion (§4.4) is also a wikilink — not a bare path in a `*Path`-suffixed field. The field name is the bot's choice; the wikilink form is what makes the reference detectable. Example: `"notes": "[[projects/leasing/notes.md]]"` rather than `"notesPath": "projects/leasing/notes.md"`.
+
+**Bot compliance.** The system prompt / SKILL.md is prescriptive: any data-repo path mentioned in any string content MUST be wrapped in double square brackets. Bare paths in free text are a violation. Optional runtime safety net (not in v0.1.0): flag string values that contain a path-like substring outside a wikilink.
+
+**Display rendering.** In raw markdown viewers (and Claude Code's TUI), wikilinks render as literal `[[path]]` text — visually distinct, recognisable as a reference, not clickable. The eventual web-app renderer is expected to do something nicer (e.g. render the filename stem as a clickable label that navigates to the linked file within the app).
+
+### 4.4 Inline-vs-sidecar promotion (programmatic)
 
 Prose lives inline as a JSON string when small. When it grows or becomes markdown-structured, the runtime migrates it to a separate `.md` file and replaces the JSON value with a path reference. **This migration is handled by the runtime, not by the bot.**
 
@@ -130,12 +175,12 @@ Prose lives inline as a JSON string when small. When it grows or becomes markdow
 If either trigger fires, the runtime:
 
 1. Writes the content to a new `.md` file at a derived path.
-2. Rewrites the JSON Patch so the value is a path reference (e.g. `notes` → `notesPath: "projects/leasing/notes.md"`).
+2. Rewrites the JSON Patch so the value is a wikilink to the new sidecar (§4.3), e.g. `"notes": "[[projects/leasing/notes.md]]"`.
 3. Applies the rewritten patch.
 
 **Hysteresis on demotion.** A sidecar `.md` file that *shrinks* back to 1-2 lines stays a file. No demotion. Prevents oscillation at the boundary.
 
-**Scope.** This applies only to JSON Patch ops on inline string values. Unified-diff updates to existing `.md` files are pass-through — the bot already sees a `*Path` reference (not an inline string) and writes a diff directly.
+**Scope.** This applies only to JSON Patch ops on inline string values. Unified-diff updates to existing `.md` files are pass-through — the bot already sees a wikilink reference (not an inline string) and writes a diff against the linked file directly.
 
 **Why programmatic, not bot-driven.**
 
@@ -145,9 +190,9 @@ If either trigger fires, the runtime:
 
 **Bot-facing instruction** (to include in the system prompt):
 
-> Some prose content lives inline as JSON string values, and some lives in separate `.md` files referenced by path. You'll see which is which from the data. When adding or modifying inline string values, emit JSON Patch normally — don't worry about size. If a string grows large or becomes markdown-structured, the program will migrate it to a separate `.md` file automatically and replace the JSON value with a path reference. Respect that — don't migrate the content back into the JSON.
+> Some prose content lives inline as JSON string values, and some lives in separate `.md` files referenced by a wikilink (§4.3). You'll see which is which from the data. When adding or modifying inline string values, emit JSON Patch normally — don't worry about size. If a string grows large or becomes markdown-structured, the program will migrate it to a separate `.md` file automatically and replace the JSON value with a wikilink to the sidecar. Respect that — don't migrate the content back into the JSON.
 
-### 4.4 Sidecar filenames
+### 4.5 Sidecar filenames
 
 Three conventions considered:
 
@@ -159,7 +204,7 @@ Three conventions considered:
 
 *Leaning toward the sidecar-directory approach* — cleanest refactor story, still informative. Not locked; revisit at implementation time.
 
-### 4.5 The index file
+### 4.6 The index file
 
 A JSON file (e.g. `.jadelens/index.json`) maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything.
 
@@ -188,7 +233,7 @@ This lets preferences and similar always-needed context be treated as ordinary b
 
 For the unusual case of a JSON file with many large sidecars rarely needed, the index entry for that file can carry `lazyLoadSidecars: true`. The runtime then skips eager-loading the sidecars for that file. Default behaviour is eager (§6.2).
 
-### 4.6 Preferences
+### 4.7 Preferences
 
 The user's preferences (working hours, break cadence, exercise preferences, dietary notes, communication style — anything the bot should know about the user) are treated as **normal data**:
 
@@ -200,7 +245,7 @@ The only special handling is `alwaysLoad` on the destination file — so prefere
 
 No designated `preferences.*` file convention is enforced by the runtime. The bot may create one if it prefers consistency, but it isn't required.
 
-### 4.7 Database option
+### 4.8 Database option
 
 For some data shapes — notably to-do items with rich queryability (project / area, priority / urgency, deadlines absolute and relative, blockers, etc.) — a structured database might be more efficient than JSON files for query speed and bulk updates.
 
@@ -222,7 +267,7 @@ This way the bot's interface is uniform (always JSON in, JSON Patch out) regardl
 
 *Whether to adopt a DB in v1 is open* (§17). Working assumption for v1: no DB.
 
-### 4.8 Schemas and the view registry are the same set
+### 4.9 Schemas and the view registry are the same set
 
 The bot has wide autonomy in designing the data structure (§5) — file shapes, schemas, organisation. That autonomy is **constrained inside a small, fixed registry of "first-class" data types**. The registry is the same set of types that have specialised UI views (§9.4):
 
@@ -269,14 +314,14 @@ When a query comes in, the runtime cannot programmatically determine which files
 
 ### 6.1 Sessions and prompt-cache structure
 
-**Sessions are chat threads.** A "session" is a chat the user thinks of as one continuous thing — short most of the time (sometimes just one input + one response), with a new chat usually starting per "thing I want to tell or ask the bot." Threads persist in the interaction log and can be reopened later (though cross-chat history re-loading is deferred — §15.2).
+**Sessions are chat threads.** A "session" is a chat the user thinks of as one continuous thing — short most of the time (sometimes just one input + one response), with a new chat usually starting per "thing I want to tell or ask the bot." In the web app, chat history is maintained in-memory for the duration of the chat (and possibly across reloads of the active chat); chat content is not persisted to the data repo. Cross-chat history re-loading is deferred (§15.2).
 
 **UI-level turn vs. API-level rounds.** A single chat turn from the user's perspective can be **multiple API rounds** the runtime handles transparently:
 
 - *Round 1:* full prefix + user query → bot either returns the final answer (the v1 eager-load-everything path) or a structured data request (the post-v1 path).
 - *Round 2 (if needed):* the prior context + bot's data request + the loaded data → bot's final answer.
 
-The interaction log records API-level rounds (so replay-based correction (§7.2) can replay the actual back-and-forth). The UI presents a single turn.
+The operations log (§7.2) only records the resulting atomic data changes, not the per-round chat structure. The UI presents a single turn.
 
 **Prompt structure.** Each API call's prompt is layered:
 
@@ -334,37 +379,49 @@ Within a chat, the chat's history is part of the chat-specific cacheable section
 
 ---
 
-## 7. Audit and Replay-Based Correction
+## 7. Audit and Correction
 
-### 7.1 The interaction log
+### 7.1 The atomic data change is the unit of audit
 
-A dedicated log records:
+Every **atomic data change** produces exactly **one git commit + one log entry**, regardless of which entry point initiated it:
 
-- Every prompt the user sent the bot.
-- Every response the bot returned.
-- Every manual edit the user made directly to files.
-- Every manual edit the user made through the UI.
+- A `/jade` tool call that emits one or more operations (§4.2).
+- A UI edit in the web app (§9.2).
+- Any future entry point that produces operations.
 
-The log is separate from git history. **It is not stored in commit messages** — commit messages aren't fit for that purpose (length limits, escaping issues, two-tier awkwardness, hard to search).
+Pure queries — `/jade` calls that don't change data, UI navigation, bot answers to questions — produce *no* commit and *no* log entry. The Claude Code chat itself is the user's ephemeral record of those conversations; nothing is persisted.
 
-Redundancy with file content (and with git diffs, if git is the sync substrate) is acceptable. On-disk size is not expected to be a limiting factor; the audit value justifies the overlap.
+### 7.2 The operations log
 
-### 7.2 Replay-based correction
+The data repo carries an append-only JSONL log (path TBD, e.g. `.jade/log.jsonl`). Each line corresponds to one atomic data change:
 
-When the bot makes a mistake noticed only after subsequent interactions have built on top of it:
+```json
+{"ts": "2026-05-18T14:23:11Z", "operations": [<op>, <op>, ...]}
+```
 
-1. Rewind the data to its pre-mistake state.
-2. Replay subsequent interactions, including a correction hint at the point of the original mistake.
+The `operations` field contains the same typed structures defined in §4.2 — `json_patch`, `unified_diff`, `create_file`, `delete_file`, `rename_path` — exactly as the bot or the UI emitted them.
 
-**Cheap-replay pattern.** For each interaction being replayed, the bot is shown its prior input and prior response and asked:
+**No prompt, no response text, no commit SHA.** The commit identity is recoverable from git: each atomic data change touches the log file with exactly one new line, so line N of the log maps to the Nth commit that touched the log. The runtime is the only writer; if the assumption is broken by an external editor, the bijection breaks for that entry only.
 
-> *Either give me a corrected response, or just answer "OK" (1 output token) if your response was already correct.*
+**Purpose.** The log preserves operation semantics that a raw git diff would lose — most notably JSON Patch `move` ops, which appear as delete-here + add-there in a diff but as a single intent-carrying op in the log. It also offers programmatic introspection ("every time the runtime promoted inline-to-sidecar," "every rename the bot did this week"), which is especially valuable during early development when the goal is observing and tuning bot behaviour.
 
-Most replayed interactions return `OK` — replay stays inexpensive. Only the actually-affected interactions get redone.
+### 7.3 Commit messages
 
-### 7.3 Local-only data on mobile
+The commit message describes intent.
 
-`.git` (if present) and the interaction log are local-only state. They are not synced through to mobile devices to save space; they can be loaded on demand if needed.
+- **`/jade` skill (Claude Code):** the bot writes a concise 1-line commit message as part of the operation tool call. Verbatim user prompts are *not* repeated — repeating them costs real output tokens (Pro time + rate-limit budget), and the prompt is often near-meaningless without the surrounding Claude Code chat context anyway.
+- **Web app:** the runtime knows the user prompt programmatically and can use it directly in the commit message at zero token cost. Whether to prefer the verbatim prompt, a bot-generated summary, or both is a v0.2.0+ decision.
+- **UI-only edits (web app):** the runtime writes the commit message itself, e.g. `UI: added 3 todo entries; toggled 1 status.`
+
+### 7.4 Forward-only correction
+
+JADE LENS does not rewind or replay history. When the user spots a mistake, they tell the bot in natural language — *"no, I meant the read-replica DB, not the primary"* — and the bot reads the relevant data, understands the mistake, and writes the fix forward. The fix may include propagation: if a correction invalidates references elsewhere in the data, the bot is expected to chase those down and fix them in the same operation batch. The wikilink convention (§4.3) makes path-reference fan-out tractable; content-level fan-out relies on the bot's broader search-and-edit ability.
+
+**Why not replay?** Two reasons. First, in the Claude Code `/jade` world the runtime only sees the bot's tool inputs — never the surrounding chat — so the "user prompts" we'd replay are decontextualised stubs (the natural in-context prompt is *"and remind me to ask Bob about the latency issue next Tuesday"* after 50 turns of unrelated technical conversation). Second, even with perfect chat capture, reactive multi-turn conversations cannot be deterministically replayed: change the data, and the bot's response changes; change the bot's response, and the user's next message would naturally have changed too. Replay-with-fixes is an illusion. Forward-only correction is the honest envelope.
+
+### 7.5 Local-only data on mobile
+
+`.git` (if a local clone exists) is local-only — mobile uses the GitHub API rather than git clones (§3 "No mobile-native daemons"). The operations log itself is a normal tracked file in the data repo and syncs everywhere; the file is tiny (one JSON line per atomic change) so size is a non-concern.
 
 ---
 
@@ -397,7 +454,7 @@ Three candidates have been weighed:
 | **GitHub repo with fine-grained commits as a de-facto patch log** | Same files; one commit per bot action, commit message holds the raw prompt | Most patch-log benefits (audit, prompt-attached-to-change, append-only history) without a new schema | Same latency / quota tradeoffs; commit messages become semantically loaded |
 | **Firebase / Supabase free-tier** | Documents or rows | Faster than git; designed for app data; real-time updates available | Third-party signup; vendor lock-in concern parallel to the AI multi-vendor wish; free-tier quota limits |
 
-*Working assumption for v1: GitHub repo of state files.* Supabase (or similar) is on the table if a DB is adopted for query-heavy data (§4.7). Not locked.
+*Working assumption for v1: GitHub repo of state files.* Supabase (or similar) is on the table if a DB is adopted for query-heavy data (§4.8). Not locked.
 
 ### 8.4 Conflict resolution
 
@@ -426,19 +483,19 @@ Instead, the UI is **a comfortable, modern view onto the data as it is**, with a
 
 ### 9.2 UI edits feed the same pipeline as bot edits
 
-Every UI mutation produces the same artefact the bot produces — a JSON Patch (for inline JSON edits) or a full-content write to a markdown sidecar (for prose edits). These flow through the **same runtime pipeline** as bot output:
+Every UI mutation produces the same artefacts the bot produces — operations of the types defined in §4.2 (JSON Patch, unified diff, `create_file`, `delete_file`, `rename_path`). These flow through the **same runtime pipeline** as bot output:
 
-1. Inline-vs-sidecar promotion check (§4.3).
-2. Patch verification.
-3. Apply.
-4. Record in the interaction log (§7), with a structured "user did X via UI" entry rather than a prompt/response pair.
+1. Inline-vs-sidecar promotion check (§4.4).
+2. Verification.
+3. Apply the operation batch atomically.
+4. Append one entry to the operations log and create one git commit (§7) — the commit message is written by the runtime (e.g. `UI: added 3 todo entries; toggled 1 status.`) rather than by a bot.
 5. Queue for sync.
 
-This means **UI edits are indistinguishable from bot edits at the data layer** — one code path for all data mutation. A user appending three paragraphs to an inline JSON string via the UI triggers the same automatic promotion to a `.md` sidecar that the bot would.
+This means **UI edits are indistinguishable from bot edits at the data layer** — one code path for all data mutation, one audit substrate. A user appending three paragraphs to an inline JSON string via the UI triggers the same automatic promotion to a `.md` sidecar that the bot would.
 
 ### 9.3 Navigation: index as table-of-contents
 
-The bot's index file (§4.5) doubles as the UI's navigation structure. A sidebar (or equivalent top-level view) renders:
+The bot's index file (§4.6) doubles as the UI's navigation structure. A sidebar (or equivalent top-level view) renders:
 
 - Primary JSON files, grouped by the index's groupings.
 - Records inside each file, expandable.
@@ -466,7 +523,7 @@ The bot maintains the annotation when it creates or restructures the file. The U
 
 This keeps the surface finite: new domains don't require new UI screens; only the truly common shapes get specialised affordances. The same view registry is reusable by future features (§15.2) that let the bot embed rich payloads directly in chat responses.
 
-The view registry is also the **schema registry** (§4.8) — registered types come with both a data shape (schema, enforced by the runtime) and a UI affordance (view). The bot's data-structure-design autonomy applies everywhere outside the registry; inside it, the bot follows the schema.
+The view registry is also the **schema registry** (§4.9) — registered types come with both a data shape (schema, enforced by the runtime) and a UI affordance (view). The bot's data-structure-design autonomy applies everywhere outside the registry; inside it, the bot follows the schema.
 
 ### 9.5 Other UI responsibilities
 
@@ -509,7 +566,7 @@ The cleanest split:
 
 #### Calendar integration as a lazy-JSON-from-external-source pattern
 
-The calendar integration is **an instance of the lazy-JSON-from-DB pattern (§4.7)**, with the "DB" being an external calendar API:
+The calendar integration is **an instance of the lazy-JSON-from-DB pattern (§4.8)**, with the "DB" being an external calendar API:
 
 1. User prompt → bot derives what part of the calendar it needs (likely a date-window slice).
 2. Runtime fetches current state from the configured external calendars via their APIs.
@@ -615,7 +672,7 @@ Setup:
 The web app and `/jade` share:
 
 - The **data conventions** (JSON + markdown layout, index file with annotations, sidecar promotion rule, etc.).
-- The **mutation pipeline** — a CLI/library that applies JSON Patches and unified diffs, verifies them, runs the inline-vs-sidecar promotion programmatically, writes the interaction log entry, and queues the change for sync. This is the same code used by the web app's runtime and by the `/jade` skill via a custom Claude-Code tool (see §12.2).
+- The **mutation pipeline** — a CLI/library that applies the operation set of §4.2 (JSON Patches, unified diffs, `create_file`, `delete_file`, `rename_path`), verifies them, runs the inline-vs-sidecar promotion programmatically, rewrites wikilink path references on rename (§4.3), creates the git commit and appends the operations-log entry (§7), and queues the change for sync. This is the same code used by the web app's runtime and by the `/jade` skill via a custom Claude-Code tool (see §12.2).
 
 They differ in:
 
@@ -633,11 +690,11 @@ So the `/jade` skill is **not** a parallel implementation of the web app's logic
 
 The `/jade` skill provides Claude Code with a custom tool — call it `handle_bot_response` for now — whose input is the same shape the web app's API responses use:
 
-- **JSON Patches** for changes to JSON files.
-- **Unified diffs** for changes to existing markdown files.
-- **Lazy-JSON queries** for DB-backed data (§4.7) or external calendars (§10.2) — translated to API calls and projected to JSON the bot can read.
+- **Operations** — the typed set defined in §4.2: `json_patch`, `unified_diff`, `create_file`, `delete_file`, `rename_path`.
+- **A concise commit message** — one line, written by the bot (§7.3). The bot does NOT repeat the user's verbatim prompt; that would cost real output tokens for marginal audit value (the in-context prompt is usually meaningless without the surrounding Claude Code chat anyway).
+- **Lazy-JSON queries** for DB-backed data (§4.8) or external calendars (§10.2) — translated to API calls and projected to JSON the bot can read.
 
-The tool routes through the **same runtime pipeline** as the web app: verification, programmatic inline-vs-sidecar promotion (§4.3), interaction log append (§7.1), queue for sync. Files end up structurally identical regardless of which client made the change.
+The tool routes through the **same runtime pipeline** as the web app: verification, programmatic inline-vs-sidecar promotion (§4.4), wikilink rewrite on rename (§4.3), git commit + log append (§7), queue for sync. Files end up structurally identical regardless of which client made the change.
 
 **The SKILL.md is prescriptive:** the bot must NOT use Claude Code's native Edit / Write tools on data files; all mutations go through `handle_bot_response`. Reads via the native Read / Grep / Glob tools are fine and expected — discovery stays agentic. A sanity-check could flag out-of-band edits if compliance turns out to be a problem in practice.
 
@@ -652,14 +709,16 @@ The `/jade` skill doesn't have the web app's view registry or rich visualisation
 - **TUI-rendered markdown** in the chat, with good table support. Concise textual replies are the default surface and often enough.
 - **Temp-file handoff** — for output that doesn't belong in chat (a long report, a generated checklist, a draft document), the bot writes to `/tmp/jadelens-...md` (or similar) and points the user at it. The user can open it in a text editor, in a browser, or — usefully — in the JADE LENS web app itself for richer visualisation. Pattern borrowed from the Librarian project.
 - **File-pointers instead of content dumps** — when a query is essentially "find this in my data," the bot points at file + line range (`see projects/leasing/notes.md lines 14-22`) instead of re-quoting content the user already has on disk.
+- **Tool-result echoes of applied operations.** When `handle_bot_response` applies an operation batch, the runtime returns a result containing the operations themselves (JSON Patches, unified diffs, file-level ops). Claude Code displays tool results inline beneath the call; this gives the user a visible record of *what was actually changed* without the bot paying output tokens to repeat the patches in prose. The user can collapse/expand the result as needed (the TUI shortens long results with a `ctrl-o` expansion affordance, which is acceptable).
+- **ANSI styling in tool results — future option, not v0.1.0.** Most terminals (PyCharm's terminal included) honor ANSI escape sequences for foreground/background colour and bold. Even when markdown rendering isn't available, ANSI gives a way to highlight diff hunks, JSON keys, or rename headers in tool output. v0.1.0 ships with plain-text echoes; styled output can be layered on later without protocol changes.
 
 Token economics are softer under the Pro subscription (the user isn't directly paying per token in this path), but conciseness is still good practice — and pointing the user at canonical files rather than re-emitting copies keeps the user's data the single source of truth.
 
 ### 12.5 Read-tracking — not adopted
 
-The idea of a `record_read` tool to log which files the bot consulted was considered and rejected for v1:
+The idea of a `record_read` tool to log which files the bot consulted was considered and rejected:
 
-- Replay-based correction doesn't need it — replay re-creates file state and lets the bot read fresh.
+- The operations log (§7.2) intentionally captures *mutations*, not reads — that's its purpose, and forward-only correction (§7.4) doesn't need read history.
 - Logging every Read would be noisy (Claude Code reads many files exploratorily).
 - Bot compliance is likely lower for reads (casual, not deliberate) than for mutations.
 
@@ -762,22 +821,22 @@ After self-update completes and the code is at its latest, the runtime compares 
 
 ### 14.5 Migration flow
 
-1. **Pre-check.** Ask the user to review the data — especially recent changes — and fix any mistakes manually or via replay-based correction (§7.2). **This is the user's explicit accept-replay-boundary moment** (§14.6).
+1. **Pre-check.** Ask the user to review the data — especially recent changes — and fix any mistakes via natural-language correction (§7.4) or manual edits. **This is the user's last chance to clean things up before the data shape is migrated** (§14.6).
 2. **Checkpoint.** Once the user confirms the data is correct, create a checkpoint tag in the data repo (named after the version transition, e.g. `pre-migration-1.5.41-to-1.5.42`).
 3. **Collect.** Gather all migration scripts whose target version lies in `(data-version, code-version]`, sorted in semver order.
 4. **Dry-run summary.** Show the user a per-script summary of what each migration will do. Ask for confirmation before applying.
 5. **Apply.** Run the migrations in order. The bot follows each script's instructions; Python helpers run when invoked.
 6. **Bump version.** Set the data-version to the current code-version — *always*, even if no migrations applied (covers the "no relevant migrations existed in this release range" case cleanly).
 7. **Commit.** Commit the data changes + the new version file. Optionally tag a successful-migration marker.
-8. **New interaction log.** Start a new interaction-log file for the new version (naming convention TBD — likely `interactions/<version>.log` or similar). The old log remains for historical reference but is not actively appended to anymore.
+8. **New operations log.** Start a new log file for the new version (naming convention TBD — likely `logs/<version>.jsonl` or similar). The old log remains in the repo for historical reference but is not actively appended to anymore.
 
-### 14.6 Crossing the replay-boundary
+### 14.6 The migration is a one-way door
 
-Replay-based correction (§7.2) does **not** compose freely with migrations. Once a migration has changed the data shape, interaction-log entries from before the migration reference shapes that no longer exist; replaying them may not work.
+Operations log entries from before a migration reference data shapes that no longer exist after it. They remain readable as historical record but they cannot be re-applied in any meaningful way to the post-migration data.
 
-The pre-checkpoint verification step in §14.5 IS the user's explicit acknowledgment that they're crossing this boundary. UI messaging at that step must make it clear:
+The pre-checkpoint verification step in §14.5 is the user's chance to fix anything that's wrong *before* the door closes. UI messaging at that step must make it clear:
 
-> *After this checkpoint, mistakes made before the migration cannot be fixed via replay anymore. Please make sure the data is correct now, before we proceed.*
+> *After this checkpoint, the data shape is migrated. Past mistakes are fixed forward against the new shape, not by reaching back into the old log. Please make sure the data is correct now, before we proceed.*
 
 ### 14.7 Interrupted migration recovery
 
@@ -804,7 +863,7 @@ This is especially important because the bot is involved in execution — a migr
 - JSON + markdown data model with the programmatic inline-vs-sidecar promotion rule and hysteresis.
 - The index file with `alwaysLoad`.
 - Preferences treated as normal data with `alwaysLoad`.
-- The interaction log (without sophisticated replay-correction *tooling* yet — see below).
+- Operations log (§7.2) — append-only JSONL of atomic data changes. Bijection with git commits.
 - Local-first sync against a GitHub repo of state files (no DB).
 - Single bot vendor active (Anthropic, via either Claude API or Claude Code), behind an adapter layer designed to admit others later.
 - Cost ledger with daily / weekly / monthly summaries and a hard cap per key.
@@ -823,7 +882,6 @@ This is especially important because the bot is involved in execution — a migr
 - **Multi-vendor active support** — Gemini and OpenAI adapters, parallel to Anthropic.
 - **Structured data-request discovery flow** — transition from eager-load-everything when data grows.
 - **Tool-use-driven discovery** — only if iterative exploration genuinely earns its keep.
-- **Replay-based correction UI** — the rewind → replay-with-hint → OK-or-corrected loop made operationally accessible. v1 has the log; the UI for it can come later.
 - **Database adoption for query-heavy data** — to-do filtering, calendar querying. Supabase or similar via the lazy JSON pattern.
 - **Cross-chat history continuity** — re-loading prior chat threads when picking up a multi-day project conversation.
 - **Sophisticated conflict resolution** — if real conflicts appear in practice beyond the "rare and manual" baseline.
@@ -847,7 +905,7 @@ This is especially important because the bot is involved in execution — a migr
 - **The bot designs the data structure.** Files, schemas, organisation evolve with use; no upfront schema design.
 - **Files (JSON + markdown) are the source of truth.** Human-readable, LLM-friendly, version-controllable.
 - **Local-first.** The UI never blocks on the network. Remote sync is a background concern.
-- **Audit by interaction log, not by giant commit messages.** Enables replay-based correction.
+- **Audit by git commits + an operations log; correction goes forward.** The bot writes commit messages; the runtime appends an ops-only log entry per atomic data change. Mistakes are fixed by telling the bot what was wrong — history doesn't rewind.
 - **Cost-aware by design.** Output-token frugality drives patch format, cache structure, model selection, and discovery flow.
 - **AI substrate is open and pluggable at low cost** — design preserves multi-vendor optionality, but doesn't pay heavily for it.
 - **No information loss.** Conflict resolution can be manual or inconvenient, but never silently drops user-provided data.
@@ -859,10 +917,10 @@ This is especially important because the bot is involved in execution — a migr
 The following are explicitly not yet decided. Each may close out during implementation as the constraints become concrete.
 
 - **Remote storage substrate** — GitHub repo of files vs. GitHub with fine-grained patch-log-style commits vs. Firebase/Supabase (§8.3). *Working assumption: GitHub repo.*
-- **Whether to adopt a database in v1** for query-heavy data (§4.7). *Working assumption: no DB for v1.*
+- **Whether to adopt a database in v1** for query-heavy data (§4.8). *Working assumption: no DB for v1.*
 - **Conflict resolution mechanics** (§8.4) — semantic merge vs. data-shape choices vs. hybrid. Mostly insurance for the single-user-multi-device pattern.
-- **Sidecar filename convention** (§4.4) — hash vs. JSON-path-derived vs. sidecar-directory-per-JSON. *Leaning sidecar-directory.*
-- **Specifics of the bot's awareness of recent UI edits.** The §9.2 unified pipeline ensures UI edits land in the same files and the same interaction log as bot edits, so the bot's next read of state is current by construction. Open sub-question: whether the bot should be shown recent UI-edit log entries as context ("the user just added X via the UI") to inform its reasoning, or whether the data state alone is sufficient signal.
+- **Sidecar filename convention** (§4.5) — hash vs. JSON-path-derived vs. sidecar-directory-per-JSON. *Leaning sidecar-directory.*
+- **Specifics of the bot's awareness of recent UI edits.** The §9.2 unified pipeline ensures UI edits land in the same files and the same operations log as bot edits, so the bot's next read of state is current by construction. Open sub-question: whether the bot should be shown recent UI-edit log entries as context ("the user just added X via the UI") to inform its reasoning, or whether the data state alone is sufficient signal.
 - **Data types to enumerate beyond the obvious** — to-do, calendar, projects, notes, presentations, preferences are clearly in scope. The full list emerges from use.
 - **Discovery-flow transition threshold** (§6.3) — at what data volume to graduate from eager-load-everything to structured data requests.
 - **Cross-chat history retrieval** — whether and how to continue conversations across days or weeks by re-loading a prior chat thread's history into context.

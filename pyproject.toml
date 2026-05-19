@@ -13,6 +13,9 @@ authors = [
 ]
 dependencies = []
 
+[project.scripts]
+jadelens = "jadelens.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

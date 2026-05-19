@@ -661,11 +661,9 @@ If a future feature genuinely benefits from a Claude-specific pattern at low por
 
 ## 12. Claude Code TUI Integration
 
-For desktop use while coding in an IDE, JADE LENS is available inside the Claude Code TUI through a single **`/jade`** skill that covers all use cases (logging new information, querying old information, chatting). A symlink `/jv` may serve as a shortcut.
+For desktop use while coding in an IDE, JADE LENS is available inside the Claude Code TUI through a single **`/jade`** skill that covers all use cases (logging new information, querying old information, chatting). The skill is installed via a one-time `install` command (see §12.7) into the user's per-user Claude Code skills directory, so every `claude` session picks it up automatically without alias or `--add-dir` setup. Users who prefer a different invocation name (`/jarvis`, `/jv`, etc.) pick it at install time; no symlinks or shell aliases are involved.
 
-Setup:
-- `alias claude='claude --add-dir /path/to/jade-lens'` in `.bashrc` / `.zshrc`.
-- The skill operates on a local clone of the data and honours the same data conventions as the web app.
+The skill operates on a local clone of the data and honours the same data conventions as the web app.
 
 ### 12.1 Shared data + shared mutation pipeline; divergent context-assembly
 
@@ -726,11 +724,60 @@ Optional later: the bot may *self-report* a load-bearing read in its response pr
 
 ### 12.6 Scope and phasing
 
-Given that the `/jade` skill amounts to a SKILL.md + the custom mutation tool wrapping the existing pipeline + the `claude` alias setup, it's **planned for v1**. The cost is dramatically lower than "a second implementation."
+Given that the `/jade` skill amounts to a SKILL.md template + the custom mutation tool wrapping the existing pipeline + a small installer/update script (§12.7), it's **planned for v1**. The cost is dramatically lower than "a second implementation."
 
-### 12.7 Skill name (user-configurable)
+### 12.7 Installation, updates, and configuration
 
-The default slash command is `/jade`. At install time, the user is asked whether they want to use a different name (and perhaps a default suggestion is derived from the name the user chose in the web app, e.g. "Bob" → `/bob`). If a different name `<name>` is desired, a gitignored symlink to the `/jade` skill is created, so the user can call `/<name>` instead. A link to a Wikipedia list of famous fictional AIs can serve as inspiration for those who want to pick a new name.
+The `/jade` skill lives in the user's per-user Claude Code skills directory at `~/.claude/skills/<name>/SKILL.md`. That location is auto-discovered by every Claude Code session — no aliasing, no `--add-dir`, no shell-config edits. The user-chosen name appears in TUI tab-completion (the frontmatter `name:` field matches the directory name).
+
+The installed SKILL.md is **rendered from a versioned template** in the code repo. Templates live at `templates/skill/v<version>.md` (or similar — exact path TBD), one file per template version. Templates use `{{PLACEHOLDER}}` syntax for config values filled in at install time (e.g. `{{SKILL_NAME}}`, `{{DATA_REPO_PATH}}`, `{{CODE_REPO_PATH}}`).
+
+The rendered SKILL.md carries a marker comment near the top:
+
+```markdown
+<!-- jade-lens-skill template-version=0.1.0 -->
+```
+
+The marker contains **only the template version**. No config values — they exist exclusively as concrete substituted strings in the body. This is the source-of-truth invariant: each config value appears in the rendered body exactly as many times as its placeholder appeared in the template, and the rebuild tool can recover each value by inverting the template (regex-extracting at the placeholder positions).
+
+#### Why this shape
+
+- **Bot cost is minimal.** Paths appear concretely inline; no variable resolution at runtime. (Asking the bot to look up a value from a comment block was considered and rejected — recalling exact substrings from markdown comments is a brittle thing to depend on.)
+- **No second config file.** The skill is the only persisted state on the user's machine. Nothing to read or permission-check at session start.
+- **Versioned templates decouple template evolution from installed skills.** New template versions can add, remove, rename, or reposition placeholders freely; existing installs continue to be re-extractable because their template version is recorded and never deleted from the repo.
+- **Manual edits are detectable on rebuild.** Regex extraction either fails entirely or returns disagreeing values when the same placeholder rendered to multiple body locations and the user edited only some. The tool surfaces this and offers either manual fix or re-prompting.
+
+#### Installer flow (`install` command)
+
+1. Run from the code repo's clone directory (it knows its own location, so `code_repo_path` is not user-prompted).
+2. Prompt for skill name (default `jade`) and absolute path to the data repo's local clone (validated: must exist and be a git repo).
+3. Pick the highest-version template in `templates/`.
+4. Render placeholders → write to `~/.claude/skills/<name>/SKILL.md`.
+
+If a jade-lens skill already exists at `~/.claude/skills/<name>/`, prompt to confirm overwrite.
+
+#### Update flow (`update` command)
+
+1. `git pull` the code repo.
+2. Scan `~/.claude/skills/*/SKILL.md` for the jade-lens marker. May find zero, one, or more installs.
+3. For each install:
+   a. Read its `template-version` from the marker.
+   b. Locate the matching template (immutable invariant: shipped template versions are never deleted from the repo).
+   c. Regex-extract config values from the installed skill by inverting that template's placeholders.
+   d. **If extraction succeeds** (all placeholders matched, multi-placeholder values agree across positions): pick the highest-version template available, re-render with the extracted values, write back. The new render may use the same template version if the latest didn't change the template, or a newer one if it did.
+   e. **If extraction fails** (a regex didn't match, or two extracted values that should be the same disagree): warn the user, show what went wrong, offer either (i) abort so they can fix the skill manually, or (ii) re-prompt for all config values and re-render fresh.
+
+#### Config-change flow
+
+Same as update, but with one or more extracted values overridden by user-provided new values before the re-render. Reuses all the same machinery; no separate code path.
+
+#### Skill rename
+
+Rename is treated as a config change to the `skill_name` field. After re-rendering at the new location, the old `~/.claude/skills/<old-name>/SKILL.md` is **deleted**. The tool tells the user explicitly before proceeding. Two installed skills sharing the same data repo provides no value and risks the two installs diverging over future updates, so this case is actively prevented.
+
+#### Multi-install support
+
+The marker scan returns all jade-lens skills, so `update` and config commands work over multiple installs simultaneously. The motivating use case is *different data repos* — e.g. `/jade` for personal data and `/family-jade` for a shared family data repo. Each install carries its own `template-version` and `data_repo_path` independently. The constraint above (no two installs on the same data repo) is the only restriction.
 
 ---
 
@@ -806,8 +853,9 @@ The running code keeps itself current before any data work happens.
 - Works around GitHub Pages caching without anything exotic. Service Worker integration can come later as polish.
 
 **`/jade` Claude Code skill**:
-- On invocation, `git pull` the code-repo local clone.
-- **Caveat**: a running Claude Code session does not re-read its skills mid-session. So a `pull` mid-session doesn't propagate. Mitigation: the skill checks its own version on every invocation and refuses to proceed if stale, asking the user to restart Claude Code so the new skill version is loaded.
+- The installed skill at `~/.claude/skills/<name>/SKILL.md` does **not** self-update on invocation. Instead, the user runs the `update` command from the code-repo clone (see §12.7), which performs `git pull` and re-renders all installed jade-lens skills from the latest template, preserving each install's config values.
+- The skill does not perform a staleness check at invocation time — that would cost a tool call (or bot cognition) on every interaction for a check that's almost always negative. The user runs `update` deliberately whenever they want to pull in template/code changes.
+- A running Claude Code session does not re-read its skills mid-session; an update propagates on the next session.
 
 ### 14.4 Version comparison on every load
 

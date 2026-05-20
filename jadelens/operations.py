@@ -7,10 +7,13 @@ commit; the workflow orchestrator (jadelens.handle_bot_response) commits
 after all ops in a batch have applied successfully.
 """
 
+import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import jsonpatch
 
 
 class ValidationError(Exception):
@@ -77,7 +80,32 @@ class JsonPatch:
     patch: list[dict[str, Any]]
 
     def apply(self, data_repo: Path) -> None:
-        raise NotImplementedError
+        target = data_repo / self.path
+        if not target.exists():
+            raise ApplyError(
+                f"json_patch: target file does not exist: {self.path}"
+            )
+        if not target.is_file():
+            raise ApplyError(
+                f"json_patch: target is not a file: {self.path}"
+            )
+
+        try:
+            original = json.loads(target.read_text())
+        except json.JSONDecodeError as e:
+            raise ApplyError(
+                f"json_patch: target {self.path} is not valid JSON: {e}"
+            ) from e
+
+        try:
+            patch = jsonpatch.JsonPatch(self.patch)
+            result = patch.apply(original)
+        except jsonpatch.JsonPatchException as e:
+            raise ApplyError(
+                f"json_patch: failed to apply patch on {self.path}: {e}"
+            ) from e
+
+        target.write_text(json.dumps(result, indent=2) + "\n")
 
 
 @dataclass(slots=True, frozen=True)

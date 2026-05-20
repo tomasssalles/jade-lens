@@ -1,0 +1,14 @@
+#!/bin/bash
+# handle_bot_response — bash wrapper that dispatches to the Python entry point.
+#
+# Usage:
+#   handle_bot_response <data_repo_path> <<'EOF'
+#   { "commit_message": "...", "operations": [...] }
+#   EOF
+#
+# The bot calls this with the data repo path as the only positional arg
+# and the JSON payload on stdin.
+
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec uv run --project "$SCRIPT_DIR/.." python -m jadelens.handle_bot_response "$@"

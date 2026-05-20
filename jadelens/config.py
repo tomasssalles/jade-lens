@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class Config:
     skill_name: str
     data_repo_path: Path

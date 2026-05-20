@@ -15,6 +15,12 @@ from typing import Any
 
 import jsonpatch
 
+from jadelens.unified_diff import (
+    DiffApplyError,
+    DiffParseError,
+    apply_unified_diff,
+)
+
 
 class ValidationError(Exception):
     """A bot-emitted operation failed structural validation."""
@@ -114,7 +120,29 @@ class UnifiedDiff:
     diff: str
 
     def apply(self, data_repo: Path) -> None:
-        raise NotImplementedError
+        target = data_repo / self.path
+        if not target.exists():
+            raise ApplyError(
+                f"unified_diff: target file does not exist: {self.path}"
+            )
+        if not target.is_file():
+            raise ApplyError(
+                f"unified_diff: target is not a file: {self.path}"
+            )
+
+        original = target.read_text()
+        try:
+            new_content = apply_unified_diff(original, self.diff)
+        except DiffParseError as e:
+            raise ApplyError(
+                f"unified_diff: parse error on {self.path}: {e}"
+            ) from e
+        except DiffApplyError as e:
+            raise ApplyError(
+                f"unified_diff: apply failed on {self.path}: {e}"
+            ) from e
+
+        target.write_text(new_content)
 
 
 Operation = CreateFile | DeletePath | RenamePath | JsonPatch | UnifiedDiff

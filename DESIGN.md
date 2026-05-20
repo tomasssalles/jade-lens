@@ -118,7 +118,7 @@ The bot mutates the data exclusively through a single tool (the web app's API or
 | `json_patch` | RFC 6902 patch against a JSON file. |
 | `unified_diff` | Unified diff against an existing markdown file, with **0 context lines** as the default to minimise output tokens. |
 | `create_file` | Create a new file (JSON or markdown) with initial content. Missing parent directories are auto-created (`mkdir -p`). |
-| `delete_file` | Delete an existing file. Refused if any path reference still points to it (see §4.3). |
+| `delete_path` | Recursive delete of a file or a directory (`git rm -r`). Refused if any path reference still points to anything under the target (see §4.3). |
 | `rename_path` | Rename a file or a directory. Content is preserved verbatim; path references elsewhere are auto-rewritten by the runtime (see §4.3). |
 
 **Verification.**
@@ -151,7 +151,7 @@ External URLs (`http://...`, `https://...`, etc.) are NOT written as wikilinks �
 3. Each matching wikilink is rewritten in place — path swapped from `from` to `to`.
 4. All rewrites + the rename land in a single git commit, atomic.
 
-**Delete mechanics (`delete_file`).**
+**Delete mechanics (`delete_path`).**
 
 1. Runtime scans every data-repo file for wikilinks pointing to the target path.
 2. If any exist, the tool fails and reports the referencing paths back to the bot. The bot clears the references (rewrite or remove) and re-issues the delete.
@@ -399,7 +399,7 @@ The data repo carries an append-only JSONL log (path TBD, e.g. `.jade/log.jsonl`
 {"ts": "2026-05-18T14:23:11Z", "operations": [<op>, <op>, ...]}
 ```
 
-The `operations` field contains the same typed structures defined in §4.2 — `json_patch`, `unified_diff`, `create_file`, `delete_file`, `rename_path` — exactly as the bot or the UI emitted them.
+The `operations` field contains the same typed structures defined in §4.2 — `json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path` — exactly as the bot or the UI emitted them.
 
 **No prompt, no response text, no commit SHA.** The commit identity is recoverable from git: each atomic data change touches the log file with exactly one new line, so line N of the log maps to the Nth commit that touched the log. The runtime is the only writer; if the assumption is broken by an external editor, the bijection breaks for that entry only.
 
@@ -483,7 +483,7 @@ Instead, the UI is **a comfortable, modern view onto the data as it is**, with a
 
 ### 9.2 UI edits feed the same pipeline as bot edits
 
-Every UI mutation produces the same artefacts the bot produces — operations of the types defined in §4.2 (JSON Patch, unified diff, `create_file`, `delete_file`, `rename_path`). These flow through the **same runtime pipeline** as bot output:
+Every UI mutation produces the same artefacts the bot produces — operations of the types defined in §4.2 (JSON Patch, unified diff, `create_file`, `delete_path`, `rename_path`). These flow through the **same runtime pipeline** as bot output:
 
 1. Inline-vs-sidecar promotion check (§4.4).
 2. Verification.
@@ -670,7 +670,7 @@ The skill operates on a local clone of the data and honours the same data conven
 The web app and `/jade` share:
 
 - The **data conventions** (JSON + markdown layout, index file with annotations, sidecar promotion rule, etc.).
-- The **mutation pipeline** — a CLI/library that applies the operation set of §4.2 (JSON Patches, unified diffs, `create_file`, `delete_file`, `rename_path`), verifies them, runs the inline-vs-sidecar promotion programmatically, rewrites wikilink path references on rename (§4.3), creates the git commit and appends the operations-log entry (§7), and queues the change for sync. This is the same code used by the web app's runtime and by the `/jade` skill via a custom Claude-Code tool (see §12.2).
+- The **mutation pipeline** — a CLI/library that applies the operation set of §4.2 (JSON Patches, unified diffs, `create_file`, `delete_path`, `rename_path`), verifies them, runs the inline-vs-sidecar promotion programmatically, rewrites wikilink path references on rename (§4.3), creates the git commit and appends the operations-log entry (§7), and queues the change for sync. This is the same code used by the web app's runtime and by the `/jade` skill via a custom Claude-Code tool (see §12.2).
 
 They differ in:
 
@@ -688,9 +688,30 @@ So the `/jade` skill is **not** a parallel implementation of the web app's logic
 
 The `/jade` skill provides Claude Code with a custom tool — call it `handle_bot_response` for now — whose input is the same shape the web app's API responses use:
 
-- **Operations** — the typed set defined in §4.2: `json_patch`, `unified_diff`, `create_file`, `delete_file`, `rename_path`.
+- **Operations** — the typed set defined in §4.2: `json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path`.
 - **A concise commit message** — one line, written by the bot (§7.3). The bot does NOT repeat the user's verbatim prompt; that would cost real output tokens for marginal audit value (the in-context prompt is usually meaningless without the surrounding Claude Code chat anyway).
 - **Lazy-JSON queries** for DB-backed data (§4.8) or external calendars (§10.2) — translated to API calls and projected to JSON the bot can read.
+
+#### Wire format
+
+The bot invokes the tool with the data-repo path as the only positional argument and a single JSON object on stdin (heredoc avoids shell-escaping concerns for multi-line content):
+
+```bash
+handle_bot_response /home/tom/dev/jarvis <<'EOF'
+{
+  "commit_message": "<one-line summary>",
+  "operations": [
+    { "op": "create_file",  "path": "...",  "content": "..." },
+    { "op": "delete_path",  "path": "..." },
+    { "op": "rename_path",  "from": "...",  "to": "..." },
+    { "op": "json_patch",   "path": "...",  "patch": [ <RFC 6902 op>, ... ] },
+    { "op": "unified_diff", "path": "...",  "diff": "..." }
+  ]
+}
+EOF
+```
+
+All `path` / `from` / `to` values are relative to the data-repo root. Multi-line content (markdown bodies, unified diffs) embeds in JSON via `\n` escapes — Claude does this reliably. Validation is strict: each op declares its exact required keys, no extras tolerated. This catches realistic bot mistakes such as forgetting to wrap a single JSON-Patch op in a list (passing `"patch": {...}` instead of `"patch": [{...}]`).
 
 The tool routes through the **same runtime pipeline** as the web app: verification, programmatic inline-vs-sidecar promotion (§4.4), wikilink rewrite on rename (§4.3), git commit + log append (§7), queue for sync. Files end up structurally identical regardless of which client made the change.
 

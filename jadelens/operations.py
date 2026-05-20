@@ -1,11 +1,13 @@
 """Typed operation classes for handle_bot_response.
 
-Each ``Operation`` knows its inputs after structural validation. ``apply``
-methods are stubs at this point — they're filled in by subsequent
-implementation steps (create/delete/rename, then json_patch, then
-unified_diff).
+Each ``Operation`` knows its inputs after structural validation, and how
+to ``apply`` itself to a data repo. ``apply`` mutates the data repo's
+working tree (and, for delete/rename, the git index too) but does not
+commit; the workflow orchestrator (jadelens.handle_bot_response) commits
+after all ops in a batch have applied successfully.
 """
 
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,13 +17,21 @@ class ValidationError(Exception):
     """A bot-emitted operation failed structural validation."""
 
 
+class ApplyError(Exception):
+    """An operation failed during application to the data repo."""
+
+
 @dataclass(slots=True, frozen=True)
 class CreateFile:
     path: str
     content: str
 
     def apply(self, data_repo: Path) -> None:
-        raise NotImplementedError
+        target = data_repo / self.path
+        if target.exists():
+            raise ApplyError(f"create_file: target already exists: {self.path}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(self.content)
 
 
 @dataclass(slots=True, frozen=True)
@@ -31,7 +41,11 @@ class DeletePath:
     path: str
 
     def apply(self, data_repo: Path) -> None:
-        raise NotImplementedError
+        target = data_repo / self.path
+        if not target.exists():
+            raise ApplyError(f"delete_path: target does not exist: {self.path}")
+        # `git rm -r --force` handles file or directory and stages deletion.
+        _git(data_repo, ["rm", "-r", "--force", "--", self.path])
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,7 +54,21 @@ class RenamePath:
     to_path: str
 
     def apply(self, data_repo: Path) -> None:
-        raise NotImplementedError
+        source = data_repo / self.from_path
+        target = data_repo / self.to_path
+        if not source.exists():
+            raise ApplyError(
+                f"rename_path: source does not exist: {self.from_path}"
+            )
+        if target.exists():
+            raise ApplyError(
+                f"rename_path: target already exists: {self.to_path}"
+            )
+        # git mv doesn't auto-create the target's parent directory; do it
+        # ourselves so renames into a new subdirectory work in one step
+        # (symmetric with create_file's mkdir -p of missing parents).
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _git(data_repo, ["mv", "--", self.from_path, self.to_path])
 
 
 @dataclass(slots=True, frozen=True)
@@ -153,3 +181,16 @@ def _require_str(raw: dict, key: str) -> str:
             f"Field {key!r} must be a string, got {type(value).__name__}"
         )
     return value
+
+
+def _git(data_repo: Path, args: list[str]) -> None:
+    """Run a git command in ``data_repo``, raising ``ApplyError`` on failure."""
+    result = subprocess.run(
+        ["git", "-C", str(data_repo), *args],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise ApplyError(
+            f"`git {' '.join(args)}` failed: {result.stderr.strip()}"
+        )

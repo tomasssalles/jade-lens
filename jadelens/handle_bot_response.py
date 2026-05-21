@@ -20,6 +20,7 @@ from pathlib import Path
 
 from jadelens import workflow
 from jadelens.operations import ApplyError, ValidationError
+from jadelens.reflection import format_reflection
 
 
 def main() -> None:
@@ -59,10 +60,7 @@ def main() -> None:
     ) as e:
         sys.exit(f"{type(e).__name__}: {e}")
 
-    # Task 22 will replace this with a richer reflection (full per-op content).
-    print(f"Applied {len(raw_ops)} operation(s) to {data_repo}")
-    print(f"Commit: {commit_sha}")
-    print(f"Message: {commit_message}")
+    print(format_reflection(commit_sha, commit_message, raw_ops), end="")
 
 
 if __name__ == "__main__":

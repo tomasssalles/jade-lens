@@ -30,6 +30,12 @@ class ApplyError(Exception):
     """An operation failed during application to the data repo."""
 
 
+# The set of file suffixes the bot is allowed to *create*. Adding a new
+# entry here automatically extends what unified_diff can target (since
+# unified_diff allows anything except .json — the json_patch path).
+EDITABLE_FILE_SUFFIXES = (".json", ".md")
+
+
 @dataclass(slots=True, frozen=True)
 class CreateFile:
     path: str
@@ -179,10 +185,13 @@ def parse_operation(raw: Any) -> Operation:
 
 def _parse_create_file(raw: dict) -> CreateFile:
     _require_exact_keys(raw, {"op", "path", "content"})
-    return CreateFile(
-        path=_require_str(raw, "path"),
-        content=_require_str(raw, "content"),
-    )
+    path = _require_str(raw, "path")
+    if not path.endswith(EDITABLE_FILE_SUFFIXES):
+        raise ValidationError(
+            f"create_file path must end with one of {EDITABLE_FILE_SUFFIXES} "
+            f"(got {path!r})"
+        )
+    return CreateFile(path=path, content=_require_str(raw, "content"))
 
 
 def _parse_delete_path(raw: dict) -> DeletePath:
@@ -200,20 +209,29 @@ def _parse_rename_path(raw: dict) -> RenamePath:
 
 def _parse_json_patch(raw: dict) -> JsonPatch:
     _require_exact_keys(raw, {"op", "path", "patch"})
+    path = _require_str(raw, "path")
+    if not path.endswith(".json"):
+        raise ValidationError(
+            f"json_patch path must end with '.json' (got {path!r}); "
+            f"use unified_diff for non-JSON files"
+        )
     patch = raw["patch"]
     if not isinstance(patch, list):
         raise ValidationError(
             f"json_patch 'patch' must be a list, got {type(patch).__name__}"
         )
-    return JsonPatch(path=_require_str(raw, "path"), patch=patch)
+    return JsonPatch(path=path, patch=patch)
 
 
 def _parse_unified_diff(raw: dict) -> UnifiedDiff:
     _require_exact_keys(raw, {"op", "path", "diff"})
-    return UnifiedDiff(
-        path=_require_str(raw, "path"),
-        diff=_require_str(raw, "diff"),
-    )
+    path = _require_str(raw, "path")
+    if path.endswith(".json"):
+        raise ValidationError(
+            f"unified_diff cannot target JSON files (got {path!r}); "
+            f"use json_patch for .json files"
+        )
+    return UnifiedDiff(path=path, diff=_require_str(raw, "diff"))
 
 
 def _require_exact_keys(raw: dict, allowed: set[str]) -> None:

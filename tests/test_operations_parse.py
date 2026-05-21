@@ -107,3 +107,43 @@ def test_rename_path_missing_to_raises():
     raw = {"op": "rename_path", "from": "a"}
     with pytest.raises(ValidationError, match="missing required keys"):
         parse_operation(raw)
+
+
+def test_json_patch_rejects_non_json_path():
+    """A bot using json_patch on a non-JSON file is a likely mistake."""
+    raw = {
+        "op": "json_patch",
+        "path": "notes.md",
+        "patch": [{"op": "add", "path": "/x", "value": 1}],
+    }
+    with pytest.raises(ValidationError, match="must end with '.json'"):
+        parse_operation(raw)
+
+
+def test_unified_diff_rejects_json_path():
+    """A bot using unified_diff on a .json file is a likely mistake;
+    json_patch is the right tool for JSON."""
+    raw = {"op": "unified_diff", "path": "data.json", "diff": "@@ -1 +1 @@\n-a\n+A\n"}
+    with pytest.raises(ValidationError, match="cannot target JSON"):
+        parse_operation(raw)
+
+
+def test_unified_diff_accepts_non_json_extension():
+    """unified_diff allows any non-.json suffix — extensible to future
+    text-like file types without changing this rule."""
+    raw = {"op": "unified_diff", "path": "notes.md", "diff": "@@ -1 +1 @@\n-a\n+A\n"}
+    parse_operation(raw)  # must not raise
+
+
+def test_create_file_rejects_unsupported_suffix():
+    """create_file is restricted to the editable file-type set; the bot
+    shouldn't be able to create e.g. 'notes.txt' because then it couldn't
+    coherently edit it later (we'd have to delete-and-recreate)."""
+    raw = {"op": "create_file", "path": "notes.txt", "content": "hi"}
+    with pytest.raises(ValidationError, match="must end with one of"):
+        parse_operation(raw)
+
+
+def test_create_file_accepts_md():
+    raw = {"op": "create_file", "path": "notes.md", "content": "# notes\n"}
+    parse_operation(raw)  # must not raise

@@ -7,7 +7,12 @@ semantics rather than the fuzzy / line-number-drift behaviour of GNU
 - All hunks within a diff reference the **original** file's line numbers.
   The bot reads the file once, plans multiple edits against that snapshot,
   and emits one diff with multiple hunks.
-- Hunks must be in strictly increasing ``-L`` order and must not overlap.
+- Hunks are canonicalised to ``(old_start, addressing-first)`` order
+  during parse, then checked for non-overlap. The bot may emit hunks in
+  any order; semantically equivalent inputs converge to the same
+  canonical form. Real conflicts (two addressing hunks at the same line,
+  an insert inside an addressing range, etc.) still fail the overlap
+  check independent of input order.
 - Each ``-`` line in a hunk must match the file's line at its claimed
   position exactly, byte-for-byte (modulo the trailing newline). Any
   mismatch aborts the entire diff with an informative error.
@@ -109,6 +114,10 @@ def parse_unified_diff(diff_text: str) -> list[Hunk]:
             )
         )
 
+    # Canonicalise: sort by (old_start, addressing-before-pure-insert).
+    # The bot may emit hunks in any order; this collapses semantically
+    # equivalent inputs to one canonical form before the overlap check.
+    hunks.sort(key=lambda h: (h.old_start, 0 if h.old_count > 0 else 1))
     _verify_ordering_and_non_overlap(hunks)
     return hunks
 

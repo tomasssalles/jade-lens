@@ -1,10 +1,8 @@
 """Python entry point for the ``handle_bot_response`` tool.
 
-Reads a JSON payload from stdin, validates it, and (in later iterations)
-applies the operations to the data repo, appends a log entry, and commits.
-
-Task 17 scaffold: parse + validate + print a stub line per op. Real apply
-and workflow logic land in subsequent tasks.
+Reads a JSON payload from stdin and hands it to ``workflow.run``, which
+parses + validates + applies + commits atomically. Prints a stdout
+reflection of the applied operations (task 22).
 
 CLI:
     handle_bot_response <data_repo_path>
@@ -20,7 +18,8 @@ import json
 import sys
 from pathlib import Path
 
-from jadelens.operations import ValidationError, parse_operation
+from jadelens import workflow
+from jadelens.operations import ApplyError, ValidationError
 
 
 def main() -> None:
@@ -51,15 +50,19 @@ def main() -> None:
         sys.exit("Payload 'operations' must not be empty")
 
     try:
-        operations = [parse_operation(op) for op in raw_ops]
-    except ValidationError as e:
-        sys.exit(f"Operation validation failed: {e}")
+        commit_sha = workflow.run(data_repo, raw_ops, commit_message)
+    except (
+        ValidationError,
+        workflow.BatchValidationError,
+        workflow.WorkflowError,
+        ApplyError,
+    ) as e:
+        sys.exit(f"{type(e).__name__}: {e}")
 
-    # Stub: announce what would happen. Real apply lands in task 18+.
-    print(f"Would apply {len(operations)} operation(s) to {data_repo}")
-    print(f"Commit message: {commit_message}")
-    for i, op in enumerate(operations, 1):
-        print(f"  [{i}] {type(op).__name__}: {op}")
+    # Task 22 will replace this with a richer reflection (full per-op content).
+    print(f"Applied {len(raw_ops)} operation(s) to {data_repo}")
+    print(f"Commit: {commit_sha}")
+    print(f"Message: {commit_message}")
 
 
 if __name__ == "__main__":

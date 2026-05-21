@@ -141,10 +141,22 @@ def test_parse_rejects_unknown_line_in_hunk_body():
 # ---------- Ordering / overlap ----------
 
 
-def test_parse_rejects_hunks_out_of_order():
+def test_parse_canonicalises_out_of_order_hunks():
+    """Bot may emit hunks in any order; parse sorts them before the
+    overlap check. Semantically equivalent inputs converge."""
     diff = "@@ -5 +5 @@\n-e\n+E\n@@ -2 +2 @@\n-b\n+B\n"
-    with pytest.raises(DiffParseError, match="out of order or overlapping"):
-        parse_unified_diff(diff)
+    hunks = parse_unified_diff(diff)
+    assert [h.old_start for h in hunks] == [2, 5]
+
+
+def test_parse_canonicalises_pure_insert_emitted_before_addressing_at_same_line():
+    """At the same old_start, addressing sorts before pure-insert
+    (the addressing hits the line itself; the insert lands at the boundary
+    just after). Either input order yields the same canonical sequence."""
+    diff = "@@ -5,0 +6 @@\n+X\n@@ -5 +5 @@\n-e\n+E\n"
+    hunks = parse_unified_diff(diff)
+    assert hunks[0].old_count == 1  # addressing first
+    assert hunks[1].old_count == 0  # pure insert second
 
 
 def test_parse_rejects_overlapping_addressing_hunks():

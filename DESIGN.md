@@ -393,15 +393,17 @@ Pure queries — `/jade` calls that don't change data, UI navigation, bot answer
 
 ### 7.2 The operations log
 
-The data repo carries an append-only JSONL log (path TBD, e.g. `.jade/log.jsonl`). Each line corresponds to one atomic data change:
+The data repo carries an append-only JSONL log at `.jade/operations-log.jsonl`. Each line corresponds to one atomic data change:
 
 ```json
-{"ts": "2026-05-18T14:23:11Z", "operations": [<op>, <op>, ...]}
+{"ts": "2026-05-18T14:23:11Z", "commit_message": "<one-line summary>", "operations": [<op>, <op>, ...]}
 ```
 
 The `operations` field contains the same typed structures defined in §4.2 — `json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path` — exactly as the bot or the UI emitted them.
 
 **No prompt, no response text, no commit SHA.** The commit identity is recoverable from git: each atomic data change touches the log file with exactly one new line, so line N of the log maps to the Nth commit that touched the log. The runtime is the only writer; if the assumption is broken by an external editor, the bijection breaks for that entry only.
+
+**Commit message is duplicated, intentionally.** It also lives in git's commit message (§7.3). Keeping it in the log entry too makes the log self-sufficient as the canonical audit record — a future move off git as the substrate (e.g. to Postgres per §15.2) doesn't lose intent metadata.
 
 **Purpose.** The log preserves operation semantics that a raw git diff would lose — most notably JSON Patch `move` ops, which appear as delete-here + add-there in a diff but as a single intent-carrying op in the log. It also offers programmatic introspection ("every time the runtime promoted inline-to-sidecar," "every rename the bot did this week"), which is especially valuable during early development when the goal is observing and tuning bot behaviour.
 

@@ -229,12 +229,15 @@ def test_require_clean_tree_rejects_untracked_file(data_repo: Path):
 
 def test_append_log_entry_creates_file_if_missing(data_repo: Path):
     raw_ops = [{"op": "create_file", "path": "x", "content": "hi"}]
-    append_log_entry(data_repo, raw_ops, "2026-05-21T10:00:00+00:00")
+    append_log_entry(
+        data_repo, raw_ops, "Add x", "2026-05-21T10:00:00+00:00"
+    )
     log = data_repo / ".jade" / "operations-log.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
     assert entry == {
         "ts": "2026-05-21T10:00:00+00:00",
+        "commit_message": "Add x",
         "operations": raw_ops,
     }
 
@@ -242,15 +245,23 @@ def test_append_log_entry_creates_file_if_missing(data_repo: Path):
 def test_append_log_entry_appends_to_existing(data_repo: Path):
     (data_repo / ".jade").mkdir()
     log = data_repo / ".jade" / "operations-log.jsonl"
-    log.write_text('{"ts": "earlier", "operations": []}\n')
+    log.write_text(
+        '{"ts": "earlier", "commit_message": "seed", "operations": []}\n'
+    )
     append_log_entry(
-        data_repo, [{"op": "delete_path", "path": "x"}], "2026-05-21T11:00:00+00:00"
+        data_repo,
+        [{"op": "delete_path", "path": "x"}],
+        "Drop x",
+        "2026-05-21T11:00:00+00:00",
     )
     lines = log.read_text().splitlines()
     assert len(lines) == 2
     second = json.loads(lines[1])
-    assert second["ts"] == "2026-05-21T11:00:00+00:00"
-    assert second["operations"] == [{"op": "delete_path", "path": "x"}]
+    assert second == {
+        "ts": "2026-05-21T11:00:00+00:00",
+        "commit_message": "Drop x",
+        "operations": [{"op": "delete_path", "path": "x"}],
+    }
 
 
 # ====================================================================
@@ -304,10 +315,11 @@ def test_run_happy_path_create_file(data_repo: Path):
         "Add empty todo list",
     )
     assert (data_repo / "todos.json").read_text() == "[]\n"
-    # Log entry exists.
+    # Log entry exists with the commit message inlined.
     log = data_repo / ".jade" / "operations-log.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
+    assert entry["commit_message"] == "Add empty todo list"
     assert entry["operations"] == [
         {"op": "create_file", "path": "todos.json", "content": "[]\n"}
     ]

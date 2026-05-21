@@ -225,12 +225,25 @@ LOG_RELATIVE_PATH = Path(".jade") / "operations-log.jsonl"
 
 
 def append_log_entry(
-    data_repo: Path, raw_operations: list[dict], timestamp: str
+    data_repo: Path,
+    raw_operations: list[dict],
+    commit_message: str,
+    timestamp: str,
 ) -> None:
-    """Append one JSONL entry to ``.jade/operations-log.jsonl``."""
+    """Append one JSONL entry to ``.jade/operations-log.jsonl``.
+
+    The commit_message is duplicated here (it's also git's commit message)
+    deliberately: it keeps the log self-sufficient as the canonical audit
+    record, so a future move off git as the substrate (e.g. to Postgres)
+    doesn't lose intent metadata.
+    """
     log_path = data_repo / LOG_RELATIVE_PATH
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    entry = {"ts": timestamp, "operations": raw_operations}
+    entry = {
+        "ts": timestamp,
+        "commit_message": commit_message,
+        "operations": raw_operations,
+    }
     with log_path.open("a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -262,7 +275,7 @@ def run(
         for op in effective:
             op.apply(data_repo)
         timestamp = datetime.now(timezone.utc).isoformat()
-        append_log_entry(data_repo, raw_operations, timestamp)
+        append_log_entry(data_repo, raw_operations, commit_message, timestamp)
         return git_commit(data_repo, commit_message)
     except Exception:
         revert(data_repo)

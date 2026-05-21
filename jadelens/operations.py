@@ -79,6 +79,15 @@ class RenamePath:
             raise ApplyError(
                 f"rename_path: target already exists: {self.to_path}"
             )
+        # If renaming a file (not a directory), the target must share the
+        # source's suffix — we don't allow type-changing renames like
+        # notes.md → notes.json, which would mis-classify the file's content
+        # under our op-vs-suffix rules (json_patch only on .json, etc.).
+        if source.is_file() and source.suffix != target.suffix:
+            raise ApplyError(
+                f"rename_path: file suffix must be preserved "
+                f"(source {source.suffix!r}, target {target.suffix!r})"
+            )
         # git mv doesn't auto-create the target's parent directory; do it
         # ourselves so renames into a new subdirectory work in one step
         # (symmetric with create_file's mkdir -p of missing parents).

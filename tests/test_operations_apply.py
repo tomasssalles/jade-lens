@@ -115,3 +115,22 @@ def test_rename_path_into_new_directory(data_repo: Path):
         from_path="file.txt", to_path="nested/dir/file.txt"
     ).apply(data_repo)
     assert (data_repo / "nested" / "dir" / "file.txt").read_text() == "hi"
+
+
+def test_rename_path_rejects_file_suffix_change(data_repo: Path):
+    """Renaming a .md to a .json would mis-classify the file under our
+    op-vs-suffix rules."""
+    (data_repo / "notes.md").write_text("# notes\n")
+    commit(data_repo)
+    with pytest.raises(ApplyError, match="suffix must be preserved"):
+        RenamePath(from_path="notes.md", to_path="notes.json").apply(data_repo)
+
+
+def test_rename_path_directory_suffixes_dont_matter(data_repo: Path):
+    """Directory renames aren't subject to the suffix-preservation rule."""
+    (data_repo / "projects.v1").mkdir()
+    (data_repo / "projects.v1" / "a.md").write_text("a")
+    commit(data_repo)
+    # 'projects.v1' has suffix '.v1'; rename to 'projects' (no suffix) is fine.
+    RenamePath(from_path="projects.v1", to_path="projects").apply(data_repo)
+    assert (data_repo / "projects" / "a.md").read_text() == "a"

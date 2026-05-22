@@ -233,7 +233,7 @@ def test_append_log_entry_creates_file_if_missing(data_repo: Path):
     append_log_entry(
         data_repo, raw_ops, "Add x", "2026-05-21T10:00:00+00:00"
     )
-    log = data_repo / ".jade" / "operations-log.jsonl"
+    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
     assert entry == {
@@ -244,8 +244,8 @@ def test_append_log_entry_creates_file_if_missing(data_repo: Path):
 
 
 def test_append_log_entry_appends_to_existing(data_repo: Path):
-    (data_repo / ".jade").mkdir()
-    log = data_repo / ".jade" / "operations-log.jsonl"
+    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text(
         '{"ts": "earlier", "commit_message": "seed", "operations": []}\n'
     )
@@ -317,7 +317,7 @@ def test_run_happy_path_create_file(data_repo: Path):
     )
     assert (data_repo / "todos.json").read_text() == "[]\n"
     # Log entry exists with the commit message inlined.
-    log = data_repo / ".jade" / "operations-log.jsonl"
+    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
     assert entry["commit_message"] == "Add empty todo list"
@@ -330,7 +330,7 @@ def test_run_happy_path_create_file(data_repo: Path):
         capture_output=True, text=True, check=True,
     )
     files = set(diff.stdout.split())
-    assert files == {"todos.json", ".jade/operations-log.jsonl"}
+    assert files == {"todos.json", ".jade/operations-log/v0.1.0.jsonl"}
 
 
 def test_run_happy_path_mixed_ops(data_repo: Path):

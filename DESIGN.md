@@ -121,12 +121,24 @@ The bot mutates the data exclusively through a single tool (the web app's API or
 | `delete_path` | Recursive delete of a file or a directory (`git rm -r`). Refused if any path reference still points to anything under the target (see §4.3). |
 | `rename_path` | Rename a file or a directory. Content is preserved verbatim; path references elsewhere are auto-rewritten by the runtime (see §4.3). |
 
-**Verification.**
+**Path-suffix rules** (enforced at parse time, before any apply):
+
+- `json_patch`: target path MUST end with `.json`.
+- `unified_diff`: target path must NOT end with `.json` (json_patch's territory). Everything else is allowed.
+- `create_file`: target path must end with one of the *editable file suffixes* — currently `.json` and `.md`. Forward-compat: adding a new editable file type is a one-line extension here; unified_diff supports it automatically (anything non-`.json` is in-scope).
+- `rename_path` on a **file**: the target's suffix must equal the source's suffix. We don't allow type-changing renames like `notes.md → notes.json`, which would mis-classify the file's content under the rules above. Directory renames aren't subject to this — directory "suffixes" via `Path.suffix` are incidental.
+
+**Content validation.**
+
+- `create_file` with a `.json` path: the content MUST parse as valid JSON. Catches a latent corruption mode (bot writes single-quoted keys; file is created successfully; only later does a `json_patch` fail with no clean link back to the original mistake).
+
+**Verification at apply time.**
+
 - For `unified_diff`: the runtime checks that the line at each claimed line number matches the claimed old content before applying.
 - For `json_patch`: the runtime applies normally; RFC 6902 already raises on missing paths or value mismatches in `test`/`remove`/`replace` ops.
 - Failed verifications abort the whole atomic change (no partial application) and surface to the user as a bot mistake worth investigating.
 
-**Atomicity.** All operations in a single tool call are applied together and produce **one git commit + one log entry** (§7). If any operation fails verification, the whole batch is rolled back.
+**Atomicity.** All operations in a single tool call are applied together and produce **one git commit + one log entry** (§7). If any operation fails verification, the whole batch is rolled back via `git reset --hard HEAD && git clean -fd`.
 
 **Typo risk for `create_file`.** Auto-creating parents means a typo in a path (`fooo/` instead of `foo/`) silently creates a new directory tree. Accepted risk for v0.1.0; mitigation (e.g. confirmation when a `create_file` would establish a new top-level directory) can come later if observed in practice.
 
@@ -216,7 +228,7 @@ Three conventions considered:
 
 ### 4.6 The index file
 
-A JSON file (e.g. `.jadelens/index.json`) maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything.
+A JSON file at `.jade/index.json`, maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything.
 
 #### Contents
 
@@ -308,7 +320,7 @@ A **prominent chat input** is visible in the UI at all times. Single-shot prompt
 
 - **Interpret** the user's chaotic natural-language input.
 - **Decide** what files, schemas, and structures should exist to hold the resulting information.
-- **Write** changes as JSON Patches (for JSON files) and unified diffs (for markdown files).
+- **Write** changes via the five-op mutation set of §4.2: `json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path`. The bot does not use raw file-edit primitives outside this protocol.
 - **Answer** queries, apply natural-language filters, and produce statistics.
 - **Maintain the index file** so future interactions can navigate the data efficiently, including `alwaysLoad` markings on context-essential data.
 
@@ -403,7 +415,7 @@ Pure queries — `/jade` calls that don't change data, UI navigation, bot answer
 
 ### 7.2 The operations log
 
-The data repo carries an append-only JSONL log at `.jade/operations-log.jsonl`. Each line corresponds to one atomic data change:
+The data repo carries an append-only JSONL log under `.jade/operations-log/`, one file per data-repo version. The current version's file is `.jade/operations-log/<version>.jsonl` (e.g. `.jade/operations-log/v0.1.0.jsonl`); old versions remain in the same directory as historical records after a migration (§14.5). Each line corresponds to one atomic data change:
 
 ```json
 {"ts": "2026-05-18T14:23:11Z", "commit_message": "<one-line summary>", "operations": [<op>, <op>, ...]}
@@ -431,9 +443,9 @@ JADE LENS does not rewind or replay history. When the user spots a mistake, they
 
 **Why not replay?** Two reasons. First, in the Claude Code `/jade` world the runtime only sees the bot's tool inputs — never the surrounding chat — so the "user prompts" we'd replay are decontextualised stubs (the natural in-context prompt is *"and remind me to ask Bob about the latency issue next Tuesday"* after 50 turns of unrelated technical conversation). Second, even with perfect chat capture, reactive multi-turn conversations cannot be deterministically replayed: change the data, and the bot's response changes; change the bot's response, and the user's next message would naturally have changed too. Replay-with-fixes is an illusion. Forward-only correction is the honest envelope.
 
-### 7.5 Local-only data on mobile
+### 7.5 Mobile substrate note
 
-`.git` (if a local clone exists) is local-only — mobile uses the GitHub API rather than git clones (§3 "No mobile-native daemons"). The operations log itself is a normal tracked file in the data repo and syncs everywhere; the file is tiny (one JSON line per atomic change) so size is a non-concern.
+Mobile reads/writes the data repo via the GitHub API (§3 "No mobile-native daemons"), not via a local git clone. So mobile devices never carry `.git/` locally — only the working-tree files. The operations log is a normal tracked file under `.jade/operations-log/` and travels with the rest of the data; it's tiny (one JSON line per atomic change) and not a concern.
 
 ---
 
@@ -769,7 +781,7 @@ The installed SKILL.md is **rendered from a versioned template** in the code rep
 The rendered SKILL.md carries a marker comment near the top:
 
 ```markdown
-<!-- jade-lens-skill template-version=0.1.0 -->
+<!-- jade-lens-skill template-version=v0.1.0 -->
 ```
 
 The marker contains **only the template version**. No config values — they exist exclusively as concrete substituted strings in the body. This is the source-of-truth invariant: each config value appears in the rendered body exactly as many times as its placeholder appeared in the template, and the rebuild tool can recover each value by inverting the template (regex-extracting at the placeholder positions).
@@ -784,7 +796,7 @@ The marker contains **only the template version**. No config values — they exi
 #### Installer flow (`install` command)
 
 1. Run from the code repo's clone directory (it knows its own location, so `code_repo_path` is not user-prompted).
-2. Prompt for skill name (default `jade`) and absolute path to the data repo's local clone (validated: must exist and be a git repo).
+2. Prompt for skill name (default `jade`) and a path to the data repo's local clone. The user can type a relative path, a `~`-expanded path, or an absolute one; the installer resolves to absolute before storing. Validated: must be an existing directory and contain `.git`.
 3. Pick the highest-version template in `templates/`.
 4. Render placeholders → write to `~/.claude/skills/<name>/SKILL.md`.
 
@@ -861,8 +873,8 @@ The mechanism that lets v0.1.0 ship with an imperfect design and evolve safely. 
 
 ### 14.1 Versions
 
-- The **code repo** has a code version (e.g. `1.5.42`), embedded in the build.
-- The **data repo** has a `version` file containing the current data version as a string.
+- The **code repo** has a code version (e.g. `v1.5.42`), embedded in the build. All version strings throughout the project carry a leading `v`.
+- The **data repo** has a `.jade/version` file containing the current data version as a string (e.g. `v0.1.0`).
 - **Migration scripts** live in the code repo under `migrations/<target-version>.md`. The filename target version determines order; semver-sorted by the runtime.
 
 ### 14.2 Migration script format
@@ -890,6 +902,7 @@ The running code keeps itself current before any data work happens.
 - The installed skill at `~/.claude/skills/<name>/SKILL.md` does **not** self-update on invocation. Instead, the user runs the `update` command from the code-repo clone (see §12.7), which performs `git pull` and re-renders all installed jade-lens skills from the latest template, preserving each install's config values.
 - The skill does not perform a staleness check at invocation time — that would cost a tool call (or bot cognition) on every interaction for a check that's almost always negative. The user runs `update` deliberately whenever they want to pull in template/code changes.
 - A running Claude Code session does not re-read its skills mid-session; an update propagates on the next session.
+- **Update nudge.** The `jadelens` CLI does a best-effort `git fetch --quiet` against the code repo on every invocation (with a short timeout and silent failure on network issues), and counts commits-behind on `origin/main`. If non-zero, it prints a one-line nudge (*"N new commits on origin; cd to the code repo and `git pull && jadelens` to apply"*) and offers to abort. Non-blocking by default; never modifies code itself.
 
 ### 14.4 Version comparison on every load
 
@@ -910,7 +923,7 @@ After self-update completes and the code is at its latest, the runtime compares 
 5. **Apply.** Run the migrations in order. The bot follows each script's instructions; Python helpers run when invoked.
 6. **Bump version.** Set the data-version to the current code-version — *always*, even if no migrations applied (covers the "no relevant migrations existed in this release range" case cleanly).
 7. **Commit.** Commit the data changes + the new version file. Optionally tag a successful-migration marker.
-8. **New operations log.** Start a new log file for the new version (naming convention TBD — likely `logs/<version>.jsonl` or similar). The old log remains in the repo for historical reference but is not actively appended to anymore.
+8. **New operations log.** Start a fresh `.jade/operations-log/<new-version>.jsonl` file (§7.2). The previous version's log file remains in the same directory for historical reference but is not actively appended to anymore.
 
 ### 14.6 The migration is a one-way door
 
@@ -937,6 +950,8 @@ Release-time concern, not a runtime concern: before shipping a migration in a re
 This is especially important because the bot is involved in execution — a migration that worked yesterday may behave subtly differently if model versions or prompt shapes have drifted. Pinning the model version used during migration runs is worth considering.
 
 ## 15. v1 Scope and Future Work
+
+This section describes the **full v1 horizon** — what the project aims for once the web app, full discovery pipeline, calendar integration etc. are in place. The **immediate target** is a much narrower envelope tracked in `changelogs/v0.1.0.md` (a `/jade`-only milestone aimed at validating the bot's data-organisation thesis with minimum infrastructure). Some items below are already in v0.1.0; many are not. The changelog is authoritative for what ships in v0.1.0.
 
 ### 15.1 Roughly in v1
 
@@ -1029,5 +1044,4 @@ The following are explicitly not yet decided. Each may close out during implemen
 - **Data types to enumerate beyond the obvious** — to-do, calendar, projects, notes, presentations, preferences are clearly in scope. The full list emerges from use.
 - **Discovery-flow transition threshold** (§6.3) — at what data volume to graduate from eager-load-everything to structured data requests.
 - **Cross-chat history retrieval** — whether and how to continue conversations across days or weeks by re-loading a prior chat thread's history into context.
-- **Structure of this repo** — is this where both code and data live? Should there be a separate repo for each? If together, how should we organize the files?
 - **Logo/Icon** — This app will have an entry point in the home screen of each device. It needs an awesome logo!

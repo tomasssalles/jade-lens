@@ -222,7 +222,16 @@ def git_commit(data_repo: Path, message: str) -> str:
 # ---------- Log append ----------
 
 
-LOG_RELATIVE_PATH = Path(".jade") / "operations-log.jsonl"
+def _log_path(data_repo: Path) -> Path:
+    """Return the path to the current data-version's operations log file.
+
+    The log is partitioned by data-repo version: each migration starts a
+    fresh ``.jade/operations-log/<version>.jsonl`` file so pre-migration
+    entries (which reference data shapes that may no longer exist) stay
+    readable but separate from post-migration ones (§7.2, §14.5).
+    """
+    version = (data_repo / ".jade" / "version").read_text().strip()
+    return data_repo / ".jade" / "operations-log" / f"{version}.jsonl"
 
 
 def append_log_entry(
@@ -231,14 +240,14 @@ def append_log_entry(
     commit_message: str,
     timestamp: str,
 ) -> None:
-    """Append one JSONL entry to ``.jade/operations-log.jsonl``.
+    """Append one JSONL entry to the current version's operations log.
 
     The commit_message is duplicated here (it's also git's commit message)
     deliberately: it keeps the log self-sufficient as the canonical audit
     record, so a future move off git as the substrate (e.g. to Postgres)
     doesn't lose intent metadata.
     """
-    log_path = data_repo / LOG_RELATIVE_PATH
+    log_path = _log_path(data_repo)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     entry = {
         "ts": timestamp,

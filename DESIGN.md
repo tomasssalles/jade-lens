@@ -144,22 +144,32 @@ The path is **relative to the data-repo root**, not relative to the file contain
 
 External URLs (`http://...`, `https://...`, etc.) are NOT written as wikilinks — they use normal markdown link syntax `[label](url)` or autolink syntax `<url>` and are ignored by reference-tracking. Wikilinks are reserved for data-repo paths exclusively.
 
+**Wikilink maintenance is a post-apply pass.** All operations in a batch execute in the order the bot emitted them. Wikilink rewriting (on rename) and reference-existence checks (on delete) happen *once*, at the end of the batch, against the file-system state that survived all the ops. This is what lets the bot interleave clean-up work freely — e.g. issue `delete_path foo.md` and then a `unified_diff` that removes the only `[[foo.md]]` reference, in either order. The scan only cares about the end state.
+
+A nice side-effect: the bot **cannot accidentally create a fresh file that wikilinks to something also being deleted in the same batch**. The post-pass scan finds the new file's reference to the deleted path and refuses the batch.
+
+**Scope.** The scan covers only **git-visible** files (tracked + untracked-but-not-gitignored). Gitignored files are out of scope — those are the user's private scratch space, and any rewrites we did to them couldn't be cleanly reverted on failure anyway (`git reset --hard` doesn't restore gitignored content).
+
 **Rename mechanics (`rename_path`).**
 
-1. Runtime stages the filesystem rename (`git mv`).
-2. Runtime scans every data-repo file for wikilinks whose path is `from` or starts with `from/` (directory case).
-3. Each matching wikilink is rewritten in place — path swapped from `from` to `to`.
+1. Each rename op `apply`s its own filesystem rename (`git mv`).
+2. At the end of the batch, the runtime scans every git-visible data-repo file for wikilinks whose path is `from` or starts with `from/` (directory case).
+3. Each matching wikilink is rewritten in place — path swapped from `from` to `to`. Wikilinks that don't match are returned **byte-identical**, even if their form was denormalised (`[[./foo.md]]`, `[[foo/]]`, `[[bar/../foo.md]]`); only the rewritten ones are emitted in clean normalised form.
 4. All rewrites + the rename land in a single git commit, atomic.
 
 **Delete mechanics (`delete_path`).**
 
-1. Runtime scans every data-repo file for wikilinks pointing to the target path.
-2. If any exist, the tool fails and reports the referencing paths back to the bot. The bot clears the references (rewrite or remove) and re-issues the delete.
-3. If clean, runtime deletes and commits.
+1. Each delete op `apply`s its own `git rm -r`.
+2. At the end of the batch, the runtime scans every git-visible data-repo file for wikilinks pointing to the deleted path. References from files that were themselves deleted in the same batch don't count — they're gone by scan time.
+3. If any references remain, the tool fails and reports the referencing paths back to the bot. The bot clears the references (in a fresh batch, or in the same one — see SKILL guidance below) and retries.
 
 **Uniformity in JSON.** A sidecar reference produced by inline-to-sidecar promotion (§4.4) is also a wikilink — not a bare path in a `*Path`-suffixed field. The field name is the bot's choice; the wikilink form is what makes the reference detectable. Example: `"notes": "[[projects/leasing/notes.md]]"` rather than `"notesPath": "projects/leasing/notes.md"`.
 
-**Bot compliance.** The system prompt / SKILL.md is prescriptive: any data-repo path mentioned in any string content MUST be wrapped in double square brackets. Bare paths in free text are a violation. Optional runtime safety net (not in v0.1.0): flag string values that contain a path-like substring outside a wikilink.
+**Bot compliance.** The system prompt / SKILL.md is prescriptive on three things:
+
+1. Any data-repo path mentioned in any string content MUST be wrapped in double square brackets. Bare paths in free text are a violation. Optional runtime safety net (not in v0.1.0): flag string values that contain a path-like substring outside a wikilink.
+2. **The bot does NOT rewrite wikilinks when renaming.** The runtime handles wikilink rewrites automatically as part of `rename_path`, so the bot doesn't need to find-and-update every reference itself. (This saves significant output tokens compared to forcing the bot to emit a unified_diff per referencing file.)
+3. **The bot DOES clear wikilinks before / during deletion.** If a path is being deleted and references to it should disappear, the bot includes the cleanup ops in the same batch. If a reference should be preserved as historical text — *"used to be documented in `foo.md`, now lives in [[bar.md]]"* — the bot unlinks it (turns `[[foo.md]]` into plain prose, e.g. `foo.md`) rather than leaving the wikilink intact. The post-pass treats any remaining `[[foo.md]]` as a missed cleanup and fails the batch.
 
 **Display rendering.** In raw markdown viewers (and Claude Code's TUI), wikilinks render as literal `[[path]]` text — visually distinct, recognisable as a reference, not clickable. The eventual web-app renderer is expected to do something nicer (e.g. render the filename stem as a clickable label that navigates to the linked file within the app).
 
@@ -732,6 +742,7 @@ The `/jade` skill doesn't have the web app's view registry or rich visualisation
 - **File-pointers instead of content dumps** — when a query is essentially "find this in my data," the bot points at file + line range (`see projects/leasing/notes.md lines 14-22`) instead of re-quoting content the user already has on disk.
 - **Tool-result echoes of applied operations.** When `handle_bot_response` applies an operation batch, the runtime returns a result containing the operations themselves (JSON Patches, unified diffs, file-level ops). Claude Code displays tool results inline beneath the call; this gives the user a visible record of *what was actually changed* without the bot paying output tokens to repeat the patches in prose. The user can collapse/expand the result as needed (the TUI shortens long results with a `ctrl-o` expansion affordance, which is acceptable).
 - **ANSI styling in tool results — future option, not v0.1.0.** Most terminals (PyCharm's terminal included) honor ANSI escape sequences for foreground/background colour and bold. Even when markdown rendering isn't available, ANSI gives a way to highlight diff hunks, JSON keys, or rename headers in tool output. v0.1.0 ships with plain-text echoes; styled output can be layered on later without protocol changes.
+- **Surface side-effect changes in the reflection — future enhancement, not v0.1.0.** The current reflection mirrors only the bot's *original* operations. Runtime-driven side effects (wikilink rewrites from `rename_path`, programmatic inline-vs-sidecar promotions §4.4) don't appear, so a user reviewing the tool result sees only the bot's intent, not the full set of files actually touched. A future version of `reflection.format_reflection` could append a clearly-distinguished "side effects" block per relevant op (e.g. `[1/3] rename_path: old → new (also rewrote 4 wikilinks in 3 files)`, with the list expandable). The information is already available — `rewrite_references_under` returns the modified files, and the promotion path knows what it promoted — it just isn't currently surfaced.
 
 Token economics are softer under the Pro subscription (the user isn't directly paying per token in this path), but conciseness is still good practice — and pointing the user at canonical files rather than re-emitting copies keeps the user's data the single source of truth.
 

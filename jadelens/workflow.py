@@ -32,6 +32,7 @@ from jadelens.operations import (
     UnifiedDiff,
     parse_operation,
 )
+from jadelens.wikilinks import find_references, rewrite_references_under
 
 
 class WorkflowError(Exception):
@@ -274,9 +275,40 @@ def run(
     try:
         for op in effective:
             op.apply(data_repo)
+        _post_apply_wikilink_pass(data_repo, effective)
         timestamp = datetime.now(timezone.utc).isoformat()
         append_log_entry(data_repo, raw_operations, commit_message, timestamp)
         return git_commit(data_repo, commit_message)
     except Exception:
         revert(data_repo)
         raise
+
+
+def _post_apply_wikilink_pass(
+    data_repo: Path, operations: list[Operation]
+) -> None:
+    """Run after every op has applied. For each rename, rewrite remaining
+    wikilinks pointing at the old path. For each delete, verify no
+    wikilinks still point at the deleted path — if any do, raise.
+
+    Deferring this work to here (rather than doing it inside RenamePath /
+    DeletePath ``apply``) lets the bot interleave clean-up ops freely:
+    e.g. a ``delete_path foo.md`` followed by a ``unified_diff`` that
+    removes the only ``[[foo.md]]`` reference is a valid batch — the
+    scan only sees what survived to the end.
+    """
+    for op in operations:
+        if isinstance(op, RenamePath):
+            rewrite_references_under(data_repo, op.from_path, op.to_path)
+    for op in operations:
+        if isinstance(op, DeletePath):
+            refs = find_references(data_repo, op.path)
+            if refs:
+                detail = "; ".join(
+                    f"{f.relative_to(data_repo)}: [[{p}]]" for f, p in refs
+                )
+                raise ApplyError(
+                    f"delete_path: {op.path!r} is still referenced by "
+                    f"wikilinks after the batch completed — clean these up "
+                    f"in the same batch:\n  {detail}"
+                )

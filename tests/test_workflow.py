@@ -8,6 +8,7 @@ import pytest
 
 from jadelens import workflow
 from jadelens.operations import (
+    ApplyError,
     CreateFile,
     DeletePath,
     JsonPatch,
@@ -429,6 +430,157 @@ def test_run_refuses_with_dirty_working_tree(data_repo: Path):
         )
     # The uncommitted file is still there — we didn't clobber it.
     assert (data_repo / "uncommitted.txt").read_text() == "change"
+
+
+# ---------------------- post-apply wikilink pass ----------------------
+
+
+def test_rename_rewrites_external_wikilinks(data_repo: Path):
+    (data_repo / "old.md").write_text("# original\n")
+    (data_repo / "ref.md").write_text("see [[old.md]] for details\n")
+    commit(data_repo)
+    workflow.run(
+        data_repo,
+        [{"op": "rename_path", "from": "old.md", "to": "new.md"}],
+        "Rename old → new",
+    )
+    assert (data_repo / "new.md").exists()
+    assert (data_repo / "ref.md").read_text() == "see [[new.md]] for details\n"
+
+
+def test_rename_rewrites_self_reference(data_repo: Path):
+    """A file containing a wikilink to itself has that self-reference
+    rewritten too — after the rename, the moved file's self-reference
+    points at the new location."""
+    (data_repo / "old.md").write_text("I am [[old.md]] looking at myself\n")
+    commit(data_repo)
+    workflow.run(
+        data_repo,
+        [{"op": "rename_path", "from": "old.md", "to": "new.md"}],
+        "Rename with self-ref",
+    )
+    assert (
+        (data_repo / "new.md").read_text()
+        == "I am [[new.md]] looking at myself\n"
+    )
+
+
+def test_rename_then_explicit_diff_clobbers_auto_rewrite(data_repo: Path):
+    """The bot can emit a unified_diff that explicitly rewrites a specific
+    reference to something other than the rename's auto-target. Because
+    the post-pass only sees what survived to the end of the batch, the
+    explicit rewrite is honoured and the auto-rewrite doesn't trample it."""
+    (data_repo / "old.md").write_text("# original\n")
+    (data_repo / "ref.md").write_text("see [[old.md]] for details\n")
+    commit(data_repo)
+    workflow.run(
+        data_repo,
+        [
+            {"op": "rename_path", "from": "old.md", "to": "new.md"},
+            {
+                "op": "unified_diff",
+                "path": "ref.md",
+                "diff": (
+                    "@@ -1 +1 @@\n"
+                    "-see [[old.md]] for details\n"
+                    "+see [[something_else.md]] for details\n"
+                ),
+            },
+        ],
+        "Rename with explicit override",
+    )
+    assert (
+        (data_repo / "ref.md").read_text()
+        == "see [[something_else.md]] for details\n"
+    )
+
+
+def test_delete_rejects_when_external_references_remain(data_repo: Path):
+    """If after applying all ops a wikilink still references the deleted
+    path, the post-pass refuses and the whole batch reverts."""
+    (data_repo / "doomed.md").write_text("# delete me\n")
+    (data_repo / "ref.md").write_text("see [[doomed.md]] still here\n")
+    commit(data_repo)
+    with pytest.raises(ApplyError, match="still referenced by wikilinks"):
+        workflow.run(
+            data_repo,
+            [{"op": "delete_path", "path": "doomed.md"}],
+            "Should fail",
+        )
+    # Reverted — doomed.md is back, ref.md unchanged.
+    assert (data_repo / "doomed.md").exists()
+    assert (data_repo / "ref.md").read_text() == "see [[doomed.md]] still here\n"
+
+
+def test_delete_succeeds_when_cleanup_diff_in_same_batch(data_repo: Path):
+    """Bot can clean up references in the same batch via unified_diff —
+    the order doesn't matter because the post-pass only sees the end
+    state of the batch."""
+    (data_repo / "doomed.md").write_text("# delete me\n")
+    (data_repo / "ref.md").write_text("[[doomed.md]] is going away\n")
+    commit(data_repo)
+    workflow.run(
+        data_repo,
+        [
+            {"op": "delete_path", "path": "doomed.md"},  # delete FIRST
+            {
+                "op": "unified_diff",
+                "path": "ref.md",
+                "diff": (
+                    "@@ -1 +1 @@\n"
+                    "-[[doomed.md]] is going away\n"
+                    "+ was here, now gone\n"
+                ),
+            },
+        ],
+        "Delete + cleanup in one batch",
+    )
+    assert not (data_repo / "doomed.md").exists()
+    assert (data_repo / "ref.md").read_text() == " was here, now gone\n"
+
+
+def test_delete_rejects_when_new_file_references_deleted(data_repo: Path):
+    """Nice property of the deferred pass: bot can't accidentally delete
+    a file in one op and then create a new file referencing it in a
+    later op of the same batch — the scan catches it at the end."""
+    (data_repo / "doomed.md").write_text("# delete me\n")
+    commit(data_repo)
+    with pytest.raises(ApplyError, match="still referenced by wikilinks"):
+        workflow.run(
+            data_repo,
+            [
+                {"op": "delete_path", "path": "doomed.md"},
+                {
+                    "op": "create_file",
+                    "path": "new.md",
+                    "content": "I reference [[doomed.md]] in my fresh file\n",
+                },
+            ],
+            "Self-inconsistent batch",
+        )
+    # Reverted: doomed.md back, new.md never created.
+    assert (data_repo / "doomed.md").exists()
+    assert not (data_repo / "new.md").exists()
+
+
+def test_delete_doesnt_count_references_from_inside_deleted_dir(
+    data_repo: Path,
+):
+    """References from files inside the deleted directory don't count —
+    those files are gone by the time the scan runs."""
+    (data_repo / "doomed").mkdir()
+    (data_repo / "doomed" / "a.md").write_text("[[doomed/b.md]] inside\n")
+    (data_repo / "doomed" / "b.md").write_text("# b\n")
+    commit(data_repo)
+    workflow.run(
+        data_repo,
+        [{"op": "delete_path", "path": "doomed"}],
+        "Delete whole dir with internal refs",
+    )
+    assert not (data_repo / "doomed").exists()
+
+
+# ---------------------- end of post-apply wikilink pass section ----------------------
 
 
 def test_run_rejects_invalid_batch(data_repo: Path):

@@ -147,3 +147,26 @@ def test_create_file_rejects_unsupported_suffix():
 def test_create_file_accepts_md():
     raw = {"op": "create_file", "path": "notes.md", "content": "# notes\n"}
     parse_operation(raw)  # must not raise
+
+
+def test_create_file_with_json_path_validates_content_is_json():
+    """If the bot creates a .json file with single-quoted keys (or any other
+    invalid JSON), parse rejects it before any apply happens — otherwise the
+    file gets created and only fails later on the first json_patch."""
+    raw = {
+        "op": "create_file",
+        "path": "data.json",
+        "content": "{'key': 'value'}",  # single quotes — not valid JSON
+    }
+    with pytest.raises(ValidationError, match="not valid JSON"):
+        parse_operation(raw)
+
+
+def test_create_file_with_md_path_allows_arbitrary_content():
+    """No content validation for markdown — anything's allowed."""
+    raw = {
+        "op": "create_file",
+        "path": "notes.md",
+        "content": "{ this is not JSON, but it's fine in markdown }",
+    }
+    parse_operation(raw)  # must not raise

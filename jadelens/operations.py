@@ -200,7 +200,15 @@ def _parse_create_file(raw: dict) -> CreateFile:
             f"create_file path must end with one of {EDITABLE_FILE_SUFFIXES} "
             f"(got {path!r})"
         )
-    return CreateFile(path=path, content=_require_str(raw, "content"))
+    content = _require_str(raw, "content")
+    if path.endswith(".json"):
+        try:
+            json.loads(content)
+        except json.JSONDecodeError as e:
+            raise ValidationError(
+                f"create_file content for {path!r} is not valid JSON: {e}"
+            ) from e
+    return CreateFile(path=path, content=content)
 
 
 def _parse_delete_path(raw: dict) -> DeletePath:

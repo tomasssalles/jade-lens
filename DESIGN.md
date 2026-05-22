@@ -213,6 +213,8 @@ If either trigger fires, the runtime:
 **Bot-facing instruction** (to include in the system prompt):
 
 > Some prose content lives inline as JSON string values, and some lives in separate `.md` files referenced by a wikilink (§4.3). You'll see which is which from the data. When adding or modifying inline string values, emit JSON Patch normally — don't worry about size. If a string grows large or becomes markdown-structured, the program will migrate it to a separate `.md` file automatically and replace the JSON value with a wikilink to the sidecar. Respect that — don't migrate the content back into the JSON.
+>
+> **One thing the auto-promotion can't decide for you: indexing.** The auto-promoted sidecar is *not* given its own entry in the index (§4.6) — it's discoverable only via the JSON wikilink that points at it. That's the right default for "this is just the prose body of a field on a parent record." But if the content deserves discoverability as a *primary* file in its own right — with an index entry, findable without going through a parent — do the promotion **manually**: emit a `create_file` for the `.md` directly, a `json_patch` that adds the wikilink wherever it should be referenced, and an index update with a description of the new primary file. Use the automatic path for incidental prose; use the manual path for content that deserves its own slot in your map of the data.
 
 ### 4.5 Sidecar filenames
 

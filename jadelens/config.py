@@ -22,6 +22,8 @@ from pathlib import Path
 class Config:
     skill_name: str
     data_repo_path: Path
+    user_full_name: str
+    user_short_name: str
 
     def __post_init__(self) -> None:
         if not self.skill_name:
@@ -30,6 +32,10 @@ class Config:
             raise ValueError(
                 f"data_repo_path must be absolute: {self.data_repo_path}"
             )
+        if not self.user_full_name:
+            raise ValueError("user_full_name must not be empty")
+        if not self.user_short_name:
+            raise ValueError("user_short_name must not be empty")
 
 
 class ConfigBuildError(Exception):
@@ -70,6 +76,8 @@ def _from_mapping_v0_1_0(mapping: dict[str, str]) -> Config:
         return Config(
             skill_name=mapping["SKILL_NAME"],
             data_repo_path=Path(mapping["DATA_REPO_PATH"]),
+            user_full_name=mapping["USER_FULL_NAME"],
+            user_short_name=mapping["USER_SHORT_NAME"],
         )
     except KeyError as e:
         raise MissingField(

@@ -104,7 +104,14 @@ def do_onboarding() -> None:
 
     skill_name = prompt_skill_name()
     data_repo_path = prompt_data_repo_path()
-    config = Config(skill_name=skill_name, data_repo_path=data_repo_path)
+    user_full_name = prompt_user_full_name(data_repo_path)
+    user_short_name = prompt_user_short_name(user_full_name)
+    config = Config(
+        skill_name=skill_name,
+        data_repo_path=data_repo_path,
+        user_full_name=user_full_name,
+        user_short_name=user_short_name,
+    )
 
     template_path = latest_template_path()
     template_text = template_path.read_text()
@@ -137,11 +144,12 @@ def do_onboarding() -> None:
 
 
 def prompt_skill_name() -> str:
+    default = "jade"
     while True:
         raw = input(
-            "Skill name (used as /<name> in Claude Code) [default=jade]: "
+            f"Skill name (used as /<name> in Claude Code) [{default}]: "
         ).strip()
-        name = raw or "jade"
+        name = raw or default
         if "/" in name or " " in name:
             print("  Invalid: must not contain slashes or spaces. Try again.")
             continue
@@ -165,6 +173,54 @@ def prompt_data_repo_path() -> Path:
             )
             continue
         return path
+
+
+def prompt_user_full_name(data_repo: Path) -> str:
+    """Prompt for the user's full name, defaulting to the data repo's
+    ``git config user.name`` if available."""
+    default = _git_config_user_name(data_repo)
+    suffix = f" [{default}]" if default else ""
+    while True:
+        raw = input(
+            f"Your full name (stored when records mention you){suffix}: "
+        ).strip()
+        name = raw or default
+        if not name:
+            print("  Invalid: full name required. Try again.")
+            continue
+        return name
+
+
+def prompt_user_short_name(full_name: str) -> str:
+    """Prompt for a short version of the user's name, defaulting to the
+    first whitespace-separated token of the chosen full name."""
+    tokens = full_name.split()
+    default = tokens[0] if tokens else ""
+    suffix = f" [{default}]" if default else ""
+    while True:
+        raw = input(
+            f"Short version (first name or nickname){suffix}: "
+        ).strip()
+        name = raw or default
+        if not name:
+            print("  Invalid: short name required. Try again.")
+            continue
+        return name
+
+
+def _git_config_user_name(data_repo: Path) -> str:
+    """Return the data repo's ``git config user.name``; empty if unset."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(data_repo), "config", "user.name"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return ""
 
 
 def latest_template_path() -> Path:

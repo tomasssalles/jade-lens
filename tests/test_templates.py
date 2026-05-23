@@ -41,6 +41,8 @@ def test_template_render_extract_round_trip():
     fixture_config = Config(
         skill_name="testskill",
         data_repo_path=Path("/home/test/data"),
+        user_full_name="Test User",
+        user_short_name="Test",
     )
     fixture_code_repo = Path("/home/test/code")
 

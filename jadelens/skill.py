@@ -136,5 +136,7 @@ def _render_mapping(
             "SKILL_NAME": config.skill_name,
             "DATA_REPO_PATH": str(config.data_repo_path),
             "CODE_REPO_PATH": str(code_repo_path),
+            "USER_FULL_NAME": config.user_full_name,
+            "USER_SHORT_NAME": config.user_short_name,
         }
     raise UnknownVersion(f"Unknown template version: {version!r}")

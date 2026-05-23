@@ -12,6 +12,8 @@ def _fixture_config() -> Config:
     return Config(
         skill_name="foo",
         data_repo_path=Path("/home/tom/data"),
+        user_full_name="Test User",
+        user_short_name="Test",
     )
 
 
@@ -57,7 +59,22 @@ def test_render_value_containing_regex_specials_is_safe():
     config = Config(
         skill_name="foo",
         data_repo_path=Path("/home/tom/data.v1+backup"),
+        user_full_name="Test User",
+        user_short_name="Test",
     )
     template = "Data: {{DATA_REPO_PATH}}"
     result = render_skill(config, Path("/c"), "v0.1.0", template)
     assert result == "Data: /home/tom/data.v1+backup"
+
+
+def test_render_v0_1_0_user_name_placeholders():
+    """USER_FULL_NAME and USER_SHORT_NAME substitute into the rendered text."""
+    template = "{{USER_FULL_NAME}} aka {{USER_SHORT_NAME}}"
+    config = Config(
+        skill_name="foo",
+        data_repo_path=Path("/d"),
+        user_full_name="Tomás Silveira Salles",
+        user_short_name="Tomás",
+    )
+    result = render_skill(config, Path("/c"), "v0.1.0", template)
+    assert result == "Tomás Silveira Salles aka Tomás"

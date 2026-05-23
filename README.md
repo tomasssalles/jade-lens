@@ -9,7 +9,7 @@ See [DESIGN.md](./DESIGN.md) for the architecture.
 ## License
 
 **Software Code:** 
-The code in this repository is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You are free to read, modify, and use this code for personal or non-commercial purposes. Commercial use is strictly prohibited.
+The code in this repository is licensed under the [PolyForm Noncommercial License 1.0.0](./LICENSE.md). You are free to read, modify, and use this code for personal or non-commercial purposes. Commercial use is strictly prohibited.
 
 **Branding / Assets:** 
 The logo and associated visual assets (located in `/assets`) are licensed under [Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/). 

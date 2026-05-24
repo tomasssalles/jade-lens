@@ -4,31 +4,38 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-INPUT="$REPO_ROOT/assets/logo/inkscape-logo.svg"
-LOGO_DIR="$(dirname "$INPUT")"
-STEM="$(basename "${INPUT%.svg}")"
-
-OUT_SVG="$LOGO_DIR/$STEM.opt.svg"
-PNG_SIZES=(192 512)
+LOGO_DIR="$REPO_ROOT/assets/logo"
 
 STRIPPED="$(mktemp --suffix=.svg)"
 trap 'rm -f "$STRIPPED"' EXIT
 
 command -v svgo >/dev/null 2>&1 || npm install -g svgo
 
-# 1. Drop Inkscape layers marked display:none (reference images etc.).
-python3 "$SCRIPT_DIR/_strip_hidden_layers.py" "$INPUT" "$STRIPPED"
+# Strip hidden Inkscape layers, then export an optimized SVG and PNGs at
+# the requested sizes. PNGs are rendered from the stripped pre-svgo SVG
+# so svgo's path simplifications don't influence the bitmap output.
+process_source() {
+    local stem="$1"; shift
+    local sizes=("$@")
+    local src="$LOGO_DIR/$stem.svg"
+    local opt="$LOGO_DIR/$stem.opt.svg"
 
-# 2. Optimized web SVG: Inkscape plain-SVG export → svgo.
-inkscape --export-plain-svg --export-filename="$OUT_SVG" "$STRIPPED"
-svgo "$OUT_SVG" -o "$OUT_SVG"
+    python3 "$SCRIPT_DIR/_strip_hidden_layers.py" "$src" "$STRIPPED"
+    inkscape --export-plain-svg --export-filename="$opt" "$STRIPPED"
+    svgo "$opt" -o "$opt"
 
-# 3. PNG icons: rendered by Inkscape from the stripped pre-svgo SVG, so
-#    svgo's path simplifications don't influence the bitmap output.
-for size in "${PNG_SIZES[@]}"; do
-    inkscape \
-        --export-type=png \
-        --export-width="$size" \
-        --export-filename="$LOGO_DIR/$STEM-$size.png" \
-        "$STRIPPED"
-done
+    for size in "${sizes[@]}"; do
+        inkscape \
+            --export-type=png \
+            --export-width="$size" \
+            --export-filename="$LOGO_DIR/$stem-$size.png" \
+            "$STRIPPED"
+    done
+}
+
+# no-bg (transparent): README image + favicon + manifest "any" purpose.
+process_source "inkscape-logo.no-bg" 192 512
+
+# bg (opaque grey gradient): manifest "maskable" purpose (Android) +
+# iOS apple-touch-icon (180).
+process_source "inkscape-logo.bg" 180 192 512

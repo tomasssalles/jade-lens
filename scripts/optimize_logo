@@ -6,8 +6,45 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 INPUT="$REPO_ROOT/assets/logo/inkscape-logo.svg"
 OUTPUT="${INPUT%.svg}.opt.svg"
+TMP="$(mktemp --suffix=.svg)"
+trap 'rm -f "$TMP"' EXIT
 
 command -v svgo >/dev/null 2>&1 || npm install -g svgo
 
-inkscape --export-plain-svg --export-filename="$OUTPUT" "$INPUT"
+# Drop Inkscape layers marked display:none (e.g. reference layers holding
+# embedded base64 PNGs) — svgo can't parse those, and they'd bloat the
+# output anyway.
+python3 - "$INPUT" "$TMP" <<'PY'
+import sys, xml.etree.ElementTree as ET
+
+SVG = "http://www.w3.org/2000/svg"
+INK = "http://www.inkscape.org/namespaces/inkscape"
+for prefix, uri in [
+    ("", SVG),
+    ("inkscape", INK),
+    ("sodipodi", "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"),
+    ("xlink", "http://www.w3.org/1999/xlink"),
+]:
+    ET.register_namespace(prefix, uri)
+
+src, dst = sys.argv[1], sys.argv[2]
+tree = ET.parse(src)
+
+def strip(parent):
+    for child in list(parent):
+        is_hidden_layer = (
+            child.tag == f"{{{SVG}}}g"
+            and child.get(f"{{{INK}}}groupmode") == "layer"
+            and "display:none" in (child.get("style") or "")
+        )
+        if is_hidden_layer:
+            parent.remove(child)
+        else:
+            strip(child)
+
+strip(tree.getroot())
+tree.write(dst, xml_declaration=True, encoding="utf-8")
+PY
+
+inkscape --export-plain-svg --export-filename="$OUTPUT" "$TMP"
 svgo "$OUTPUT" -o "$OUTPUT"

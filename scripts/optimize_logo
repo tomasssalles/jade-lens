@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+INPUT="$REPO_ROOT/assets/logo/inkscape-logo.svg"
+OUTPUT="${INPUT%.svg}.opt.svg"
+
+command -v svgo >/dev/null 2>&1 || npm install -g svgo
+
+svgo "$INPUT" -o "$OUTPUT"

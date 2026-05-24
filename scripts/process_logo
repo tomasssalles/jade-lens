@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+INPUT="$REPO_ROOT/assets/logo/inkscape-logo.svg"
+LOGO_DIR="$(dirname "$INPUT")"
+STEM="$(basename "${INPUT%.svg}")"
+
+OUT_SVG="$LOGO_DIR/$STEM.opt.svg"
+PNG_SIZES=(192 512)
+
+STRIPPED="$(mktemp --suffix=.svg)"
+trap 'rm -f "$STRIPPED"' EXIT
+
+command -v svgo >/dev/null 2>&1 || npm install -g svgo
+
+# 1. Drop Inkscape layers marked display:none (reference images etc.).
+python3 "$SCRIPT_DIR/_strip_hidden_layers.py" "$INPUT" "$STRIPPED"
+
+# 2. Optimized web SVG: Inkscape plain-SVG export → svgo.
+inkscape --export-plain-svg --export-filename="$OUT_SVG" "$STRIPPED"
+svgo "$OUT_SVG" -o "$OUT_SVG"
+
+# 3. PNG icons: rendered by Inkscape from the stripped pre-svgo SVG, so
+#    svgo's path simplifications don't influence the bitmap output.
+for size in "${PNG_SIZES[@]}"; do
+    inkscape \
+        --export-type=png \
+        --export-width="$size" \
+        --export-filename="$LOGO_DIR/$STEM-$size.png" \
+        "$STRIPPED"
+done

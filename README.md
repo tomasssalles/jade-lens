@@ -1,7 +1,7 @@
 # JADE LENS
 
 <p align="center">
-  <img src="./assets/logo/inkscape-logo.svg" alt="JADE LENS logo" width="400">
+  <img src="./assets/logo/inkscape-logo.opt.svg" alt="JADE LENS logo" width="400">
 </p>
 
 _**J**enuinely **A**daptive, ri**D**iculously v**E**rsati**LE** i**N**tellect **S**idekick._

@@ -11,3 +11,5 @@ command -v svgo >/dev/null 2>&1 || npm install -g svgo
 
 inkscape --export-plain-svg --export-filename="$OUTPUT" "$INPUT"
 svgo "$OUTPUT" -o "$OUTPUT"
+
+cp "$OUTPUT" "$REPO_ROOT/web/public/favicon.svg"

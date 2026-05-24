@@ -38,4 +38,4 @@ process_source "inkscape-logo.no-bg" 192 512
 
 # bg (opaque grey gradient): manifest "maskable" purpose (Android) +
 # iOS apple-touch-icon (180).
-process_source "inkscape-logo.bg" 180 192 512
+process_source "inkscape-logo.bg" 180

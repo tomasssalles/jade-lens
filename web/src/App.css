@@ -1,4 +1,8 @@
+body {
+  padding: 0 1rem;
+}
+
 h1 {
   text-align: center;
-  margin-top: 20vh;
+  margin-top: 2rem;
 }

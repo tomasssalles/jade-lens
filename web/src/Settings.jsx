@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getConfig, saveConfig } from './config'
+import './Settings.css'
 
 export default function Settings() {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')

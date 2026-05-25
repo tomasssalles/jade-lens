@@ -20,6 +20,28 @@ input {
   box-sizing: border-box;
 }
 
+.pat-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pat-wrapper input {
+  padding-right: 2.5rem;
+}
+
+.pat-toggle {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #555;
+  display: flex;
+  align-items: center;
+}
+
 button[type='submit'] {
   width: 100%;
   padding: 0.75rem;

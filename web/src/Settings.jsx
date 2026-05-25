@@ -6,28 +6,35 @@ export default function Settings() {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')
   const [githubPat, setGithubPat] = useState('')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     getConfig().then(cfg => {
       setGithubRepoUrl(cfg.githubRepoUrl ?? '')
       setGithubPat(cfg.githubPat ?? '')
-    })
+    }).catch(() => setError('Failed to load config'))
   }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await saveConfig({ githubRepoUrl, githubPat })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await saveConfig({ githubRepoUrl, githubPat })
+      setError(null)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setError('Failed to save config')
+    }
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <h2>Settings</h2>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       <label>
         GitHub repo URL
         <input
-          type="url"
+          type="text"
           value={githubRepoUrl}
           onChange={e => setGithubRepoUrl(e.target.value)}
         />

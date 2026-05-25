@@ -34,7 +34,7 @@ export default function Settings() {
       <label>
         GitHub repo URL
         <input
-          type="text"
+          type="url"
           value={githubRepoUrl}
           onChange={e => setGithubRepoUrl(e.target.value)}
         />

@@ -1,66 +1,17 @@
-import { useEffect, useState } from 'react'
-import { getConfig, saveConfig } from './config'
 import './Settings.css'
-import EyeIcon from './assets/eye.svg?react'
-import EyeOffIcon from './assets/eye-off.svg?react'
+import SettingsForm from './SettingsForm'
+import ArrowLeftIcon from './assets/arrow-left.svg?react'
 
-export default function Settings() {
-  const [githubRepoUrl, setGithubRepoUrl] = useState('')
-  const [githubPat, setGithubPat] = useState('')
-  const [showPat, setShowPat] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    getConfig().then(cfg => {
-      setGithubRepoUrl(cfg.githubRepoUrl ?? '')
-      setGithubPat(cfg.githubPat ?? '')
-    }).catch(() => setError('Failed to load config'))
-  }, [])
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    try {
-      await saveConfig({ githubRepoUrl, githubPat })
-      setError(null)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch {
-      setError('Failed to save config')
-    }
-  }
-
+export default function Settings({ onClose }) {
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Settings</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <label>
-        GitHub repo URL
-        <input
-          type="url"
-          value={githubRepoUrl}
-          onChange={e => setGithubRepoUrl(e.target.value)}
-        />
-      </label>
-      <label>
-        GitHub PAT
-        <div className="pat-wrapper">
-          <input
-            type={showPat ? 'text' : 'password'}
-            value={githubPat}
-            onChange={e => setGithubPat(e.target.value)}
-          />
-          <button
-            type="button"
-            className="pat-toggle"
-            onClick={() => setShowPat(v => !v)}
-            aria-label={showPat ? 'Hide PAT' : 'Show PAT'}
-          >
-            {showPat ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
-        </div>
-      </label>
-      <button type="submit">{saved ? 'Saved!' : 'Save'}</button>
-    </form>
+    <div>
+      <div className="page-header">
+        <button className="icon-button" onClick={onClose} aria-label="Back">
+          <ArrowLeftIcon />
+        </button>
+        <h2>Settings</h2>
+      </div>
+      <SettingsForm onSuccess={onClose} />
+    </div>
   )
 }

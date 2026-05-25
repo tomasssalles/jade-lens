@@ -1,6 +1,11 @@
 form {
   max-width: 480px;
-  margin: 2rem auto 0;
+  margin: 0 auto;
+}
+
+.form-title {
+  max-width: 480px;
+  margin: 2rem auto 0.5rem;
 }
 
 label {
@@ -18,6 +23,16 @@ input {
   border-radius: 6px;
   font-size: 1rem;
   box-sizing: border-box;
+}
+
+.field-error {
+  font-size: 0.8rem;
+  color: #c0392b;
+}
+
+.form-error {
+  color: #c0392b;
+  margin-bottom: 1rem;
 }
 
 .pat-wrapper {
@@ -44,6 +59,9 @@ input {
 
 button[type='submit'] {
   width: 100%;
+  max-width: 480px;
+  display: block;
+  margin: 0 auto;
   padding: 0.75rem;
   background: #051c07;
   color: white;
@@ -55,4 +73,41 @@ button[type='submit'] {
 
 button[type='submit']:active {
   opacity: 0.8;
+}
+
+/* Settings page header (back arrow + title) */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 480px;
+  margin: 2rem auto 0.5rem;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: inherit;
+  display: flex;
+  align-items: center;
+}
+
+/* Gear button fixed to top-right of main page */
+.gear-button {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: inherit;
+  display: flex;
+  align-items: center;
 }

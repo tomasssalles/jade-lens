@@ -10,4 +10,6 @@ The project has a PolyForm Noncommercial License. This means we have to be caref
 
 This is mostly a Python project, uv-managed. Call `uv run pytest` for tests. The `./web` subdirectory is a React web-app built with Vite and deployed to github pages by running the workflow at `.github/workflows/deploy-pages.yml` (manually triggered).
 
+The development branch for Claude Code sessions is `claude-ai`. Always commit and push to that branch.
+
 Wait for my instructions now.

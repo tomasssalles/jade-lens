@@ -111,7 +111,7 @@ These are *separate files*. Prose can also live **inline** as a JSON string valu
 
 ### 4.2 Change format
 
-The bot mutates the data exclusively through a single tool (the web app's API or the `/jade` skill's `handle_bot_response` — same shape, see §12.2). Its input is a list of typed operations, applied in order as one atomic change:
+The bot mutates the data exclusively through a single tool (the web app's API or the `/jade` skill's `jadelens-apply` — same shape, see §12.2). Its input is a list of typed operations, applied in order as one atomic change:
 
 | Op | Use |
 |---|---|
@@ -230,7 +230,7 @@ Three conventions considered:
 
 ### 4.6 The index file
 
-A JSON file at `.jade/index.json`, maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything.
+A JSON file at `index.json` (data repo root), maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything. The index lives at the root rather than under `.jade/` because the bot is the writer and the bot can't touch `.jade/` (§4.2's protected-paths rule).
 
 #### Contents
 
@@ -685,11 +685,13 @@ If a future feature genuinely benefits from a Claude-specific pattern at low por
 
 ---
 
-## 12. Claude Code TUI Integration
+## 12. Claude Code Integration
 
-For desktop use while coding in an IDE, JADE LENS is available inside the Claude Code TUI through a single **`/jade`** skill that covers all use cases (logging new information, querying old information, chatting). The skill is installed via a one-time `install` command (see §12.7) into the user's per-user Claude Code skills directory, so every `claude` session picks it up automatically without alias or `--add-dir` setup. Users who prefer a different invocation name (`/jarvis`, `/jv`, etc.) pick it at install time; no symlinks or shell aliases are involved.
+JADE LENS is invokable from every Claude Code surface — desktop TUI, claude.ai browser, claude.ai mobile — through a single **`/<assistant.name>`** skill (chosen by the user; the package default is `/jade`). The skill covers all use cases: logging new information, querying old information, chatting.
 
-The skill operates on a local clone of the data and honours the same data conventions as the web app.
+The skill is rendered fresh at session start by a hook committed to the data repo (`.claude/hooks/session-start`). It lives inside the data repo at `.claude/skills/<assistant.name>/SKILL.md` — Claude Code auto-discovers it whenever a session is started from the repo root. On desktop, the hook also tries to symlink `~/.claude/skills/<assistant.name>/` to that same directory, so `/<name>` is invokable from any cwd. See §12.7 for the full bootstrap mechanics.
+
+The skill operates on a local clone of the data on desktop, and on the session's working repo on claude.ai surfaces; it honours the same data conventions as the web app.
 
 ### 12.1 Shared data + shared mutation pipeline; divergent context-assembly
 
@@ -712,7 +714,7 @@ So the `/jade` skill is **not** a parallel implementation of the web app's logic
 
 ### 12.2 The custom mutation tool
 
-The `/jade` skill provides Claude Code with a custom tool — call it `handle_bot_response` for now — whose input is the same shape the web app's API responses use:
+The skill provides Claude Code with a single mutation tool, `jadelens-apply` (a Python console script shipped by the `jadelens` package, installed via `uv tool install`). Its input is the same shape the web app's API responses use:
 
 - **Operations** — the typed set defined in §4.2: `json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path`.
 - **A concise commit message** — one line, written by the bot (§7.3). The bot does NOT repeat the user's verbatim prompt; that would cost real output tokens for marginal audit value (the in-context prompt is usually meaningless without the surrounding Claude Code chat anyway).
@@ -723,7 +725,7 @@ The `/jade` skill provides Claude Code with a custom tool — call it `handle_bo
 The bot invokes the tool with the data-repo path as the only positional argument and a single JSON object on stdin (heredoc avoids shell-escaping concerns for multi-line content):
 
 ```bash
-handle_bot_response /home/tom/dev/jarvis <<'EOF'
+jadelens-apply /home/tom/dev/jarvis <<'EOF'
 {
   "commit_message": "<one-line summary>",
   "operations": [
@@ -741,7 +743,7 @@ All `path` / `from` / `to` values are relative to the data-repo root. Multi-line
 
 The tool routes through the **same runtime pipeline** as the web app: verification, programmatic inline-vs-sidecar promotion (§4.4), wikilink rewrite on rename (§4.3), git commit + log append (§7), queue for sync. Files end up structurally identical regardless of which client made the change.
 
-**The SKILL.md is prescriptive:** the bot must NOT use Claude Code's native Edit / Write tools on data files; all mutations go through `handle_bot_response`. Reads via the native Read / Grep / Glob tools are fine and expected — discovery stays agentic. A sanity-check could flag out-of-band edits if compliance turns out to be a problem in practice.
+**The SKILL.md is prescriptive:** the bot must NOT use Claude Code's native Edit / Write tools on data files; all mutations go through `jadelens-apply`. Reads via the native Read / Grep / Glob tools are fine and expected — discovery stays agentic. A sanity-check could flag out-of-band edits if compliance turns out to be a problem in practice.
 
 ### 12.3 Skill content converges with the web-app system prompt
 
@@ -754,7 +756,7 @@ The `/jade` skill doesn't have the web app's view registry or rich visualisation
 - **TUI-rendered markdown** in the chat, with good table support. Concise textual replies are the default surface and often enough.
 - **Temp-file handoff** — for output that doesn't belong in chat (a long report, a generated checklist, a draft document), the bot writes to `/tmp/jadelens-...md` (or similar) and points the user at it. The user can open it in a text editor, in a browser, or — usefully — in the JADE LENS web app itself for richer visualisation. Pattern borrowed from the Librarian project.
 - **File-pointers instead of content dumps** — when a query is essentially "find this in my data," the bot points at file + line range (`see projects/leasing/notes.md lines 14-22`) instead of re-quoting content the user already has on disk.
-- **Tool-result echoes of applied operations.** When `handle_bot_response` applies an operation batch, the runtime returns a result containing the operations themselves (JSON Patches, unified diffs, file-level ops). Claude Code displays tool results inline beneath the call; this gives the user a visible record of *what was actually changed* without the bot paying output tokens to repeat the patches in prose. The user can collapse/expand the result as needed (the TUI shortens long results with a `ctrl-o` expansion affordance, which is acceptable).
+- **Tool-result echoes of applied operations.** When `jadelens-apply` applies an operation batch, the runtime returns a result containing the operations themselves (JSON Patches, unified diffs, file-level ops). Claude Code displays tool results inline beneath the call; this gives the user a visible record of *what was actually changed* without the bot paying output tokens to repeat the patches in prose. The user can collapse/expand the result as needed (the TUI shortens long results with a `ctrl-o` expansion affordance, which is acceptable).
 - **ANSI styling in tool results — future option, not v0.1.0.** Most terminals (PyCharm's terminal included) honor ANSI escape sequences for foreground/background colour and bold. Even when markdown rendering isn't available, ANSI gives a way to highlight diff hunks, JSON keys, or rename headers in tool output. v0.1.0 ships with plain-text echoes; styled output can be layered on later without protocol changes.
 - **Surface side-effect changes in the reflection — future enhancement, not v0.1.0.** The current reflection mirrors only the bot's *original* operations. Runtime-driven side effects (wikilink rewrites from `rename_path`, programmatic inline-vs-sidecar promotions §4.4) don't appear, so a user reviewing the tool result sees only the bot's intent, not the full set of files actually touched. A future version of `reflection.format_reflection` could append a clearly-distinguished "side effects" block per relevant op (e.g. `[1/3] rename_path: old → new (also rewrote 4 wikilinks in 3 files)`, with the list expandable). The information is already available — `rewrite_references_under` returns the modified files, and the promotion path knows what it promoted — it just isn't currently surfaced.
 
@@ -772,13 +774,11 @@ Optional later: the bot may *self-report* a load-bearing read in its response pr
 
 ### 12.6 Scope and phasing
 
-Given that the `/jade` skill amounts to a SKILL.md template + the custom mutation tool wrapping the existing pipeline + a small installer/update script (§12.7), it's **planned for v1**. The cost is dramatically lower than "a second implementation."
+Given that the skill amounts to a SKILL.md template + the `jadelens-apply` console script wrapping the existing pipeline + a session-start hook committed to the data repo (§12.7), it's **planned for v1**. The cost is dramatically lower than "a second implementation."
 
-### 12.7 Installation, updates, and configuration
+### 12.7 Installation and bootstrap
 
-The `/jade` skill lives in the user's per-user Claude Code skills directory at `~/.claude/skills/<name>/SKILL.md`. That location is auto-discovered by every Claude Code session — no aliasing, no `--add-dir`, no shell-config edits. The user-chosen name appears in TUI tab-completion (the frontmatter `name:` field matches the directory name).
-
-The installed SKILL.md is **rendered from a versioned template** in the code repo. Templates live at `templates/skill/v<version>.md` (or similar — exact path TBD), one file per template version. Templates use `{{PLACEHOLDER}}` syntax for config values filled in at install time (e.g. `{{SKILL_NAME}}`, `{{DATA_REPO_PATH}}`, `{{CODE_REPO_PATH}}`).
+The skill is **rendered into the data repo** at `<data-repo>/.claude/skills/<assistant.name>/SKILL.md` by a session-start hook committed to the data repo (`<data-repo>/.claude/hooks/session-start`). Claude Code auto-discovers skills under `.claude/skills/<name>/` from the repo root — no alias, no `--add-dir`, no per-user installer. The user-chosen `<assistant.name>` (stored in `<data-repo>/.jade/config.json`) is what becomes `/<name>` in any Claude Code session.
 
 The rendered SKILL.md carries a marker comment near the top:
 
@@ -786,46 +786,44 @@ The rendered SKILL.md carries a marker comment near the top:
 <!-- jade-lens-skill template-version=v0.1.0 -->
 ```
 
-The marker contains **only the template version**. No config values — they exist exclusively as concrete substituted strings in the body. This is the source-of-truth invariant: each config value appears in the rendered body exactly as many times as its placeholder appeared in the template, and the rebuild tool can recover each value by inverting the template (regex-extracting at the placeholder positions).
+The marker contains **only the template version**. Config values live in `<data-repo>/.jade/config.json` (`user.full_name`, `user.short_name`, `assistant.name`) and are substituted into the template's `{{PLACEHOLDER}}` slots at render time.
 
-#### Why this shape
+#### The session-start hook
 
-- **Bot cost is minimal.** Paths appear concretely inline; no variable resolution at runtime. (Asking the bot to look up a value from a comment block was considered and rejected — recalling exact substrings from markdown comments is a brittle thing to depend on.)
-- **No second config file.** The skill is the only persisted state on the user's machine. Nothing to read or permission-check at session start.
-- **Versioned templates decouple template evolution from installed skills.** New template versions can add, remove, rename, or reposition placeholders freely; existing installs continue to be re-extractable because their template version is recorded and never deleted from the repo.
-- **Manual edits are detectable on rebuild.** Regex extraction either fails entirely or returns disagreeing values when the same placeholder rendered to multiple body locations and the user edited only some. The tool surfaces this and offers either manual fix or re-prompting.
+On every session start (any Claude Code surface — desktop TUI, claude.ai browser, claude.ai mobile), the hook:
 
-#### Installer flow (`install` command)
+1. Computes the data-repo path from `${BASH_SOURCE[0]}`.
+2. If `jadelens-apply` is not on `PATH`, runs `uv tool install git+https://github.com/<owner>/jade-lens.git@<ref>`. Idempotent — no-op if already installed.
+3. Runs `jadelens render-skill <data-repo>`, which reads `.jade/config.json`, picks the highest-version bundled template (loaded via `importlib.resources`), and writes the rendered skill. **No-op if the skill file already exists** — refresh-by-delete is the rebuild loop.
+4. On desktop only (silent no-op elsewhere): tries to symlink `~/.claude/skills/<assistant.name>/` → the data-repo skill dir. If the slot is empty and the parent is writable, creates the link; otherwise prints the exact `mkdir -p && ln -s` command for the user to run themselves.
 
-1. Run from the code repo's clone directory (it knows its own location, so `code_repo_path` is not user-prompted).
-2. Prompt for skill name (default `jade`) and a path to the data repo's local clone. The user can type a relative path, a `~`-expanded path, or an absolute one; the installer resolves to absolute before storing. Validated: must be an existing directory and contain `.git`.
-3. Pick the highest-version template in `templates/`.
-4. Render placeholders → write to `~/.claude/skills/<name>/SKILL.md`.
+Step 2 is the only step that varies per surface: claude.ai sessions get a fresh install every cold start; desktop with an editable `uv tool install -e <local clone>` no-ops permanently.
 
-If a jade-lens skill already exists at `~/.claude/skills/<name>/`, prompt to confirm overwrite.
+#### Templates as package resources
 
-#### Update flow (`update` command)
+Templates live inside the `jadelens` Python package at `jadelens/templates/skill/v<X.Y.Z>.md`. `uv tool install` ships them with the code; `importlib.resources` reads them whether the install is editable or from a built wheel. The render step enumerates available templates and picks the highest version. (Future: semver-aware sort; v0.1.0 ships with one.)
 
-1. `git pull` the code repo.
-2. Scan `~/.claude/skills/*/SKILL.md` for the jade-lens marker. May find zero, one, or more installs.
-3. For each install:
-   a. Read its `template-version` from the marker.
-   b. Locate the matching template (immutable invariant: shipped template versions are never deleted from the repo).
-   c. Regex-extract config values from the installed skill by inverting that template's placeholders.
-   d. **If extraction succeeds** (all placeholders matched, multi-placeholder values agree across positions): pick the highest-version template available, re-render with the extracted values, write back. The new render may use the same template version if the latest didn't change the template, or a newer one if it did.
-   e. **If extraction fails** (a regex didn't match, or two extracted values that should be the same disagree): warn the user, show what went wrong, offer either (i) abort so they can fix the skill manually, or (ii) re-prompt for all config values and re-render fresh.
+#### Updates
 
-#### Config-change flow
+To pick up new bot instructions, new behaviour, or new `jadelens` code:
 
-Same as update, but with one or more extracted values overridden by user-provided new values before the re-render. Reuses all the same machinery; no separate code path.
+- **Editable-install case (typical for contributors):** `git pull` the code repo; the next session sees both the new code and the new bundled template immediately. To re-render the skill body, delete `<data-repo>/.claude/skills/<assistant.name>/` and start a fresh session.
+- **Non-editable case (claude.ai sessions):** every cold session re-installs `jadelens-apply` from the pinned ref, so picking up a new ref is automatic on the next session.
 
-#### Skill rename
+The hook currently pins to `@main` during early development. Once the §14 migration framework is in place, the ref will move to `@$(cat .jade/version)`, and stepping the data version will be the explicit trigger for picking up new code.
 
-Rename is treated as a config change to the `skill_name` field. After re-rendering at the new location, the old `~/.claude/skills/<old-name>/SKILL.md` is **deleted**. The tool tells the user explicitly before proceeding. Two installed skills sharing the same data repo provides no value and risks the two installs diverging over future updates, so this case is actively prevented.
+#### Config changes (renames, etc.)
 
-#### Multi-install support
+Edit `<data-repo>/.jade/config.json` directly — it's the source of truth. To rename the assistant (or change the user's names):
 
-The marker scan returns all jade-lens skills, so `update` and config commands work over multiple installs simultaneously. The motivating use case is *different data repos* — e.g. `/jade` for personal data and `/family-jade` for a shared family data repo. Each install carries its own `template-version` and `data_repo_path` independently. The constraint above (no two installs on the same data repo) is the only restriction.
+1. Edit the field(s) in `.jade/config.json`.
+2. Delete the existing rendered skill dir at `.claude/skills/<old name>/`.
+3. (If the assistant name changed) delete the corresponding home-dir symlink at `~/.claude/skills/<old name>/`.
+4. Start a fresh claude session. The hook re-renders under the new name and re-creates the home-dir symlink.
+
+#### Multi-data-repo support
+
+Each data repo is a self-contained install: its own hook, its own `.jade/config.json` (its own `assistant.name`), its own rendered skill. Home-dir symlinks at `~/.claude/skills/<each-name>/` coexist as long as `assistant.name` values are distinct. The motivating use case is *different data repos for different scopes* — e.g. `/jade` for personal data and `/family-jade` for a shared family data repo. There's no central installer that has to know about all of them.
 
 ---
 
@@ -900,11 +898,11 @@ The running code keeps itself current before any data work happens.
 - On every startup, compare the two. Mismatch → cache is stale → reload with cache-bust (and/or unregister the Service Worker if we ship one).
 - Works around GitHub Pages caching without anything exotic. Service Worker integration can come later as polish.
 
-**`/jade` Claude Code skill**:
-- The installed skill at `~/.claude/skills/<name>/SKILL.md` does **not** self-update on invocation. Instead, the user runs the `update` command from the code-repo clone (see §12.7), which performs `git pull` and re-renders all installed jade-lens skills from the latest template, preserving each install's config values.
-- The skill does not perform a staleness check at invocation time — that would cost a tool call (or bot cognition) on every interaction for a check that's almost always negative. The user runs `update` deliberately whenever they want to pull in template/code changes.
-- A running Claude Code session does not re-read its skills mid-session; an update propagates on the next session.
-- **Update nudge.** The `jadelens` CLI does a best-effort `git fetch --quiet` against the code repo on every invocation (with a short timeout and silent failure on network issues), and counts commits-behind on `origin/main`. If non-zero, it prints a one-line nudge (*"N new commits on origin; cd to the code repo and `git pull && jadelens` to apply"*) and offers to abort. Non-blocking by default; never modifies code itself.
+**Claude Code skill (rendered into the data repo)**:
+- The session-start hook (§12.7) re-renders the skill from the bundled template **every session** — but only when the rendered file is absent. So the implicit "what version is my skill?" check is "what version of the template is bundled with the currently-installed `jadelens`?" — i.e. it tracks `jadelens-apply`'s install.
+- On claude.ai cold sessions, `jadelens-apply` is reinstalled from the pinned ref (currently `@main`) every time, so the rendered skill stays current automatically.
+- On desktop with an editable `uv tool install -e <local clone>`, `git pull` in the code repo is enough to update both the code and the bundled template; deleting the rendered skill on the next session triggers a re-render with the latest template body.
+- A running Claude Code session does not re-read its skills mid-session; updates propagate on the next session.
 
 ### 14.4 Version comparison on every load
 
@@ -971,7 +969,7 @@ This section describes the **full v1 horizon** — what the project aims for onc
 - Eager-load-everything discovery flow, with sidecars eagerly loaded with their parent JSON.
 - Chat UI with prominent input + default typed-structured rendering of JSON data + WYSIWYG markdown editor for sidecars. The promoted-view registry (calendar / kanban / table / timeline) is in place as a concept, but specialised renderers can be implemented incrementally as the data shapes that need them emerge.
 - **Manual calendar event import** via chat paste — the bot creates augmentation records and lightweight local shadow records for offline reasoning. No live external-calendar API integration yet (§10).
-- **`/jade` Claude Code skill** for in-IDE use — a SKILL.md describing the data conventions + the `handle_bot_response` custom tool that routes mutations through the same pipeline as the web app (§12). Lightweight; ships with v1 because the mutation pipeline is already built for the web app and the skill is a thin tool wrapper around it.
+- **`/jade` Claude Code skill** for in-IDE use — a SKILL.md describing the data conventions + the `jadelens-apply` custom tool that routes mutations through the same pipeline as the web app (§12). Lightweight; ships with v1 because the mutation pipeline is already built for the web app and the skill is a thin tool wrapper around it.
 - **Versioning and migration system** (§14). Both clients carry a code version, the data repo carries a `version` file, the runtime self-updates and runs the migration flow on every load. v0.1.0 ships with the framework in place (version files, comparison logic, self-update mechanism, migration script discovery + execution, checkpoint tagging), even if the only "migration script" so far is the trivial v0.0.0 → v0.1.0 bootstrap.
 - **Two-repo split** (§3) — this code repo plus a separate private data repo. The web app and `/jade` skill read the data-repo location from a setting (or env var, for a single-user install).
 
@@ -1017,7 +1015,7 @@ This section describes the **full v1 horizon** — what the project aims for onc
   - Drive that section from a `behavior` (or `style`) field in `<data-repo>/.jade/config.json` — committed, shared across the user's devices, survives skill regeneration, slots into the existing render-skill substitution alongside the names.
   - Ship a curated default. Two reasonable layers, in order of effort: **v1: free-form text** — user writes whatever they want; risk of contradicting the protocol is mitigated by section placement and (optionally) a soft length cap with a warning. **v2: curated presets** — named blocks (`"concise"`, `"exploratory"`, …) bundled with `jadelens`; user picks via `behavior_preset` and can still override with free-form. Free-form alone is enough to validate the design; presets are polish on top.
 - **Easy export of selected data** for use elsewhere. Driver: the user has a Claude Pro subscription that covers claude.ai but not the API. For long-form discussions, claude.ai is the cheaper surface — JADE LENS's chat UI is then reserved for shorter conversations, queries, and clarifications. Possible one-click flow: copy relevant data slice to clipboard and open claude.ai (or another external chat surface). Format-agnostic export (JSON, markdown, plain text) for ad-hoc transfer.
-- **Claude-Code-subprocess transport for the desktop web app.** A speculative cost optimisation: instead of calling the Anthropic API (paid) from the desktop build of the web app, spawn Claude Code as a subprocess and route through the Pro subscription. Was rejected earlier as a primary path, but the mutation-tool design in §12 makes this *substantially less painful* than originally feared — replacing the API transport with a subprocess transport is mostly "wire the subprocess to fire our existing `handle_bot_response` tool," not "rebuild parsing for Claude Code's native output." Still real implementation work (subprocess lifecycle, session management, streaming). Only worth doing if observed API costs on desktop actually warrant it.
+- **Claude-Code-subprocess transport for the desktop web app.** A speculative cost optimisation: instead of calling the Anthropic API (paid) from the desktop build of the web app, spawn Claude Code as a subprocess and route through the Pro subscription. Was rejected earlier as a primary path, but the mutation-tool design in §12 makes this *substantially less painful* than originally feared — replacing the API transport with a subprocess transport is mostly "wire the subprocess to fire our existing `jadelens-apply` tool," not "rebuild parsing for Claude Code's native output." Still real implementation work (subprocess lifecycle, session management, streaming). Only worth doing if observed API costs on desktop actually warrant it.
 - **Authentication and protected-data tier** (v2+). Complements §16's hosting/credential-storage architecture with per-record protection of the *data itself*. Three layers, all client-side (no backend needed):
   - **UX-only lock** — PIN/password prompt at app start; active "lock now" button when handing the phone to someone else. Doesn't protect data at rest; protects against casual peeking only.
   - **At-rest encryption for protected records** — per-record `protected: true` annotation in the index. Protected records are encrypted client-side with a key derived from the user's password (PBKDF2/Argon2 → AES-GCM) or, where supported, from WebAuthn's PRF extension (biometric — fingerprint / Face ID / Touch ID). Encryption applies both to local storage (IndexedDB) and to data pushed to the remote substrate. Unprotected data stays plaintext for human-readability.

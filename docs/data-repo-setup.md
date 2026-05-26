@@ -175,12 +175,16 @@ change it to their own `git+https://github.com/<owner>/<repo>.git@<ref>`.
    placeholders in `.jade/config.json`.
 3. Make the hook executable: `chmod +x .claude/hooks/session-start`.
 4. Commit and push.
-5. `cd` into the data repo and run `claude`. The hook will install
+5. `cd` into **the data repo root** and run `claude`. The hook will install
    `jadelens-apply` if missing, render the skill into
    `.claude/skills/<assistant.name>/SKILL.md`, and then either symlink
    it into `~/.claude/skills/` for global `/<name>` access (if the
    parent dir is writable and nothing's in the way), or print the exact
    `mkdir -p && ln -s` command for you to run yourself.
+
+   The "root" part matters: Claude Code loads `CLAUDE.md` and skills
+   from any subdir of the data repo, but `.claude/settings.json` hooks
+   only fire when `claude` is started from the repo root.
 6. (Optional — desktop dev) `uv tool install -e /path/to/jade-lens` if
    you're working on the code repo and want the editable install rather
    than the canonical `@main` one the hook would install.

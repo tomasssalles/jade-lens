@@ -15,6 +15,8 @@ Requires editable install (``uv tool install --editable .``) so that
 for the git-fetch check.
 """
 
+import argparse
+import json
 import subprocess
 import sys
 from importlib.resources import files
@@ -28,6 +30,27 @@ SKILLS_DIR = Path.home() / ".claude" / "skills"
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(prog="jadelens")
+    sub = parser.add_subparsers(dest="command")
+
+    render = sub.add_parser(
+        "render-skill",
+        help="Render the bundled skill template into a data repo's "
+             ".claude/skills/<assistant.name>/SKILL.md (no-op if it exists).",
+    )
+    render.add_argument(
+        "data_repo",
+        type=Path,
+        help="Path to the data repo whose .jade/config.json drives the render.",
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "render-skill":
+        do_render_skill(args.data_repo.expanduser().resolve())
+        return
+
+    # No subcommand: legacy onboarding flow.
     check_for_updates(CODE_REPO_PATH)
     installs = scan_for_installs(SKILLS_DIR)
 
@@ -217,6 +240,69 @@ def _git_config_user_name(data_repo: Path) -> str:
         return result.stdout.strip()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return ""
+
+
+def do_render_skill(data_repo: Path) -> None:
+    """Render the bundled skill template into
+    ``<data-repo>/.claude/skills/<assistant.name>/SKILL.md``.
+
+    Reads ``<data-repo>/.jade/config.json`` for user + assistant fields.
+    Per the hook-based bootstrap design, this is a no-op if the target
+    SKILL.md already exists — refresh-by-delete is the rebuild loop.
+
+    Exits with a clear message on missing config, invalid JSON, or
+    missing required fields, rather than silently rendering a skill
+    with `{{undefined}}` placeholders in it.
+    """
+    if not data_repo.is_dir():
+        sys.exit(f"Data repo is not a directory: {data_repo}")
+
+    config_path = data_repo / ".jade" / "config.json"
+    if not config_path.is_file():
+        sys.exit(f"Missing config file: {config_path}")
+
+    try:
+        config_data = json.loads(config_path.read_text())
+    except json.JSONDecodeError as e:
+        sys.exit(f"Invalid JSON in {config_path}: {e}")
+
+    try:
+        skill_name = config_data["assistant"]["name"]
+        user_full_name = config_data["user"]["full_name"]
+        user_short_name = config_data["user"]["short_name"]
+    except (KeyError, TypeError) as e:
+        sys.exit(
+            f"Missing or malformed required field in {config_path}. "
+            f"Expected shape: "
+            f'{{"user": {{"full_name": "...", "short_name": "..."}}, '
+            f'"assistant": {{"name": "..."}}}}. Got error: {e!r}'
+        )
+
+    try:
+        config = Config(
+            skill_name=skill_name,
+            data_repo_path=data_repo,
+            user_full_name=user_full_name,
+            user_short_name=user_short_name,
+        )
+    except ValueError as e:
+        sys.exit(f"Invalid config in {config_path}: {e}")
+
+    skill_path = (
+        data_repo / ".claude" / "skills" / skill_name / "SKILL.md"
+    )
+    if skill_path.exists():
+        return  # no-op; delete to force a re-render
+
+    template_text = latest_template_text()
+    version = parse_marker(template_text)
+    if version is None:
+        sys.exit("BUG: latest bundled template is missing its marker. Please report.")
+
+    rendered = render_skill(config, CODE_REPO_PATH, version, template_text)
+    skill_path.parent.mkdir(parents=True, exist_ok=True)
+    skill_path.write_text(rendered)
+    print(f"✓ Rendered skill at {skill_path}")
 
 
 def latest_template_text() -> str:

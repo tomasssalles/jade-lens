@@ -1069,7 +1069,15 @@ JADE LENS exposes PAT encryption as a **user-optional setting**, with a lean rec
 - **Fallback:** Master password, where PRF isn't supported or for cross-device portability. User types it on every cold start; key derived via PBKDF2 (or Argon2id).
 - **Compatibility:** PRF is solid on iOS Safari ≥ 18, macOS Safari, Chrome, Edge; partial on Firefox. Fall back to master password transparently where unsupported.
 
-### 16.5 Recovery via PAT rotation
+### 16.5 Re-authenticating for settings changes
+
+Even with the PAT encrypted, an attacker with access to the unlocked device can swap the configured data repo + PAT to an attacker-controlled pair under a new master password, then watch the user populate the attacker's repo as they keep using JADE LENS. Encryption of the existing credential doesn't help — the attacker isn't reading it, they're replacing it.
+
+Defense: require re-authentication (biometric or master password) for **settings changes** — data-repo URL, PAT, master password — on top of the unlock for data access. Routine reads of the user's own data don't re-prompt; credential-touching changes do.
+
+Intentionally out of scope: the related "attacker simply reads the user's data through JADE LENS's UI while the device is unlocked" angle. An unlocked-device adversary already has the user's calendar, email, messaging, contacts, etc.; JADE LENS isn't a hardened vault against that threat model.
+
+### 16.6 Recovery via PAT rotation
 
 The master password (or PRF secret) is **only an encryption key for the PAT**, nothing else. Recovery is:
 
@@ -1079,7 +1087,7 @@ No recovery codes to store, no key escrow, no email-reset infrastructure. The sa
 
 Corollary: treat PATs as **easily-rotated short-half-life credentials**, not long-lived secrets. A leak is repaired by rotation, not by panic.
 
-### 16.6 Self-hosting as a trust escape hatch
+### 16.7 Self-hosting as a trust escape hatch
 
 The canonical JADE LENS deployment lives at one chosen origin (custom domain or alt-host subdomain), operated by the project maintainer. Users with stricter trust requirements can self-host:
 
@@ -1091,7 +1099,7 @@ The deployment URL is public; the data is private behind the user's PAT. Cloudfl
 
 **What does not work:** hosting JADE LENS *from* the data repo (one private repo holding both code and data). GitHub Pages on free accounts does not serve private repos, so the data repo cannot double as the deployment source.
 
-### 16.7 Backend-mediated authentication (deferred)
+### 16.8 Backend-mediated authentication (deferred)
 
 A GitHub App with installation tokens would shrink the credential exposure window to ~1-hour tokens minted on demand. The App's private key cannot live in a static SPA, so this path requires **a backend service to mint installation tokens**. That breaks §3's "no server-side code we run" and adds a strongly-trusted operator party to the trust chain. Not on the roadmap unless trust / safety pressure justifies the cost.
 
@@ -1105,7 +1113,7 @@ For comparison:
 
 PATs are the cleanest on the trust axis in the current architecture; OAuth Device Flow trades a small trust addition for UX; GitHub Apps shrink the storage-exposure window only by adding both an operator and a server.
 
-### 16.8 Durable substrate (Supabase / Postgres): trust at rest
+### 16.9 Durable substrate (Supabase / Postgres): trust at rest
 
 §15.2 hints at a possible move from "JSON + markdown in a Git repo" to a database (Supabase or similar) for query-heavy data, with the bot-facing protocol unchanged. That move shifts the trust frame from *"your data is in your private GitHub repo"* to *"your data is in a database we operate."* Two patterns to keep on the table:
 
@@ -1114,7 +1122,7 @@ PATs are the cleanest on the trust axis in the current architecture; OAuth Devic
 
 Client-side encryption costs feature flexibility — no server-side full-text search, no cross-row aggregations, no indexing on encrypted columns. For JADE LENS's envelope (**personal text-based data, no media, single-user volumes growing over years**) client-side search remains workable and syncing stays quick — the device already holds a recent state and only diffs need to move. The trade-off is acceptable; the decision when we get there is which pattern to ship.
 
-### 16.9 Trust vs. safety, restated
+### 16.10 Trust vs. safety, restated
 
 Safety improvements (origin isolation, encryption, self-host option) raise the technical bar. Trust improvements (open source, audit-friendly architecture, visible operator boundaries, transparent threat documentation) help a careful user form a justified belief about safety. The decisions above are chosen to move both axes together where possible — and to make the discipline-only mitigations explicit where they're load-bearing, so future-us doesn't quietly let them slip.
 

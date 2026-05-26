@@ -9,7 +9,6 @@ import Main from './Main'
 function App() {
   const [page, setPage] = useState('loading')
   const [showExitToast, setShowExitToast] = useState(false)
-  const pageRef = useRef('loading')
   const awaitingExitRef = useRef(false)
   const exitTimerRef = useRef(null)
 
@@ -17,15 +16,15 @@ function App() {
     getConfig()
       .then(cfg => {
         const initial = isConfigValid(cfg) ? 'main' : 'setup'
-        history.replaceState({ page: '__floor__' }, '')
-        history.pushState({ page: initial }, '')
-        pageRef.current = initial
+        // Floor entry has no hash; page entries have distinct hash URLs
+        // so Firefox Android can't skip them as same-URL duplicates
+        history.replaceState({ page: '__floor__' }, '', location.pathname)
+        history.pushState({ page: initial }, '', '#' + initial)
         setPage(initial)
       })
       .catch(() => {
-        history.replaceState({ page: '__floor__' }, '')
-        history.pushState({ page: 'setup' }, '')
-        pageRef.current = 'setup'
+        history.replaceState({ page: '__floor__' }, '', location.pathname)
+        history.pushState({ page: 'setup' }, '', '#setup')
         setPage('setup')
       })
   }, [])
@@ -34,20 +33,19 @@ function App() {
     function onPopState(e) {
       if (!e.state?.page || e.state.page === '__floor__') {
         if (awaitingExitRef.current) {
-          // Second back press — let the browser exit naturally
+          // Second back press — let the browser exit
           return
         }
-        // First back press on main — show toast, wait for second press
         awaitingExitRef.current = true
         setShowExitToast(true)
         exitTimerRef.current = setTimeout(() => {
           awaitingExitRef.current = false
           setShowExitToast(false)
-          history.pushState({ page: pageRef.current }, '')
+          history.pushState({ page: 'main' }, '', '#main')
+          setPage('main')
         }, 2000)
         return
       }
-      pageRef.current = e.state.page
       setPage(e.state.page)
     }
     window.addEventListener('popstate', onPopState)
@@ -55,14 +53,9 @@ function App() {
   }, [])
 
   function goTo(newPage) {
-    history.pushState({ page: newPage }, '')
-    pageRef.current = newPage
+    history.pushState({ page: newPage }, '', '#' + newPage)
     setPage(newPage)
   }
-
-  const exitToast = showExitToast
-    ? <div className="exit-toast">Press back again to exit</div>
-    : null
 
   if (page === 'loading') return <h1>Welcome to Jade Lens</h1>
 
@@ -72,8 +65,7 @@ function App() {
       <div>
         <h2 className="form-title">Setup</h2>
         <SettingsForm onSuccess={() => {
-          history.replaceState({ page: 'main' }, '')
-          pageRef.current = 'main'
+          history.replaceState({ page: 'main' }, '', '#main')
           setPage('main')
         }} />
       </div>
@@ -85,7 +77,7 @@ function App() {
   return (
     <>
       <Main onSettings={() => goTo('settings')} />
-      {exitToast}
+      {showExitToast && <div className="exit-toast">Press back again to exit</div>}
     </>
   )
 }

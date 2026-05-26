@@ -1,12 +1,10 @@
 """Config dataclass for an installed jade-lens skill, and helpers to build it
 from an extracted placeholder-mapping for any known template version.
 
-Config holds **user-preference state** — things the user chose at install time
-and that should persist across updates (``skill_name``, ``data_repo_path``).
-Ambient values that the install/update flow re-derives every time (notably
-``code_repo_path``) are NOT in Config; they are passed separately to the
-render step. ``config_from_mapping`` ignores ambient keys if present in the
-mapping.
+Config holds the values that drive skill rendering: assistant name, data
+repo path, and how to refer to the user. All of them come from
+``<data-repo>/.jade/config.json`` (user-edited) and from the data repo's
+own location.
 
 Fields here are the union across all template versions. Older template
 versions may not include all fields; ``config_from_mapping`` is responsible
@@ -20,14 +18,14 @@ from pathlib import Path
 
 @dataclass(slots=True, frozen=True)
 class Config:
-    skill_name: str
+    assistant_name: str
     data_repo_path: Path
     user_full_name: str
     user_short_name: str
 
     def __post_init__(self) -> None:
-        if not self.skill_name:
-            raise ValueError("skill_name must not be empty")
+        if not self.assistant_name:
+            raise ValueError("assistant_name must not be empty")
         if not self.data_repo_path.is_absolute():
             raise ValueError(
                 f"data_repo_path must be absolute: {self.data_repo_path}"
@@ -56,8 +54,7 @@ def config_from_mapping(mapping: dict[str, str], version: str) -> Config:
     The version determines which placeholders the mapping is expected to
     contain. Fields added in template versions later than ``version`` are
     populated with defaults defined here, so older installs remain buildable
-    after the schema evolves. Ambient placeholders (e.g. ``CODE_REPO_PATH``)
-    are ignored if present — they are not user-preference state.
+    after the schema evolves.
 
     Raises:
         UnknownVersion: ``version`` is not a template version this code
@@ -74,7 +71,7 @@ def config_from_mapping(mapping: dict[str, str], version: str) -> Config:
 def _from_mapping_v0_1_0(mapping: dict[str, str]) -> Config:
     try:
         return Config(
-            skill_name=mapping["SKILL_NAME"],
+            assistant_name=mapping["ASSISTANT_NAME"],
             data_repo_path=Path(mapping["DATA_REPO_PATH"]),
             user_full_name=mapping["USER_FULL_NAME"],
             user_short_name=mapping["USER_SHORT_NAME"],

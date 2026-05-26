@@ -125,12 +125,12 @@ def scan_for_installs(skills_dir: Path) -> list[Path]:
 def do_onboarding() -> None:
     print("No installed skill detected. Let's create one.\n")
 
-    skill_name = prompt_skill_name()
+    assistant_name = prompt_assistant_name()
     data_repo_path = prompt_data_repo_path()
     user_full_name = prompt_user_full_name(data_repo_path)
     user_short_name = prompt_user_short_name(user_full_name)
     config = Config(
-        skill_name=skill_name,
+        assistant_name=assistant_name,
         data_repo_path=data_repo_path,
         user_full_name=user_full_name,
         user_short_name=user_short_name,
@@ -141,9 +141,9 @@ def do_onboarding() -> None:
     if version is None:
         sys.exit("BUG: latest bundled template is missing its marker. Please report.")
 
-    rendered = render_skill(config, CODE_REPO_PATH, version, template_text)
+    rendered = render_skill(config, version, template_text)
 
-    install_dir = SKILLS_DIR / skill_name
+    install_dir = SKILLS_DIR / assistant_name
     install_path = install_dir / "SKILL.md"
 
     if install_path.exists():
@@ -158,15 +158,15 @@ def do_onboarding() -> None:
     install_dir.mkdir(parents=True, exist_ok=True)
     install_path.write_text(rendered)
 
-    print(f"\n✓ Installed skill '{skill_name}' at {install_path}")
-    print(f"  You can now run /{skill_name} in any new Claude Code session.")
+    print(f"\n✓ Installed skill '{assistant_name}' at {install_path}")
+    print(f"  You can now run /{assistant_name} in any new Claude Code session.")
 
 
-def prompt_skill_name() -> str:
+def prompt_assistant_name() -> str:
     default = "jade"
     while True:
         raw = input(
-            f"Skill name (used as /<name> in Claude Code) [{default}]: "
+            f"Assistant name (used as /<name> in Claude Code) [{default}]: "
         ).strip()
         name = raw or default
         if "/" in name or " " in name:
@@ -267,7 +267,7 @@ def do_render_skill(data_repo: Path) -> None:
         sys.exit(f"Invalid JSON in {config_path}: {e}")
 
     try:
-        skill_name = config_data["assistant"]["name"]
+        assistant_name = config_data["assistant"]["name"]
         user_full_name = config_data["user"]["full_name"]
         user_short_name = config_data["user"]["short_name"]
     except (KeyError, TypeError) as e:
@@ -280,7 +280,7 @@ def do_render_skill(data_repo: Path) -> None:
 
     try:
         config = Config(
-            skill_name=skill_name,
+            assistant_name=assistant_name,
             data_repo_path=data_repo,
             user_full_name=user_full_name,
             user_short_name=user_short_name,
@@ -289,7 +289,7 @@ def do_render_skill(data_repo: Path) -> None:
         sys.exit(f"Invalid config in {config_path}: {e}")
 
     skill_path = (
-        data_repo / ".claude" / "skills" / skill_name / "SKILL.md"
+        data_repo / ".claude" / "skills" / assistant_name / "SKILL.md"
     )
     if skill_path.exists():
         return  # no-op; delete to force a re-render
@@ -299,7 +299,7 @@ def do_render_skill(data_repo: Path) -> None:
     if version is None:
         sys.exit("BUG: latest bundled template is missing its marker. Please report.")
 
-    rendered = render_skill(config, CODE_REPO_PATH, version, template_text)
+    rendered = render_skill(config, version, template_text)
     skill_path.parent.mkdir(parents=True, exist_ok=True)
     skill_path.write_text(rendered)
     print(f"✓ Rendered skill at {skill_path}")

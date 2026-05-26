@@ -39,30 +39,22 @@ def test_template_render_extract_round_trip():
     ambiguity at template-author time (here, in CI) rather than at user-
     update time."""
     fixture_config = Config(
-        skill_name="testskill",
+        assistant_name="testskill",
         data_repo_path=Path("/home/test/data"),
         user_full_name="Test User",
         user_short_name="Test",
     )
-    fixture_code_repo = Path("/home/test/code")
 
     for tpl in _all_templates():
         template_text = tpl.read_text()
         version = parse_marker(template_text)
         assert version is not None, f"Template {tpl.name} has no marker"
 
-        rendered = render_skill(
-            fixture_config, fixture_code_repo, version, template_text
-        )
+        rendered = render_skill(fixture_config, version, template_text)
         mapping = extract_template_vars(template_text, rendered)
 
         recovered_config = config_from_mapping(mapping, version)
         assert recovered_config == fixture_config, (
             f"Template {tpl.name}: Config did not round-trip "
             f"(got {recovered_config}, expected {fixture_config})"
-        )
-        assert mapping.get("CODE_REPO_PATH") == str(fixture_code_repo), (
-            f"Template {tpl.name}: CODE_REPO_PATH did not round-trip "
-            f"(got {mapping.get('CODE_REPO_PATH')!r}, expected "
-            f"{str(fixture_code_repo)!r})"
         )

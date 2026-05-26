@@ -108,15 +108,13 @@ def extract_template_vars(template_text: str, skill_text: str) -> dict[str, str]
 
 def render_skill(
     config: Config,
-    code_repo_path: Path,
     version: str,
     template_text: str,
 ) -> str:
-    """Render an installed skill file from a Config + ambient values + template.
+    """Render an installed skill file from a Config + template.
 
     Substitutes every ``{{PLACEHOLDER}}`` in ``template_text`` with the
-    corresponding value, drawn from ``config`` (user-preference fields) or
-    from ambient parameters (``code_repo_path``).
+    corresponding value drawn from ``config``.
 
     Raises:
         UnknownVersion: ``version`` is not a template version this code
@@ -124,18 +122,15 @@ def render_skill(
         KeyError: the template contains a placeholder this version does not
             know how to fill — indicates a template/code mismatch.
     """
-    mapping = _render_mapping(config, code_repo_path, version)
+    mapping = _render_mapping(config, version)
     return PLACEHOLDER_RE.sub(lambda m: mapping[m.group(1)], template_text)
 
 
-def _render_mapping(
-    config: Config, code_repo_path: Path, version: str
-) -> dict[str, str]:
+def _render_mapping(config: Config, version: str) -> dict[str, str]:
     if version == "v0.1.0":
         return {
-            "SKILL_NAME": config.skill_name,
+            "ASSISTANT_NAME": config.assistant_name,
             "DATA_REPO_PATH": str(config.data_repo_path),
-            "CODE_REPO_PATH": str(code_repo_path),
             "USER_FULL_NAME": config.user_full_name,
             "USER_SHORT_NAME": config.user_short_name,
         }

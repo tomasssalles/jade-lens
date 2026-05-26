@@ -14,7 +14,7 @@ from jadelens.config import (
 
 def _v0_1_0_mapping(**overrides) -> dict[str, str]:
     base = {
-        "SKILL_NAME": "foo",
+        "ASSISTANT_NAME": "foo",
         "DATA_REPO_PATH": "/home/tom/data",
         "USER_FULL_NAME": "Test User",
         "USER_SHORT_NAME": "Test",
@@ -24,31 +24,29 @@ def _v0_1_0_mapping(**overrides) -> dict[str, str]:
 
 
 def test_v0_1_0_happy_path():
-    mapping = _v0_1_0_mapping(CODE_REPO_PATH="/home/tom/code")  # ambient, ignored
+    mapping = _v0_1_0_mapping()
     config = config_from_mapping(mapping, "v0.1.0")
     assert config == Config(
-        skill_name="foo",
+        assistant_name="foo",
         data_repo_path=Path("/home/tom/data"),
         user_full_name="Test User",
         user_short_name="Test",
     )
 
 
-def test_v0_1_0_without_code_repo_path_works():
-    """CODE_REPO_PATH is ambient and not required for Config."""
-    config = config_from_mapping(_v0_1_0_mapping(), "v0.1.0")
-    assert config.skill_name == "foo"
-    assert config.data_repo_path == Path("/home/tom/data")
-    assert config.user_full_name == "Test User"
-    assert config.user_short_name == "Test"
+def test_v0_1_0_extra_keys_ignored():
+    """Unknown placeholders in the mapping are silently ignored."""
+    mapping = _v0_1_0_mapping(SOMETHING_NEW="ignored")
+    config = config_from_mapping(mapping, "v0.1.0")
+    assert config.assistant_name == "foo"
 
 
-def test_v0_1_0_missing_skill_name_raises():
+def test_v0_1_0_missing_assistant_name_raises():
     mapping = _v0_1_0_mapping()
-    del mapping["SKILL_NAME"]
+    del mapping["ASSISTANT_NAME"]
     with pytest.raises(MissingField) as exc_info:
         config_from_mapping(mapping, "v0.1.0")
-    assert "SKILL_NAME" in str(exc_info.value)
+    assert "ASSISTANT_NAME" in str(exc_info.value)
 
 
 def test_v0_1_0_missing_data_repo_path_raises():
@@ -88,9 +86,9 @@ def test_relative_data_repo_path_raises_value_error():
         config_from_mapping(mapping, "v0.1.0")
 
 
-def test_empty_skill_name_raises_value_error():
-    mapping = _v0_1_0_mapping(SKILL_NAME="")
-    with pytest.raises(ValueError, match="skill_name must not be empty"):
+def test_empty_assistant_name_raises_value_error():
+    mapping = _v0_1_0_mapping(ASSISTANT_NAME="")
+    with pytest.raises(ValueError, match="assistant_name must not be empty"):
         config_from_mapping(mapping, "v0.1.0")
 
 

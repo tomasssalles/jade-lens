@@ -170,3 +170,72 @@ def test_create_file_with_md_path_allows_arbitrary_content():
         "content": "{ this is not JSON, but it's fine in markdown }",
     }
     parse_operation(raw)  # must not raise
+
+
+# ---------------------- Protected-path rejection ----------------------
+# Top-level dot-prefixed paths (.claude/, .git/, .gitignore, .jade/, …)
+# are reserved for tooling. The bot must not touch them via any op.
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".claude/skills/x/SKILL.md",
+        ".gitignore",
+        ".jade/version",
+        ".python-version",
+        "./.jade/index.json",  # normalised by PurePosixPath to .jade/index.json
+    ],
+)
+def test_create_file_rejects_protected_path(path):
+    raw = {"op": "create_file", "path": path, "content": "{}"}
+    with pytest.raises(ValidationError, match="protected top-level path"):
+        parse_operation(raw)
+
+
+def test_delete_path_rejects_protected_path():
+    raw = {"op": "delete_path", "path": ".jade/operations-log"}
+    with pytest.raises(ValidationError, match="protected top-level path"):
+        parse_operation(raw)
+
+
+def test_rename_path_rejects_protected_from():
+    raw = {"op": "rename_path", "from": ".jade/version", "to": "version.txt"}
+    with pytest.raises(ValidationError, match="from .* protected top-level path"):
+        parse_operation(raw)
+
+
+def test_rename_path_rejects_protected_to():
+    raw = {"op": "rename_path", "from": "old.md", "to": ".claude/oops.md"}
+    with pytest.raises(ValidationError, match="to .* protected top-level path"):
+        parse_operation(raw)
+
+
+def test_json_patch_rejects_protected_path():
+    raw = {
+        "op": "json_patch",
+        "path": ".jade/index.json",
+        "patch": [{"op": "add", "path": "/x", "value": 1}],
+    }
+    with pytest.raises(ValidationError, match="protected top-level path"):
+        parse_operation(raw)
+
+
+def test_unified_diff_rejects_protected_path():
+    raw = {"op": "unified_diff", "path": ".gitignore", "diff": "@@ -1 +1 @@\n-a\n+b\n"}
+    with pytest.raises(ValidationError, match="protected top-level path"):
+        parse_operation(raw)
+
+
+def test_protected_check_allows_nested_dot_directories():
+    """A '.' as a nested component (not the leading one) is fine — only the
+    top-level component triggers the rule."""
+    raw = {"op": "create_file", "path": "projects/.draft/notes.md", "content": "x"}
+    parse_operation(raw)  # must not raise
+
+
+def test_protected_check_allows_leading_dot_slash():
+    """PurePosixPath strips './' from the front, so './notes.md' resolves to
+    'notes.md' and is allowed."""
+    raw = {"op": "create_file", "path": "./notes.md", "content": "# notes\n"}
+    parse_operation(raw)  # must not raise

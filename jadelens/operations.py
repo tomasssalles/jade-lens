@@ -10,7 +10,7 @@ ops in a batch have applied successfully.
 import json
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import jsonpatch
@@ -195,6 +195,7 @@ def parse_operation(raw: Any) -> Operation:
 def _parse_create_file(raw: dict) -> CreateFile:
     _require_exact_keys(raw, {"op", "path", "content"})
     path = _require_str(raw, "path")
+    _reject_protected_path(path)
     if not path.endswith(EDITABLE_FILE_SUFFIXES):
         raise ValidationError(
             f"create_file path must end with one of {EDITABLE_FILE_SUFFIXES} "
@@ -213,20 +214,24 @@ def _parse_create_file(raw: dict) -> CreateFile:
 
 def _parse_delete_path(raw: dict) -> DeletePath:
     _require_exact_keys(raw, {"op", "path"})
-    return DeletePath(path=_require_str(raw, "path"))
+    path = _require_str(raw, "path")
+    _reject_protected_path(path)
+    return DeletePath(path=path)
 
 
 def _parse_rename_path(raw: dict) -> RenamePath:
     _require_exact_keys(raw, {"op", "from", "to"})
-    return RenamePath(
-        from_path=_require_str(raw, "from"),
-        to_path=_require_str(raw, "to"),
-    )
+    from_path = _require_str(raw, "from")
+    to_path = _require_str(raw, "to")
+    _reject_protected_path(from_path, field="from")
+    _reject_protected_path(to_path, field="to")
+    return RenamePath(from_path=from_path, to_path=to_path)
 
 
 def _parse_json_patch(raw: dict) -> JsonPatch:
     _require_exact_keys(raw, {"op", "path", "patch"})
     path = _require_str(raw, "path")
+    _reject_protected_path(path)
     if not path.endswith(".json"):
         raise ValidationError(
             f"json_patch path must end with '.json' (got {path!r}); "
@@ -243,12 +248,32 @@ def _parse_json_patch(raw: dict) -> JsonPatch:
 def _parse_unified_diff(raw: dict) -> UnifiedDiff:
     _require_exact_keys(raw, {"op", "path", "diff"})
     path = _require_str(raw, "path")
+    _reject_protected_path(path)
     if path.endswith(".json"):
         raise ValidationError(
             f"unified_diff cannot target JSON files (got {path!r}); "
             f"use json_patch for .json files"
         )
     return UnifiedDiff(path=path, diff=_require_str(raw, "diff"))
+
+
+def _reject_protected_path(path: str, field: str = "path") -> None:
+    """Reject any path whose top-level component starts with '.'.
+
+    Top-level dot-prefixed paths (``.claude/``, ``.git/``, ``.gitignore``,
+    ``.jade/``, ``.python-version``, ...) are reserved for tooling and
+    out of bounds for the bot. Nested paths like
+    ``projects/.draft/notes.md`` are fine — only the leading component
+    matters. PurePosixPath normalises ``./notes.md`` to ``notes.md``, so
+    that's not falsely rejected.
+    """
+    parts = PurePosixPath(path).parts
+    if parts and parts[0].startswith("."):
+        raise ValidationError(
+            f"{field} {path!r} targets a protected top-level path. "
+            f"Anything starting with '.' (.claude/, .git/, .gitignore, "
+            f".jade/, ...) is reserved for tooling and out of bounds."
+        )
 
 
 def _require_exact_keys(raw: dict, allowed: set[str]) -> None:

@@ -13,18 +13,20 @@ function App() {
   const exitTimerRef = useRef(null)
 
   useEffect(() => {
+    const base = location.pathname
     getConfig()
       .then(cfg => {
         const initial = isConfigValid(cfg) ? 'main' : 'setup'
-        // Floor entry has no hash; page entries have distinct hash URLs
-        // so Firefox Android can't skip them as same-URL duplicates
-        history.replaceState({ page: '__floor__' }, '', location.pathname)
-        history.pushState({ page: initial }, '', '#' + initial)
+        // All entries use hashes so all back navigation is hash-to-hash
+        // (same-document). Mixing no-hash and hash URLs in Firefox Android
+        // standalone mode causes the back press to bypass popstate entirely.
+        history.replaceState({ page: '__floor__' }, '', base + '#')
+        history.pushState({ page: initial }, '', base + '#' + initial)
         setPage(initial)
       })
       .catch(() => {
-        history.replaceState({ page: '__floor__' }, '', location.pathname)
-        history.pushState({ page: 'setup' }, '', '#setup')
+        history.replaceState({ page: '__floor__' }, '', base + '#')
+        history.pushState({ page: 'setup' }, '', base + '#setup')
         setPage('setup')
       })
   }, [])
@@ -33,7 +35,6 @@ function App() {
     function onPopState(e) {
       if (!e.state?.page || e.state.page === '__floor__') {
         if (awaitingExitRef.current) {
-          // Second back press — let the browser exit
           return
         }
         awaitingExitRef.current = true
@@ -41,7 +42,7 @@ function App() {
         exitTimerRef.current = setTimeout(() => {
           awaitingExitRef.current = false
           setShowExitToast(false)
-          history.pushState({ page: 'main' }, '', '#main')
+          history.pushState({ page: 'main' }, '', location.pathname + '#main')
           setPage('main')
         }, 2000)
         return
@@ -53,7 +54,7 @@ function App() {
   }, [])
 
   function goTo(newPage) {
-    history.pushState({ page: newPage }, '', '#' + newPage)
+    history.pushState({ page: newPage }, '', location.pathname + '#' + newPage)
     setPage(newPage)
   }
 
@@ -65,7 +66,7 @@ function App() {
       <div>
         <h2 className="form-title">Setup</h2>
         <SettingsForm onSuccess={() => {
-          history.replaceState({ page: 'main' }, '', '#main')
+          history.replaceState({ page: 'main' }, '', location.pathname + '#main')
           setPage('main')
         }} />
       </div>

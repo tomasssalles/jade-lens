@@ -17,13 +17,13 @@ for the git-fetch check.
 
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 from jadelens.config import Config
 from jadelens.skill import parse_marker, render_skill
 
 CODE_REPO_PATH = Path(__file__).resolve().parent.parent
-TEMPLATES_DIR = CODE_REPO_PATH / "templates" / "skill"
 SKILLS_DIR = Path.home() / ".claude" / "skills"
 
 
@@ -113,14 +113,10 @@ def do_onboarding() -> None:
         user_short_name=user_short_name,
     )
 
-    template_path = latest_template_path()
-    template_text = template_path.read_text()
+    template_text = latest_template_text()
     version = parse_marker(template_text)
     if version is None:
-        sys.exit(
-            f"BUG: template {template_path} is missing its marker. "
-            f"Please report."
-        )
+        sys.exit("BUG: latest bundled template is missing its marker. Please report.")
 
     rendered = render_skill(config, CODE_REPO_PATH, version, template_text)
 
@@ -223,17 +219,26 @@ def _git_config_user_name(data_repo: Path) -> str:
         return ""
 
 
-def latest_template_path() -> Path:
-    """Return the highest-version template file in ``TEMPLATES_DIR``.
+def latest_template_text() -> str:
+    """Return the text of the highest-version bundled template.
 
-    Versions are like ``v0.1.0`` (stem of the filename). For v0.1.0 there is
-    only one template, so any deterministic pick works; a proper version-aware
-    sort will be added when multiple templates ship.
+    Templates live as package resources under ``jadelens/templates/skill/``
+    so ``uv tool install`` ships them with the code; ``importlib.resources``
+    reads them whether the install is editable or from a built wheel.
+
+    Filenames are ``v<X>.Y.Z.md``. For v0.1.0 there is only one template,
+    so any deterministic pick works; a proper semver-aware sort will be
+    added when multiple templates ship.
     """
-    path = max(TEMPLATES_DIR.glob("v*.md"), default=None)
-    if not path:
+    skill_dir = files("jadelens").joinpath("templates", "skill")
+    candidates = [
+        f for f in skill_dir.iterdir()
+        if f.name.startswith("v") and f.name.endswith(".md")
+    ]
+    if not candidates:
         sys.exit(
-            f"BUG: no templates found in {TEMPLATES_DIR}. Please report."
+            "BUG: no templates found in jadelens.templates.skill. Please report."
         )
     # TODO: when more than one template ships, sort by semver (vX.Y.Z).
-    return path
+    latest = max(candidates, key=lambda f: f.name)
+    return latest.read_text()

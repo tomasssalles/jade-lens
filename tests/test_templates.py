@@ -1,32 +1,32 @@
-"""Invariant tests for the shipped templates under templates/skill/."""
+"""Invariant tests for the shipped templates under jadelens/templates/skill/."""
 
+from importlib.resources import files
 from pathlib import Path
 
 from jadelens.config import Config, config_from_mapping
 from jadelens.skill import extract_template_vars, parse_marker, render_skill
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "skill"
 
-
-def _all_template_paths() -> list[Path]:
-    return list(TEMPLATES_DIR.glob("v*.md"))
-
-
-def test_templates_dir_exists():
-    assert TEMPLATES_DIR.is_dir(), f"Templates directory missing: {TEMPLATES_DIR}"
+def _all_templates() -> list:
+    """Return the bundled template resources, as ``Traversable`` objects."""
+    skill_dir = files("jadelens").joinpath("templates", "skill")
+    return [
+        f for f in skill_dir.iterdir()
+        if f.name.startswith("v") and f.name.endswith(".md")
+    ]
 
 
 def test_at_least_one_template():
-    assert _all_template_paths(), "No templates found in templates/skill/"
+    assert _all_templates(), "No templates found in jadelens.templates.skill"
 
 
 def test_template_marker_version_matches_filename():
-    """Each templates/skill/v<X>.md declares template-version=v<X> in its marker."""
-    for path in _all_template_paths():
-        filename_version = path.stem  # e.g. "v0.1.0"
-        marker_version = parse_marker(path.read_text())
+    """Each v<X>.md declares template-version=v<X> in its marker."""
+    for tpl in _all_templates():
+        filename_version = tpl.name[: -len(".md")]  # e.g. "v0.1.0"
+        marker_version = parse_marker(tpl.read_text())
         assert marker_version == filename_version, (
-            f"Template {path.name}: marker version {marker_version!r} "
+            f"Template {tpl.name}: marker version {marker_version!r} "
             f"does not match filename-derived version {filename_version!r}"
         )
 
@@ -46,10 +46,10 @@ def test_template_render_extract_round_trip():
     )
     fixture_code_repo = Path("/home/test/code")
 
-    for path in _all_template_paths():
-        template_text = path.read_text()
+    for tpl in _all_templates():
+        template_text = tpl.read_text()
         version = parse_marker(template_text)
-        assert version is not None, f"Template {path.name} has no marker"
+        assert version is not None, f"Template {tpl.name} has no marker"
 
         rendered = render_skill(
             fixture_config, fixture_code_repo, version, template_text
@@ -58,11 +58,11 @@ def test_template_render_extract_round_trip():
 
         recovered_config = config_from_mapping(mapping, version)
         assert recovered_config == fixture_config, (
-            f"Template {path.name}: Config did not round-trip "
+            f"Template {tpl.name}: Config did not round-trip "
             f"(got {recovered_config}, expected {fixture_config})"
         )
         assert mapping.get("CODE_REPO_PATH") == str(fixture_code_repo), (
-            f"Template {path.name}: CODE_REPO_PATH did not round-trip "
+            f"Template {tpl.name}: CODE_REPO_PATH did not round-trip "
             f"(got {mapping.get('CODE_REPO_PATH')!r}, expected "
             f"{str(fixture_code_repo)!r})"
         )

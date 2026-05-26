@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
@@ -8,24 +8,21 @@ import Main from './Main'
 
 function App() {
   const [page, setPage] = useState('loading')
-  const [showExitToast, setShowExitToast] = useState(false)
-  const awaitingExitRef = useRef(false)
-  const exitTimerRef = useRef(null)
 
   useEffect(() => {
     const base = location.pathname
     getConfig()
       .then(cfg => {
         const initial = isConfigValid(cfg) ? 'main' : 'setup'
-        // All entries use hashes so all back navigation is hash-to-hash
-        // (same-document). Mixing no-hash and hash URLs in Firefox Android
-        // standalone mode causes the back press to bypass popstate entirely.
-        history.replaceState({ page: '__floor__' }, '', base + '#')
+        // Two identical entries so back never exhausts history.
+        // Same URL means no visual transition when the back press
+        // consumes entry 2 and we immediately push entry 3.
+        history.replaceState({ page: initial }, '', base + '#' + initial)
         history.pushState({ page: initial }, '', base + '#' + initial)
         setPage(initial)
       })
       .catch(() => {
-        history.replaceState({ page: '__floor__' }, '', base + '#')
+        history.replaceState({ page: 'setup' }, '', base + '#setup')
         history.pushState({ page: 'setup' }, '', base + '#setup')
         setPage('setup')
       })
@@ -33,21 +30,12 @@ function App() {
 
   useEffect(() => {
     function onPopState(e) {
-      if (!e.state?.page || e.state.page === '__floor__') {
-        if (awaitingExitRef.current) {
-          return
-        }
-        awaitingExitRef.current = true
-        setShowExitToast(true)
-        exitTimerRef.current = setTimeout(() => {
-          awaitingExitRef.current = false
-          setShowExitToast(false)
-          history.pushState({ page: 'main' }, '', location.pathname + '#main')
-          setPage('main')
-        }, 2000)
-        return
-      }
-      setPage(e.state.page)
+      const target = e.state?.page ?? 'main'
+      setPage(target)
+      // Re-push so there's always an entry below the current one.
+      // pushState prunes any forward history (e.g. a stale #settings entry)
+      // so the stack stays clean.
+      history.pushState({ page: target }, '', location.pathname + '#' + target)
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -66,7 +54,9 @@ function App() {
       <div>
         <h2 className="form-title">Setup</h2>
         <SettingsForm onSuccess={() => {
-          history.replaceState({ page: 'main' }, '', location.pathname + '#main')
+          const base = location.pathname
+          history.replaceState({ page: 'main' }, '', base + '#main')
+          history.pushState({ page: 'main' }, '', base + '#main')
           setPage('main')
         }} />
       </div>
@@ -75,12 +65,7 @@ function App() {
 
   if (page === 'settings') return <Settings onClose={() => history.back()} />
 
-  return (
-    <>
-      <Main onSettings={() => goTo('settings')} />
-      {showExitToast && <div className="exit-toast">Press back again to exit</div>}
-    </>
-  )
+  return <Main onSettings={() => goTo('settings')} />
 }
 
 export default App

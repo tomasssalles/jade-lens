@@ -11,25 +11,48 @@ function App() {
 
   useEffect(() => {
     getConfig()
-      .then(cfg => setPage(isConfigValid(cfg) ? 'main' : 'setup'))
-      .catch(() => setPage('setup'))
+      .then(cfg => {
+        const initial = isConfigValid(cfg) ? 'main' : 'setup'
+        history.replaceState({ page: initial }, '')
+        setPage(initial)
+      })
+      .catch(() => {
+        history.replaceState({ page: 'setup' }, '')
+        setPage('setup')
+      })
   }, [])
 
-  if (page === 'loading') return null
+  useEffect(() => {
+    function onPopState(e) {
+      if (e.state?.page) setPage(e.state.page)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  function goTo(newPage) {
+    history.pushState({ page: newPage }, '')
+    setPage(newPage)
+  }
+
+  if (page === 'loading') return <h1>Welcome to Jade Lens</h1>
 
   if (page === 'setup') return (
     <>
       <h1>Welcome to Jade Lens</h1>
       <div>
         <h2 className="form-title">Setup</h2>
-        <SettingsForm onSuccess={() => setPage('main')} />
+        <SettingsForm onSuccess={() => {
+          history.replaceState({ page: 'main' }, '')
+          setPage('main')
+        }} />
       </div>
     </>
   )
 
-  if (page === 'settings') return <Settings onClose={() => setPage('main')} />
+  if (page === 'settings') return <Settings onClose={() => history.back()} />
 
-  return <Main onSettings={() => setPage('settings')} />
+  return <Main onSettings={() => goTo('settings')} />
 }
 
 export default App

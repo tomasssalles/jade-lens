@@ -111,3 +111,7 @@ button[type='submit']:active {
   display: flex;
   align-items: center;
 }
+
+.main {
+  padding-top: 3.5rem;
+}

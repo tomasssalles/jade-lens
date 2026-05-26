@@ -30,6 +30,11 @@ input {
   color: #c0392b;
 }
 
+.field-warning {
+  font-size: 0.8rem;
+  color: #b45309;
+}
+
 .form-error {
   color: #c0392b;
   margin-bottom: 1rem;

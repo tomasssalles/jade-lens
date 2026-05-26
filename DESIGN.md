@@ -289,7 +289,7 @@ This way the bot's interface is uniform (always JSON in, JSON Patch out) regardl
 | **DB-backed (lazy JSON)** | Fast queries, fast bulk updates, native indexing for filtering by date / priority / etc. | Harder to inspect manually (degrades the secondary goal); third-party signup; vendor lock-in concern |
 | **JSON-file-only** | Simple, fully inspectable, single substrate | Linear scan for query; large all-tasks file when the to-do list grows |
 
-*Whether to adopt a DB in v1 is open* (§17). Working assumption for v1: no DB.
+*Whether to adopt a DB in v1 is open* (§18). Working assumption for v1: no DB.
 
 ### 4.9 Schemas and the view registry are the same set
 
@@ -495,7 +495,7 @@ Two candidate approaches:
 | **Three-way semantic merge on JSON** (compare base, remote, local field-by-field; auto-merge non-overlapping fields; surface true conflicts) | Robust; handles any data shape | Real implementation effort; per-domain conflict UI |
 | **Data-shape choices that make conflicts vanishingly rare** (append-only logs, narrow scoped updates, time-keyed records) | Most conflicts dodge themselves | Limits how the bot can structure data; doesn't eliminate the residual case |
 
-Hybrid is plausible: prefer conflict-rare shapes; fall back to semantic merge for the residual. *Open* (§17).
+Hybrid is plausible: prefer conflict-rare shapes; fall back to semantic merge for the residual. *Open* (§18).
 
 ---
 
@@ -1014,7 +1014,7 @@ This section describes the **full v1 horizon** — what the project aims for onc
   - **Out of v0.1.0 scope**. Pays off only once the structured-discovery flow (§6.3) lands; v0.1.0's eager-load + Claude-Code-agentic Read/Grep/Glob doesn't need them.
 - **Easy export of selected data** for use elsewhere. Driver: the user has a Claude Pro subscription that covers claude.ai but not the API. For long-form discussions, claude.ai is the cheaper surface — JADE LENS's chat UI is then reserved for shorter conversations, queries, and clarifications. Possible one-click flow: copy relevant data slice to clipboard and open claude.ai (or another external chat surface). Format-agnostic export (JSON, markdown, plain text) for ad-hoc transfer.
 - **Claude-Code-subprocess transport for the desktop web app.** A speculative cost optimisation: instead of calling the Anthropic API (paid) from the desktop build of the web app, spawn Claude Code as a subprocess and route through the Pro subscription. Was rejected earlier as a primary path, but the mutation-tool design in §12 makes this *substantially less painful* than originally feared — replacing the API transport with a subprocess transport is mostly "wire the subprocess to fire our existing `handle_bot_response` tool," not "rebuild parsing for Claude Code's native output." Still real implementation work (subprocess lifecycle, session management, streaming). Only worth doing if observed API costs on desktop actually warrant it.
-- **Authentication and protected-data tier** (v2+). Three layers, all client-side (no backend needed):
+- **Authentication and protected-data tier** (v2+). Complements §16's hosting/credential-storage architecture with per-record protection of the *data itself*. Three layers, all client-side (no backend needed):
   - **UX-only lock** — PIN/password prompt at app start; active "lock now" button when handing the phone to someone else. Doesn't protect data at rest; protects against casual peeking only.
   - **At-rest encryption for protected records** — per-record `protected: true` annotation in the index. Protected records are encrypted client-side with a key derived from the user's password (PBKDF2/Argon2 → AES-GCM) or, where supported, from WebAuthn's PRF extension (biometric — fingerprint / Face ID / Touch ID). Encryption applies both to local storage (IndexedDB) and to data pushed to the remote substrate. Unprotected data stays plaintext for human-readability.
   - **Vendor-trust filtering** — each configured API key carries a trust label (e.g. `untrusted` for free-tier vendors with retention concerns). The bot adapter excludes protected records from prompts to untrusted keys, telling the bot some data is being withheld so it can ask the user to switch keys if needed. Pure policy; no crypto required for this layer.
@@ -1022,7 +1022,105 @@ This section describes the **full v1 horizon** — what the project aims for onc
 
 ---
 
-## 16. Guiding Principles (compressed)
+## 16. Trust, Hosting, and Authentication
+
+Two related concerns shape how users can rely on JADE LENS with sensitive data: **safety** (the technical attack surface) and **trust** (what a careful auditor concludes from code, docs, and hosting boundaries). They correlate but move independently — strong design moves push both axes. This section captures the architecture decisions for credential storage, hosting, and authentication. §15.2's "protected-data tier" is the complementary story for per-record protection of the data itself.
+
+### 16.1 The cross-origin storage exposure problem
+
+The web app is a static SPA. Browser storage (IndexedDB, LocalStorage, cookies) is scoped per **origin** — scheme + host + port — *not per path*. Same-origin pages share storage and can interact with each other's running sessions, including loading the other in an iframe with no SOP barrier.
+
+**GitHub Pages user pages share an origin across all projects under one username** (`<username>.github.io`). Anything else the same operator hosts under that username can read JADE LENS's stored credentials, load JADE LENS in a same-origin iframe to capture decrypted state, or stand up a convincing same-origin lookalike. Same-origin phishing defeats common defenses (URL warnings, anti-phishing filters, password-manager domain matching, WebAuthn RP ID binding) because they all key on origin.
+
+This is the central safety issue in the default GitHub Pages hosting story.
+
+### 16.2 v0.1.0 stance: plaintext PAT, visible warning, single-user assumption
+
+The data-repo authentication credential is a fine-grained **GitHub Personal Access Token (PAT)**. v0.1.0 stores it unencrypted in IndexedDB.
+
+Acceptable for v0.1.0 because:
+
+- Single user (the operator), no third-party users to consider.
+- No other apps deployed at the same `<username>.github.io`.
+- Sensitive-data exposure is bounded by the operator's own future deployments under that username — a discipline issue, not a structural one.
+
+The settings UI carries a one-line note under the PAT field so the threat is visible: *"Stored as plain text in this browser. Any web app served from the same domain can read it."*
+
+### 16.3 Hosting model for multi-user / sensitive-data future
+
+The structural fix is **origin isolation**: JADE LENS at an origin that nothing else of ours shares. Two practical paths:
+
+| Path | Cost | Trade-off |
+|---|---|---|
+| **Custom domain CNAME'd to GitHub Pages** (e.g. `jadelens.<your-domain>.com`) | ~$10–15 / yr | Loosens §2's "$0 hosting" to ≈ $1/month |
+| **Per-project subdomain on Cloudflare Pages / Netlify / Vercel** | $0 (free tier) | Adds another vendor in the stack |
+
+Either fixes the same-origin phishing concern; the choice is brand and cost preference.
+
+### 16.4 Optional PAT encryption once the origin is isolated
+
+Once the origin is isolated, plaintext storage is exposed only to **someone with physical access to an unlocked device**. The OS-level device lock is the primary defense; app-level encryption is a second layer.
+
+JADE LENS exposes PAT encryption as a **user-optional setting**, with a lean recommendation to enable it. The settings UI explains the trade-off so the user can decide — protecting against device-theft is the only residual threat encryption addresses in the isolated-origin world.
+
+**When enabled, the mechanism is:**
+
+- **Primary:** WebAuthn with the PRF extension (biometric — fingerprint / Face ID / Touch ID / Windows Hello). The credential is bound to the hardware authenticator; the 32-byte PRF secret never leaves it. User does a biometric tap on every cold start; that secret derives the AES-GCM key.
+- **Fallback:** Master password, where PRF isn't supported or for cross-device portability. User types it on every cold start; key derived via PBKDF2 (or Argon2id).
+- **Compatibility:** PRF is solid on iOS Safari ≥ 18, macOS Safari, Chrome, Edge; partial on Firefox. Fall back to master password transparently where unsupported.
+
+### 16.5 Recovery via PAT rotation
+
+The master password (or PRF secret) is **only an encryption key for the PAT**, nothing else. Recovery is:
+
+> Forgot the password / lost the authenticator? Revoke the PAT at github.com → generate a new PAT → enter it into JADE LENS with a new password.
+
+No recovery codes to store, no key escrow, no email-reset infrastructure. The same flow handles routine rotation and "set up on a new device."
+
+Corollary: treat PATs as **easily-rotated short-half-life credentials**, not long-lived secrets. A leak is repaired by rotation, not by panic.
+
+### 16.6 Self-hosting as a trust escape hatch
+
+The canonical JADE LENS deployment lives at one chosen origin (custom domain or alt-host subdomain), operated by the project maintainer. Users with stricter trust requirements can self-host:
+
+1. Fork (or use) the public **code repo**.
+2. Deploy it on a host of their choosing (their own `<them>.github.io/jade-lens/`, Cloudflare Pages, Netlify, Vercel, …).
+3. Configure that deployment to point at their own private **data repo**.
+
+The deployment URL is public; the data is private behind the user's PAT. Cloudflare / Netlify / Vercel can also deploy from *private* code-repo forks for users who want their fork unlisted; GitHub Pages free cannot.
+
+**What does not work:** hosting JADE LENS *from* the data repo (one private repo holding both code and data). GitHub Pages on free accounts does not serve private repos, so the data repo cannot double as the deployment source.
+
+### 16.7 Backend-mediated authentication (deferred)
+
+A GitHub App with installation tokens would shrink the credential exposure window to ~1-hour tokens minted on demand. The App's private key cannot live in a static SPA, so this path requires **a backend service to mint installation tokens**. That breaks §3's "no server-side code we run" and adds a strongly-trusted operator party to the trust chain. Not on the roadmap unless trust / safety pressure justifies the cost.
+
+For comparison:
+
+| Auth scheme | Long-lived token on device | Adds JADE-author to trust chain | Requires backend | UX |
+|---|---|---|---|---|
+| Fine-grained PAT (today) | yes | no | no | manual PAT creation |
+| OAuth Device Flow | yes | yes (OAuth App registration) | no | one-time browser approval |
+| GitHub App + backend | no (server-mediated) | yes, strongly (operator) | yes | one-time install |
+
+PATs are the cleanest on the trust axis in the current architecture; OAuth Device Flow trades a small trust addition for UX; GitHub Apps shrink the storage-exposure window only by adding both an operator and a server.
+
+### 16.8 Durable substrate (Supabase / Postgres): trust at rest
+
+§15.2 hints at a possible move from "JSON + markdown in a Git repo" to a database (Supabase or similar) for query-heavy data, with the bot-facing protocol unchanged. That move shifts the trust frame from *"your data is in your private GitHub repo"* to *"your data is in a database we operate."* Two patterns to keep on the table:
+
+- **Server-side encryption at rest, operator-held keys** + audit-friendly access logs. Standard practice. The operator can read in principle.
+- **Client-side encryption with per-user keys** (the 1Password / Standard Notes pattern). Browser encrypts rows before storage; operator hosts ciphertext only; the operator literally cannot read.
+
+Client-side encryption costs feature flexibility — no server-side full-text search, no cross-row aggregations, no indexing on encrypted columns. For JADE LENS's envelope (**personal text-based data, no media, single-user volumes growing over years**) client-side search remains workable and syncing stays quick — the device already holds a recent state and only diffs need to move. The trade-off is acceptable; the decision when we get there is which pattern to ship.
+
+### 16.9 Trust vs. safety, restated
+
+Safety improvements (origin isolation, encryption, self-host option) raise the technical bar. Trust improvements (open source, audit-friendly architecture, visible operator boundaries, transparent threat documentation) help a careful user form a justified belief about safety. The decisions above are chosen to move both axes together where possible — and to make the discipline-only mitigations explicit where they're load-bearing, so future-us doesn't quietly let them slip.
+
+---
+
+## 17. Guiding Principles (compressed)
 
 - **The bot designs the data structure.** Files, schemas, organisation evolve with use; no upfront schema design.
 - **Files (JSON + markdown) are the source of truth.** Human-readable, LLM-friendly, version-controllable.
@@ -1034,7 +1132,7 @@ This section describes the **full v1 horizon** — what the project aims for onc
 
 ---
 
-## 17. Open Questions
+## 18. Open Questions
 
 The following are explicitly not yet decided. Each may close out during implementation as the constraints become concrete.
 

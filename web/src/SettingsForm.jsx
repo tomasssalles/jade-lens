@@ -77,6 +77,9 @@ export default function SettingsForm({ onSuccess }) {
           </button>
         </div>
         {errors.githubPat && <span className="field-error">{errors.githubPat}</span>}
+        <span className="field-warning">
+          Stored as plain text in this browser. Any web app served from the same domain can read it.
+        </span>
       </label>
       <button type="submit">{saved ? 'Saved!' : 'Save'}</button>
     </form>

@@ -1,5 +1,5 @@
 """Format the tool-result text shown to the user after a successful
-``handle_bot_response`` invocation.
+``jadelens-apply`` invocation.
 
 The goal: a complete record of what was applied, in human-readable form.
 No summaries, no "N operations" placeholders — the full patches, diffs,

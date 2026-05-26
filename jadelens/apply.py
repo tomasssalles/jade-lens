@@ -1,11 +1,11 @@
-"""Python entry point for the ``handle_bot_response`` tool.
+"""Python entry point for the ``jadelens-apply`` tool.
 
 Reads a JSON payload from stdin and hands it to ``workflow.run``, which
 parses + validates + applies + commits atomically. Prints a stdout
 reflection of the applied operations (task 22).
 
 CLI:
-    handle_bot_response <data_repo_path>
+    jadelens-apply <data_repo_path>
 
 Stdin:
     {
@@ -25,7 +25,7 @@ from jadelens.reflection import format_reflection
 
 def main() -> None:
     if len(sys.argv) != 2:
-        sys.exit("Usage: handle_bot_response <data_repo_path>")
+        sys.exit("Usage: jadelens-apply <data_repo_path>")
     data_repo = Path(sys.argv[1]).resolve()
     if not data_repo.is_dir():
         sys.exit(f"Data repo path does not exist or is not a directory: {data_repo}")

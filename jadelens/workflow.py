@@ -1,4 +1,4 @@
-"""Batch-level orchestration for handle_bot_response.
+"""Batch-level orchestration for jadelens-apply.
 
 Pulls together the per-op apply logic into a single atomic transaction:
 
@@ -166,7 +166,7 @@ def require_clean_tree(data_repo: Path) -> None:
         raise WorkflowError(
             f"Data repo at {data_repo} has uncommitted changes:\n"
             f"{result.stdout.rstrip()}\n"
-            f"Commit or stash these before running handle_bot_response."
+            f"Commit or stash these before running jadelens-apply."
         )
 
 
@@ -266,7 +266,7 @@ def run(
     raw_operations: list[dict],
     commit_message: str,
 ) -> str:
-    """Execute the full handle_bot_response workflow.
+    """Execute the full jadelens-apply workflow.
 
     Parses ``raw_operations`` into typed ``Operation`` objects, validates
     the batch, ensures the data repo is clean, applies each op, appends a

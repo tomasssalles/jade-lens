@@ -1,10 +1,10 @@
-"""Typed operation classes for handle_bot_response.
+"""Typed operation classes for jadelens-apply.
 
 Each ``Operation`` knows its inputs after structural validation, and how
 to ``apply`` itself to a data repo. ``apply`` mutates the data repo's
 working tree (and, for delete/rename, the git index too) but does not
-commit; the workflow orchestrator (jadelens.handle_bot_response) commits
-after all ops in a batch have applied successfully.
+commit; the workflow orchestrator (jadelens.apply) commits after all
+ops in a batch have applied successfully.
 """
 
 import json

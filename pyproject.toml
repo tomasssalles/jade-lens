@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 jadelens = "jadelens.cli:main"
+jadelens-apply = "jadelens.apply:main"
 
 [dependency-groups]
 dev = [

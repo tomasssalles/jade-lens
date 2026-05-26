@@ -8,7 +8,10 @@ import Main from './Main'
 
 function App() {
   const [page, setPage] = useState('loading')
+  const [showExitToast, setShowExitToast] = useState(false)
   const pageRef = useRef('loading')
+  const awaitingExitRef = useRef(false)
+  const exitTimerRef = useRef(null)
 
   useEffect(() => {
     getConfig()
@@ -30,7 +33,18 @@ function App() {
   useEffect(() => {
     function onPopState(e) {
       if (!e.state?.page || e.state.page === '__floor__') {
-        history.pushState({ page: pageRef.current }, '')
+        if (awaitingExitRef.current) {
+          // Second back press — let the browser exit naturally
+          return
+        }
+        // First back press on main — show toast, wait for second press
+        awaitingExitRef.current = true
+        setShowExitToast(true)
+        exitTimerRef.current = setTimeout(() => {
+          awaitingExitRef.current = false
+          setShowExitToast(false)
+          history.pushState({ page: pageRef.current }, '')
+        }, 2000)
         return
       }
       pageRef.current = e.state.page
@@ -45,6 +59,10 @@ function App() {
     pageRef.current = newPage
     setPage(newPage)
   }
+
+  const exitToast = showExitToast
+    ? <div className="exit-toast">Press back again to exit</div>
+    : null
 
   if (page === 'loading') return <h1>Welcome to Jade Lens</h1>
 
@@ -64,7 +82,12 @@ function App() {
 
   if (page === 'settings') return <Settings onClose={() => history.back()} />
 
-  return <Main onSettings={() => goTo('settings')} />
+  return (
+    <>
+      <Main onSettings={() => goTo('settings')} />
+      {exitToast}
+    </>
+  )
 }
 
 export default App

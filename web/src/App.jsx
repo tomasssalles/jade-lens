@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
@@ -8,23 +8,33 @@ import Main from './Main'
 
 function App() {
   const [page, setPage] = useState('loading')
+  const pageRef = useRef('loading')
 
   useEffect(() => {
     getConfig()
       .then(cfg => {
         const initial = isConfigValid(cfg) ? 'main' : 'setup'
-        history.replaceState({ page: initial }, '')
+        history.replaceState({ page: '__floor__' }, '')
+        history.pushState({ page: initial }, '')
+        pageRef.current = initial
         setPage(initial)
       })
       .catch(() => {
-        history.replaceState({ page: 'setup' }, '')
+        history.replaceState({ page: '__floor__' }, '')
+        history.pushState({ page: 'setup' }, '')
+        pageRef.current = 'setup'
         setPage('setup')
       })
   }, [])
 
   useEffect(() => {
     function onPopState(e) {
-      if (e.state?.page) setPage(e.state.page)
+      if (!e.state?.page || e.state.page === '__floor__') {
+        history.pushState({ page: pageRef.current }, '')
+        return
+      }
+      pageRef.current = e.state.page
+      setPage(e.state.page)
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -32,6 +42,7 @@ function App() {
 
   function goTo(newPage) {
     history.pushState({ page: newPage }, '')
+    pageRef.current = newPage
     setPage(newPage)
   }
 
@@ -44,6 +55,7 @@ function App() {
         <h2 className="form-title">Setup</h2>
         <SettingsForm onSuccess={() => {
           history.replaceState({ page: 'main' }, '')
+          pageRef.current = 'main'
           setPage('main')
         }} />
       </div>

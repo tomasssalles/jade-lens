@@ -5,4 +5,11 @@ body {
 h1 {
   text-align: center;
   margin-top: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.build-sha {
+  text-align: center;
+  color: #888;
+  font: 0.75rem ui-monospace, SFMono-Regular, Menlo, monospace;
 }

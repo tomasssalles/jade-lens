@@ -3,13 +3,12 @@ import { getConfig, saveConfig } from './config'
 import EyeIcon from './assets/eye.svg?react'
 import EyeOffIcon from './assets/eye-off.svg?react'
 
-export default function SettingsForm({ onSuccess }) {
+export default function SettingsForm({ onSuccess, showToast }) {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')
   const [githubPat, setGithubPat] = useState('')
   const [showPat, setShowPat] = useState(false)
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     getConfig().then(cfg => {
@@ -40,8 +39,8 @@ export default function SettingsForm({ onSuccess }) {
     try {
       await saveConfig({ githubRepoUrl, githubPat })
       setSaveError(null)
-      setSaved(true)
-      setTimeout(() => { setSaved(false); onSuccess?.() }, 1000)
+      showToast?.('Settings saved')
+      onSuccess?.()
     } catch {
       setSaveError('Failed to save config')
     }
@@ -81,7 +80,7 @@ export default function SettingsForm({ onSuccess }) {
           Stored as plain text in this browser. Any web app served from the same domain can read it.
         </span>
       </label>
-      <button type="submit">{saved ? 'Saved!' : 'Save'}</button>
+      <button type="submit">Save</button>
     </form>
   )
 }

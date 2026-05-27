@@ -7,15 +7,18 @@ import Settings from './Settings'
 import Main from './Main'
 
 // Hash-based navigation with a sentinel "floor" entry behind the initial
-// page. First hardware back from main lands on the floor; we re-push the
-// current page and show an "exit" toast. A second back within
-// EXIT_WINDOW_MS skips the re-push and lets the WebView pop past the
-// floor, which closes the standalone PWA activity on Android.
+// page. Floor and current entry share the same URL so popstate fires on
+// back without a URL transition — empty-hash floor URLs caused a blank
+// page on Android standalone PWAs. First hardware back from main lands
+// on the floor; we re-push the current page and show an "exit" toast. A
+// second back within EXIT_WINDOW_MS skips the re-push and lets the
+// WebView pop past the floor, which closes the standalone PWA activity
+// on Android.
 const EXIT_WINDOW_MS = 2000
 
 function App() {
   const [page, setPage] = useState('loading')
-  const [showExitToast, setShowExitToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState(null)
 
   const pageRef = useRef('loading')
   useEffect(() => { pageRef.current = page }, [page])
@@ -23,17 +26,21 @@ function App() {
   const lastBackOnFloor = useRef(0)
   const toastTimer = useRef(null)
 
+  function showToast(message, ms = EXIT_WINDOW_MS) {
+    setToastMessage(message)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToastMessage(null), ms)
+  }
+
   useEffect(() => {
     getConfig()
       .then(cfg => {
         const initial = isConfigValid(cfg) ? 'main' : 'setup'
-        history.replaceState({ floor: true }, '', '#')
-        history.pushState({ page: initial }, '', '#' + initial)
+        installFloor(initial)
         setPage(initial)
       })
       .catch(() => {
-        history.replaceState({ floor: true }, '', '#')
-        history.pushState({ page: 'setup' }, '', '#setup')
+        installFloor('setup')
         setPage('setup')
       })
   }, [])
@@ -48,9 +55,7 @@ function App() {
         }
         lastBackOnFloor.current = now
         history.pushState({ page: pageRef.current }, '', '#' + pageRef.current)
-        setShowExitToast(true)
-        clearTimeout(toastTimer.current)
-        toastTimer.current = setTimeout(() => setShowExitToast(false), EXIT_WINDOW_MS)
+        showToast('Press back again to exit')
         return
       }
       setPage(e.state?.page ?? 'main')
@@ -62,32 +67,51 @@ function App() {
     }
   }, [])
 
+  function installFloor(target) {
+    // Replace whatever entry we're on with the floor (same URL as the
+    // target page) and push the target on top. Two history entries, one
+    // URL — back fires popstate with state.floor and zero URL change.
+    history.replaceState({ floor: true }, '', '#' + target)
+    history.pushState({ page: target }, '', '#' + target)
+  }
+
   function goTo(newPage) {
     history.pushState({ page: newPage }, '', '#' + newPage)
     setPage(newPage)
   }
 
-  if (page === 'loading') return <h1>Welcome to Jade Lens</h1>
-
-  if (page === 'setup') return (
-    <>
-      <h1>Welcome to Jade Lens</h1>
-      <div>
-        <h2 className="form-title">Setup</h2>
-        <SettingsForm onSuccess={() => {
-          history.replaceState({ page: 'main' }, '', '#main')
-          setPage('main')
-        }} />
-      </div>
-    </>
-  )
-
-  if (page === 'settings') return <Settings onClose={() => history.back()} />
+  let content
+  if (page === 'loading') {
+    // Render Main's shell (without the gear) so the title's vertical
+    // position matches the post-load layout — no flicker on refresh.
+    content = <Main />
+  } else if (page === 'setup') {
+    content = (
+      <>
+        <h1>Welcome to Jade Lens</h1>
+        <div className="build-sha">{__BUILD_SHA__}</div>
+        <div>
+          <h2 className="form-title">Setup</h2>
+          <SettingsForm
+            showToast={showToast}
+            onSuccess={() => {
+              installFloor('main')
+              setPage('main')
+            }}
+          />
+        </div>
+      </>
+    )
+  } else if (page === 'settings') {
+    content = <Settings onClose={() => history.back()} showToast={showToast} />
+  } else {
+    content = <Main onSettings={() => goTo('settings')} />
+  }
 
   return (
     <>
-      <Main onSettings={() => goTo('settings')} />
-      {showExitToast && <div className="exit-toast">Press back again to exit</div>}
+      {content}
+      {toastMessage && <div className="toast">{toastMessage}</div>}
     </>
   )
 }

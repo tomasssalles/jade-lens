@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getConfig, saveConfig } from './config'
+import { checkRepoAccess } from './github'
 import EyeIcon from './assets/eye.svg?react'
 import EyeOffIcon from './assets/eye-off.svg?react'
 
@@ -10,6 +11,7 @@ export default function SettingsForm({ onSuccess, showToast }) {
   const [showPat, setShowPat] = useState(false)
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => {
     getConfig().then(cfg => {
@@ -42,13 +44,21 @@ export default function SettingsForm({ onSuccess, showToast }) {
       return
     }
     setErrors({})
+    setChecking(true)
     try {
+      const result = await checkRepoAccess(githubRepoUrl, githubPat)
+      if (!result.ok) {
+        setSaveError(result.reason)
+        return
+      }
       await saveConfig({ githubRepoUrl, githubPat })
       setSaveError(null)
       showToast?.('Settings saved')
       onSuccess?.()
     } catch {
       setSaveError('Failed to save config')
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -89,7 +99,9 @@ export default function SettingsForm({ onSuccess, showToast }) {
           Stored as plain text in this browser. Any web app served from the same domain can read it.
         </span>
       </label>
-      <button type="submit" disabled={unchanged}>Save</button>
+      <button type="submit" disabled={unchanged || checking}>
+        {checking ? 'Checking…' : 'Save'}
+      </button>
     </form>
   )
 }

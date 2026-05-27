@@ -6,14 +6,20 @@ import EyeOffIcon from './assets/eye-off.svg?react'
 export default function SettingsForm({ onSuccess, showToast }) {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')
   const [githubPat, setGithubPat] = useState('')
+  const [loaded, setLoaded] = useState({ githubRepoUrl: '', githubPat: '' })
   const [showPat, setShowPat] = useState(false)
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
 
   useEffect(() => {
     getConfig().then(cfg => {
-      setGithubRepoUrl(cfg.githubRepoUrl ?? '')
-      setGithubPat(cfg.githubPat ?? '')
+      const next = {
+        githubRepoUrl: cfg.githubRepoUrl ?? '',
+        githubPat: cfg.githubPat ?? '',
+      }
+      setGithubRepoUrl(next.githubRepoUrl)
+      setGithubPat(next.githubPat)
+      setLoaded(next)
     }).catch(() => setSaveError('Failed to load config'))
   }, [])
 
@@ -45,6 +51,9 @@ export default function SettingsForm({ onSuccess, showToast }) {
       setSaveError('Failed to save config')
     }
   }
+
+  const unchanged =
+    githubRepoUrl === loaded.githubRepoUrl && githubPat === loaded.githubPat
 
   return (
     <form onSubmit={handleSubmit}>
@@ -80,7 +89,7 @@ export default function SettingsForm({ onSuccess, showToast }) {
           Stored as plain text in this browser. Any web app served from the same domain can read it.
         </span>
       </label>
-      <button type="submit">Save</button>
+      <button type="submit" disabled={unchanged}>Save</button>
     </form>
   )
 }

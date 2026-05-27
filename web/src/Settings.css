@@ -80,6 +80,11 @@ button[type='submit']:active {
   opacity: 0.8;
 }
 
+button[type='submit']:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Settings page header (back arrow + title) */
 .page-header {
   display: flex;

@@ -1,0 +1,76 @@
+.browser-message {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.browser-error {
+  color: #c0392b;
+}
+
+/* File tree */
+.file-tree {
+  padding-bottom: 4rem;
+}
+
+.tree-item {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+}
+
+.tree-item:active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.tree-dir {
+  font-weight: 500;
+}
+
+.tree-chevron {
+  font-size: 0.75rem;
+  width: 1rem;
+  flex-shrink: 0;
+}
+
+/* File content view */
+.file-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0 -1rem; /* bleed to screen edges */
+}
+
+.file-view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #ddd;
+  flex-shrink: 0;
+}
+
+.file-view-path {
+  font-size: 0.82rem;
+  color: #444;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-view-content {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 1rem;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  font-family: monospace;
+  white-space: pre;
+}

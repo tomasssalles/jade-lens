@@ -1,4 +1,5 @@
 import GearIcon from './assets/gear.svg?react'
+import FileBrowser from './FileBrowser'
 
 export default function Main({ onSettings }) {
   return (
@@ -8,8 +9,10 @@ export default function Main({ onSettings }) {
           <GearIcon />
         </button>
       )}
-      <h1>Welcome to Jade Lens</h1>
-      <div className="build-sha">{__BUILD_SHA__}</div>
+      {onSettings
+        ? <FileBrowser />
+        : <h1>Welcome to Jade Lens</h1>
+      }
     </div>
   )
 }

@@ -18,7 +18,14 @@ export default function FileBrowser() {
   const [treeItems, setTreeItems] = useState([])
   const [truncated, setTruncated] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null) // { path, content } | null
-  const [openDirs, setOpenDirs] = useState(() => new Set())
+  const [openDirs, setOpenDirs] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('openDirs')
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
   const contentMapRef = useRef(new Map())
 
   useEffect(() => {
@@ -84,6 +91,7 @@ export default function FileBrowser() {
       const next = new Set(prev)
       if (next.has(path)) next.delete(path)
       else next.add(path)
+      try { sessionStorage.setItem('openDirs', JSON.stringify([...next])) } catch {}
       return next
     })
   }

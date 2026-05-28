@@ -1,4 +1,26 @@
+body {
+  padding: 0 1rem;
+}
+
 h1 {
   text-align: center;
-  margin-top: 20vh;
+  margin-top: 2rem;
+}
+
+.main {
+  position: relative;
+  padding-top: 3.5rem;
+}
+
+.gear-button {
+  position: fixed;
+  top: 0.75rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  color: #333;
 }

@@ -22,6 +22,11 @@ function buildTree(flatItems) {
   return root
 }
 
+function stripExt(name) {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
 function sorted(entries) {
   return [...entries].sort((a, b) => {
     if (a.type !== b.type) return a.type === 'tree' ? -1 : 1
@@ -35,7 +40,7 @@ function TreeNode({ node, onFileClick, openDirs, onToggle, depth }) {
   if (node.type === 'blob') {
     return (
       <div className="tree-item tree-file" style={indent} onClick={() => onFileClick(node.fullPath)}>
-        {node.name}
+        {stripExt(node.name)}
       </div>
     )
   }

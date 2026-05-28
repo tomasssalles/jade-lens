@@ -46,37 +46,34 @@ function App() {
     setPage(newPage)
   }
 
-  let content
-  if (page === 'loading') {
-    // Render Main's shell (without the gear) so the title's vertical
-    // position matches the post-load layout — no flicker on refresh.
-    content = <Main />
-  } else if (page === 'setup') {
-    content = (
-      <>
-        <h1>Welcome to Jade Lens</h1>
-        <div className="build-sha">{__BUILD_SHA__}</div>
-        <div>
-          <h2 className="form-title">Setup</h2>
-          <SettingsForm
-            showToast={showToast}
-            onSuccess={() => {
-              history.replaceState({ page: 'main' }, '', '#main')
-              setPage('main')
-            }}
-          />
-        </div>
-      </>
-    )
-  } else if (page === 'settings') {
-    content = <Settings onClose={() => history.back()} showToast={showToast} />
-  } else {
-    content = <Main onSettings={() => goTo('settings')} />
-  }
-
   return (
     <>
-      {content}
+      {page === 'setup' && (
+        <>
+          <h1>Welcome to Jade Lens</h1>
+          <div className="build-sha">{__BUILD_SHA__}</div>
+          <div>
+            <h2 className="form-title">Setup</h2>
+            <SettingsForm
+              showToast={showToast}
+              onSuccess={() => {
+                history.replaceState({ page: 'main' }, '', '#main')
+                setPage('main')
+              }}
+            />
+          </div>
+        </>
+      )}
+      {/* Keep Main mounted for loading/main/settings so FileBrowser state survives
+          navigating to settings and back. Hidden via display:none during settings. */}
+      {page !== 'setup' && (
+        <div style={page === 'settings' ? { display: 'none' } : undefined}>
+          <Main onSettings={page === 'main' ? () => goTo('settings') : undefined} />
+        </div>
+      )}
+      {page === 'settings' && (
+        <Settings onClose={() => history.back()} showToast={showToast} />
+      )}
       {toastMessage && <div className="toast">{toastMessage}</div>}
     </>
   )

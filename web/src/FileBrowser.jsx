@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getConfig } from './config'
-import { getRepoTree, getFileContent } from './github'
+import { getRepoTree, getAllFileContents, getFileContent } from './github'
 import FileTree from './FileTree'
 import ArrowLeftIcon from './assets/arrow-left.svg?react'
 import './FileBrowser.css'
+
+function isExcluded(item) {
+  const topLevel = item.path.split('/')[0]
+  if (topLevel.startsWith('.')) return true
+  if (item.path === 'CLAUDE.md') return true
+  return false
+}
 
 export default function FileBrowser() {
   const [status, setStatus] = useState('loading')
@@ -11,33 +18,74 @@ export default function FileBrowser() {
   const [treeItems, setTreeItems] = useState([])
   const [truncated, setTruncated] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null) // { path, content } | null
-  const [loadingFile, setLoadingFile] = useState(false)
+  const [openDirs, setOpenDirs] = useState(() => new Set())
+  const contentMapRef = useRef(new Map())
 
   useEffect(() => {
-    getConfig()
-      .then(cfg => getRepoTree(cfg.githubRepoUrl, cfg.githubPat))
-      .then(({ items, truncated }) => {
-        setTreeItems(items)
+    let cancelled = false
+    async function load() {
+      try {
+        const cfg = await getConfig()
+        const { items, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
+        const filtered = items.filter(item => !isExcluded(item))
+        if (cancelled) return
+        setTreeItems(filtered)
         setTruncated(truncated)
         setStatus('ready')
-      })
-      .catch(err => {
-        setError(err.message)
-        setStatus('error')
-      })
+
+        // Background: pre-fetch all file contents
+        const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, filtered)
+        if (!cancelled) contentMapRef.current = map
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message)
+          setStatus('error')
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  // Integrate with browser history so Android back == in-app back
+  useEffect(() => {
+    function onPopState(e) {
+      if (!e.state?.filePath) setSelectedFile(null)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   async function openFile(path) {
-    setLoadingFile(true)
-    try {
-      const cfg = await getConfig()
-      const content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
-      setSelectedFile({ path, content })
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoadingFile(false)
+    let content = contentMapRef.current.get(path)
+    if (content === undefined) {
+      try {
+        const cfg = await getConfig()
+        content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
+      } catch (err) {
+        setError(err.message)
+        return
+      }
     }
+    history.pushState(
+      { ...(history.state ?? {}), filePath: path },
+      '',
+      location.pathname + location.search + '#main-file',
+    )
+    setSelectedFile({ path, content })
+  }
+
+  function closeFile() {
+    history.back()
+  }
+
+  function toggleDir(path) {
+    setOpenDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
   }
 
   if (status === 'loading') return <p className="browser-message">Loading…</p>
@@ -47,7 +95,7 @@ export default function FileBrowser() {
     return (
       <div className="file-view">
         <div className="file-view-header">
-          <button className="icon-button" onClick={() => setSelectedFile(null)} aria-label="Back">
+          <button className="icon-button" onClick={closeFile} aria-label="Back">
             <ArrowLeftIcon />
           </button>
           <span className="file-view-path">{selectedFile.path}</span>
@@ -60,8 +108,12 @@ export default function FileBrowser() {
   return (
     <div className="file-browser">
       {truncated && <p className="browser-message">Tree truncated — repo is too large for a single request.</p>}
-      {loadingFile && <p className="browser-message">Loading file…</p>}
-      <FileTree items={treeItems} onFileClick={openFile} />
+      <FileTree
+        items={treeItems}
+        onFileClick={openFile}
+        openDirs={openDirs}
+        onToggle={toggleDir}
+      />
     </div>
   )
 }

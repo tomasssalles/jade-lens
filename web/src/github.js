@@ -59,6 +59,31 @@ export async function getRepoTree(repoUrl, pat) {
   return { items: tree, branch: default_branch, truncated }
 }
 
+// Pre-fetch all blob contents in parallel. Returns a Map<path, string>.
+// Skips files larger than 200 KB; failed fetches are silently omitted.
+export async function getAllFileContents(repoUrl, pat, items) {
+  const parsed = parseRepoUrl(repoUrl)
+  if (!parsed) throw new Error('Could not parse repo URL')
+  const { owner, repo } = parsed
+
+  const blobs = items.filter(item => item.type === 'blob' && (item.size ?? 0) <= 200_000)
+  const results = await Promise.allSettled(
+    blobs.map(item =>
+      ghFetch(`/repos/${owner}/${repo}/git/blobs/${item.sha}`, pat)
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+        .then(({ content }) => {
+          const bytes = Uint8Array.from(atob(content.replace(/\n/g, '')), c => c.charCodeAt(0))
+          return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+        })
+    )
+  )
+  const map = new Map()
+  blobs.forEach((item, i) => {
+    if (results[i].status === 'fulfilled') map.set(item.path, results[i].value)
+  })
+  return map
+}
+
 // Fetch the text content of a single file. Returns a string.
 export async function getFileContent(repoUrl, pat, path) {
   const parsed = parseRepoUrl(repoUrl)

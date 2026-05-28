@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { getConfig } from './config'
 import { getRepoTree, getAllFileContents, getFileContent } from './github'
 import FileTree from './FileTree'
-import ArrowLeftIcon from './assets/arrow-left.svg?react'
 import './FileBrowser.css'
 
 function isExcluded(item) {
@@ -12,12 +11,15 @@ function isExcluded(item) {
   return false
 }
 
-export default function FileBrowser() {
+// Lives outside the component so it survives unmount/remount (e.g. navigating
+// to settings and back). Invalidated automatically when repoUrl changes.
+let _cache = null // { repoUrl, items, contentMap, truncated } | null
+
+export default function FileBrowser({ onFileOpen }) {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)
   const [treeItems, setTreeItems] = useState([])
   const [truncated, setTruncated] = useState(false)
-  const [selectedFile, setSelectedFile] = useState(null) // { path, content } | null
   const [openDirs, setOpenDirs] = useState(() => {
     try {
       const saved = sessionStorage.getItem('openDirs')
@@ -33,6 +35,16 @@ export default function FileBrowser() {
     async function load() {
       try {
         const cfg = await getConfig()
+        if (_cache?.repoUrl === cfg.githubRepoUrl) {
+          if (!cancelled) {
+            setTreeItems(_cache.items)
+            setTruncated(_cache.truncated)
+            contentMapRef.current = _cache.contentMap
+            setStatus('ready')
+          }
+          return
+        }
+
         const { items, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
         const filtered = items.filter(item => !isExcluded(item))
         if (cancelled) return
@@ -42,7 +54,10 @@ export default function FileBrowser() {
 
         // Background: pre-fetch all file contents (including hidden dot-paths)
         const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, items)
-        if (!cancelled) contentMapRef.current = map
+        if (!cancelled) {
+          contentMapRef.current = map
+          _cache = { repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated }
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err.message)
@@ -52,15 +67,6 @@ export default function FileBrowser() {
     }
     load()
     return () => { cancelled = true }
-  }, [])
-
-  // Integrate with browser history so Android back == in-app back
-  useEffect(() => {
-    function onPopState(e) {
-      if (!e.state?.filePath) setSelectedFile(null)
-    }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   async function openFile(path) {
@@ -74,16 +80,7 @@ export default function FileBrowser() {
         return
       }
     }
-    history.pushState(
-      { ...(history.state ?? {}), filePath: path },
-      '',
-      location.pathname + location.search + '#main-file',
-    )
-    setSelectedFile({ path, content })
-  }
-
-  function closeFile() {
-    history.back()
+    onFileOpen(path, content)
   }
 
   function toggleDir(path) {
@@ -98,20 +95,6 @@ export default function FileBrowser() {
 
   if (status === 'loading') return <p className="browser-message">Loading…</p>
   if (status === 'error') return <p className="browser-message browser-error">{error}</p>
-
-  if (selectedFile) {
-    return (
-      <div className="file-view">
-        <div className="file-view-header">
-          <button className="icon-button" onClick={closeFile} aria-label="Back">
-            <ArrowLeftIcon />
-          </button>
-          <span className="file-view-path">{selectedFile.path}</span>
-        </div>
-        <pre className="file-view-content">{selectedFile.content}</pre>
-      </div>
-    )
-  }
 
   return (
     <div className="file-browser">

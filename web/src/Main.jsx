@@ -1,7 +1,7 @@
 import GearIcon from './assets/gear.svg?react'
 import FileBrowser from './FileBrowser'
 
-export default function Main({ onSettings }) {
+export default function Main({ onSettings, onFileOpen }) {
   return (
     <div className="main">
       {onSettings && (
@@ -10,7 +10,7 @@ export default function Main({ onSettings }) {
         </button>
       )}
       {onSettings
-        ? <FileBrowser />
+        ? <FileBrowser onFileOpen={onFileOpen} />
         : <h1>Welcome to Jade Lens</h1>
       }
     </div>

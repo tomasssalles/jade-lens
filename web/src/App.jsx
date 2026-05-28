@@ -5,9 +5,11 @@ import { getConfig, isConfigValid } from './config'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
+import FileView from './FileView'
 
 function App() {
   const [page, setPage] = useState('loading')
+  const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
   const toastTimer = useRef(null)
 
@@ -39,7 +41,9 @@ function App() {
 
   useEffect(() => {
     function onPopState(e) {
-      setPage(e.state?.page ?? 'main')
+      const newPage = e.state?.page ?? 'main'
+      setPage(newPage)
+      if (newPage !== 'file') setFileView(null)
     }
     window.addEventListener('popstate', onPopState)
     return () => {
@@ -51,6 +55,12 @@ function App() {
   function goTo(newPage) {
     history.pushState({ page: newPage }, '', '#' + newPage)
     setPage(newPage)
+  }
+
+  function openFile(path, content) {
+    history.pushState({ page: 'file', filePath: path }, '', '#main-file')
+    setFileView({ path, content })
+    setPage('file')
   }
 
   return (
@@ -71,15 +81,19 @@ function App() {
           </div>
         </>
       )}
-      {/* Keep Main mounted for loading/main/settings so FileBrowser state survives
-          navigating to settings and back. Hidden via display:none during settings. */}
-      {page !== 'setup' && (
-        <div style={page === 'settings' ? { display: 'none' } : undefined}>
-          <Main onSettings={page === 'main' ? () => goTo('settings') : undefined} />
-        </div>
+      {/* Render Main for both loading (no gear/browser, anti-flicker) and main.
+          Keeping it at the same JSX position lets React update props without remounting. */}
+      {(page === 'loading' || page === 'main') && (
+        <Main
+          onSettings={page === 'main' ? () => goTo('settings') : undefined}
+          onFileOpen={page === 'main' ? openFile : undefined}
+        />
       )}
       {page === 'settings' && (
         <Settings onClose={() => history.back()} showToast={showToast} />
+      )}
+      {page === 'file' && fileView && (
+        <FileView path={fileView.path} content={fileView.content} onBack={() => history.back()} />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}
     </>

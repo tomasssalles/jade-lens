@@ -20,7 +20,14 @@ function App() {
   useEffect(() => {
     getConfig()
       .then(cfg => {
-        const initial = isConfigValid(cfg) ? 'main' : 'setup'
+        if (!isConfigValid(cfg)) {
+          history.replaceState({ page: 'setup' }, '', '#setup')
+          setPage('setup')
+          return
+        }
+        // Restore the page the user was on before a reload; default to 'main'.
+        const prior = history.state?.page
+        const initial = (prior === 'settings' || prior === 'main') ? prior : 'main'
         history.replaceState({ page: initial }, '', '#' + initial)
         setPage(initial)
       })

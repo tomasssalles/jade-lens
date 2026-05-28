@@ -33,8 +33,8 @@ export default function FileBrowser() {
         setTruncated(truncated)
         setStatus('ready')
 
-        // Background: pre-fetch all file contents
-        const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, filtered)
+        // Background: pre-fetch all file contents (including hidden dot-paths)
+        const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, items)
         if (!cancelled) contentMapRef.current = map
       } catch (err) {
         if (!cancelled) {

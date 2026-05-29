@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getCardColor, getTextColor, getBorderColor, getTitleColor } from './viewerSettings'
+import ArrowLeftIcon from './assets/arrow-left.svg?react'
 
 // ─── Value helpers ────────────────────────────────────────────────────────────
 
@@ -227,26 +228,44 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
 
 // ─── File breadcrumb ──────────────────────────────────────────────────────────
 
-function FileBreadcrumb({ filePath, s }) {
+function FileBreadcrumb({ filePath, s, onBack }) {
   const parts = filePath.replace(/\.json$/i, '').split('/').filter(Boolean)
+  const titleColor = getTitleColor(s)
   return (
     <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
       fontWeight: 700,
       fontSize: s.fontSize + 2,
-      color: getTitleColor(s),
+      color: titleColor,
       marginBottom: s.siblingGap + 6,
       paddingBottom: 8,
       borderBottom: `1px solid ${getBorderColor(s)}55`,
       wordBreak: 'break-word',
     }}>
-      {parts.join(' / ')}
+      {onBack && (
+        <button onClick={onBack} aria-label="Back" style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          color: titleColor,
+          display: 'flex',
+          alignItems: 'center',
+          flexShrink: 0,
+        }}>
+          <ArrowLeftIcon style={{ width: s.fontSize + 4, height: s.fontSize + 4 }} />
+        </button>
+      )}
+      <span>{parts.join(' / ')}</span>
     </div>
   )
 }
 
 // ─── Top-level export ─────────────────────────────────────────────────────────
 
-export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick }) {
+export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onBack }) {
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth)
 
   useEffect(() => {
@@ -281,7 +300,7 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
       boxSizing: 'border-box',
       overflowX: isWide ? 'auto' : 'hidden',
     }}>
-      <FileBreadcrumb filePath={filePath} s={settings} />
+      <FileBreadcrumb filePath={filePath} s={settings} onBack={onBack} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: settings.siblingGap + 4 }}>
         {topItems.map(({ key, value, label }) => (
           <RenderValue

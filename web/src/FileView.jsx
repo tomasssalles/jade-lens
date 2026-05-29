@@ -15,14 +15,18 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
     }
   }, [isJson, content])
 
+  const showOldHeader = !isJson || parsed?.data === null
+
   return (
     <div className="file-view">
-      <div className="file-view-header">
-        <button className="icon-button" onClick={onBack} aria-label="Back">
-          <ArrowLeftIcon />
-        </button>
-        <span className="file-view-path">{path}</span>
-      </div>
+      {showOldHeader && (
+        <div className="file-view-header">
+          <button className="icon-button" onClick={onBack} aria-label="Back">
+            <ArrowLeftIcon />
+          </button>
+          <span className="file-view-path">{path}</span>
+        </div>
+      )}
       {isJson && parsed?.data !== null ? (
         <div className="file-view-json">
           <JsonCardViewer
@@ -30,6 +34,7 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
             filePath={path}
             settings={viewerSettings}
             onWikilinkClick={onWikilinkClick}
+            onBack={onBack}
           />
         </div>
       ) : (

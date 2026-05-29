@@ -107,7 +107,7 @@ export default function Settings({ onClose, showToast, viewerSettings, onViewerS
   const [advOpen, setAdvOpen] = useState(false)
 
   return (
-    <div>
+    <div className="settings-page">
       <div className="page-header">
         <button className="icon-button" onClick={onClose} aria-label="Back">
           <ArrowLeftIcon />

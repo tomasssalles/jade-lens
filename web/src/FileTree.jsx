@@ -28,10 +28,7 @@ function stripExt(name) {
 }
 
 function sorted(entries) {
-  return [...entries].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'tree' ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
+  return [...entries].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function TreeNode({ node, onFileClick, openDirs, onToggle, depth }) {

@@ -71,7 +71,7 @@
   padding: 1rem;
   font-size: 0.72rem;
   line-height: 1.6;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
   white-space: pre;
 }
 

@@ -264,7 +264,7 @@ button[type='submit']:disabled {
 .adv-row-value {
   font-size: 0.78rem;
   color: #888;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   min-width: 2.5rem;
   text-align: right;
 }

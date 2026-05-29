@@ -58,7 +58,7 @@ function renderStringValue(v, settings, onWikilinkClick) {
             textDecoration: 'underline',
             textDecorationColor: settings.wikilinkColor + '66',
             textUnderlineOffset: 2,
-            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+            fontFamily: 'var(--font-mono)',
             fontSize: '0.88em',
             background: 'rgba(0,0,0,0.04)',
             borderRadius: 3,

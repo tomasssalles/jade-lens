@@ -47,10 +47,26 @@ function App() {
   }, [])
 
   useEffect(() => {
-    function onPopState(e) {
+    async function onPopState(e) {
       const newPage = e.state?.page ?? 'main'
-      setPage(newPage)
-      if (newPage !== 'file') setFileView(null)
+      if (newPage === 'file') {
+        const path = e.state?.filePath
+        if (!path) { setPage('main'); setFileView(null); return }
+        let content = getContentFromCache(path)
+        if (content === undefined) {
+          try {
+            const cfg = await getConfig()
+            content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
+          } catch {
+            setPage('main'); setFileView(null); return
+          }
+        }
+        setPage('file')
+        setFileView({ path, content })
+      } else {
+        setPage(newPage)
+        setFileView(null)
+      }
     }
     window.addEventListener('popstate', onPopState)
     return () => {

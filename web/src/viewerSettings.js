@@ -51,39 +51,42 @@ export function hexToHsl(hex) {
   return { h: Math.round(h*360), s: Math.round(s*100), l: Math.round(l*100) }
 }
 
-export function getCardColor(depth, s) {
-  let hue, sat
+function resolveHueSat(s) {
   if (s.useCustomColor) {
     const hsl = hexToHsl(s.customColorHex)
-    hue = hsl.h; sat = hsl.s
-  } else {
-    hue = s.baseHue; sat = s.baseSaturation
+    return { hue: hsl.h, sat: hsl.s }
   }
+  return { hue: s.baseHue, sat: s.baseSaturation }
+}
+
+function cardLightness(depth, s) {
   const effectiveDepth = Math.min(depth, s.maxColorDepth)
   const t = s.maxColorDepth > 0 ? effectiveDepth / s.maxColorDepth : 0
-  const lightness = s.baseLightnessStart + t * (s.baseLightnessEnd - s.baseLightnessStart)
-  return `hsl(${hue}, ${sat}%, ${lightness}%)`
+  return s.baseLightnessStart + t * (s.baseLightnessEnd - s.baseLightnessStart)
+}
+
+export function getCardColor(depth, s) {
+  const { hue, sat } = resolveHueSat(s)
+  return `hsl(${hue}, ${sat}%, ${cardLightness(depth, s)}%)`
+}
+
+export function getTextColor(depth, s) {
+  const { hue, sat } = resolveHueSat(s)
+  const l = cardLightness(depth, s)
+  // Light background → dark text; dark background → light text
+  const textL = l > 55
+    ? Math.max(l - 65, 8)
+    : Math.min(l + 65, 95)
+  return `hsl(${hue}, ${Math.min(sat + 5, 40)}%, ${textL}%)`
 }
 
 export function getBorderColor(s) {
-  let hue, sat
-  if (s.useCustomColor) {
-    const hsl = hexToHsl(s.customColorHex)
-    hue = hsl.h; sat = hsl.s
-  } else {
-    hue = s.baseHue; sat = s.baseSaturation
-  }
+  const { hue, sat } = resolveHueSat(s)
   return `hsl(${hue}, ${sat}%, ${Math.max(s.baseLightnessStart - 12, 30)}%)`
 }
 
 export function getTitleColor(s) {
-  let hue, sat
-  if (s.useCustomColor) {
-    const hsl = hexToHsl(s.customColorHex)
-    hue = hsl.h; sat = hsl.s
-  } else {
-    hue = s.baseHue; sat = s.baseSaturation
-  }
+  const { hue, sat } = resolveHueSat(s)
   return `hsl(${hue}, ${Math.min(sat + 10, 50)}%, ${Math.max(s.baseLightnessStart - 35, 20)}%)`
 }
 

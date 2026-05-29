@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getCardColor, getBorderColor, getTitleColor } from './viewerSettings'
+import { getCardColor, getTextColor, getBorderColor, getTitleColor } from './viewerSettings'
 
 // ─── Value helpers ────────────────────────────────────────────────────────────
 
@@ -91,6 +91,7 @@ function Card({ depth, s, isWide, children }) {
   return (
     <div style={{
       background: getCardColor(depth, s),
+      color: getTextColor(depth, s),
       borderRadius: s.borderRadius,
       border: `${s.borderWidth}px solid ${getBorderColor(s)}`,
       padding: `${s.cardPaddingY}px ${s.cardPaddingX}px`,

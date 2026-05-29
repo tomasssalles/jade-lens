@@ -81,7 +81,9 @@ function renderStringValue(v, settings, onWikilinkClick) {
 }
 
 function isShortStringArray(v) {
-  return Array.isArray(v) && v.length > 0 && v.every(x => typeof x === 'string' && x.length < 40)
+  return Array.isArray(v) && v.length > 0 && v.every(
+    x => typeof x === 'string' && x.length < 40 && !/\[\[/.test(x) && !isUrl(x)
+  )
 }
 
 // ─── Card primitives ──────────────────────────────────────────────────────────

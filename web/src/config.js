@@ -13,8 +13,6 @@ export async function saveConfig(values) {
 export function isConfigValid(cfg) {
   return (
     typeof cfg.githubRepoUrl === 'string' &&
-    cfg.githubRepoUrl.startsWith('https://github.com/') &&
-    typeof cfg.githubPat === 'string' &&
-    cfg.githubPat.trim().length > 0
+    cfg.githubRepoUrl.startsWith('https://github.com/')
   )
 }

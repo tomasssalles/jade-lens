@@ -30,9 +30,6 @@ export default function SettingsForm({ onSuccess, showToast }) {
     if (!githubRepoUrl.startsWith('https://github.com/')) {
       errs.githubRepoUrl = 'Must start with https://github.com/'
     }
-    if (!githubPat.trim()) {
-      errs.githubPat = 'Required'
-    }
     return errs
   }
 
@@ -78,7 +75,7 @@ export default function SettingsForm({ onSuccess, showToast }) {
         {errors.githubRepoUrl && <span className="field-error">{errors.githubRepoUrl}</span>}
       </label>
       <label>
-        GitHub PAT
+        GitHub PAT <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional for public repos)</span>
         <div className="pat-wrapper">
           <input
             type={showPat ? 'text' : 'password'}

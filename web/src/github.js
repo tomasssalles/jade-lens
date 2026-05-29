@@ -7,12 +7,9 @@ function parseRepoUrl(url) {
 }
 
 function ghFetch(path, pat) {
-  return fetch(`https://api.github.com${path}`, {
-    headers: {
-      Authorization: `Bearer ${pat}`,
-      Accept: 'application/vnd.github+json',
-    },
-  })
+  const headers = { Accept: 'application/vnd.github+json' }
+  if (pat) headers.Authorization = `Bearer ${pat}`
+  return fetch(`https://api.github.com${path}`, { headers })
 }
 
 // Check that the PAT can reach the configured repo. Returns
@@ -23,19 +20,14 @@ export async function checkRepoAccess(repoUrl, pat) {
 
   let res
   try {
-    res = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
-      headers: {
-        Authorization: `Bearer ${pat}`,
-        Accept: 'application/vnd.github+json',
-      },
-    })
+    res = await ghFetch(`/repos/${parsed.owner}/${parsed.repo}`, pat)
   } catch {
     return { ok: false, reason: 'Network error — check your connection' }
   }
 
   if (res.ok) return { ok: true }
   if (res.status === 401) return { ok: false, reason: 'PAT was rejected by GitHub' }
-  if (res.status === 404) return { ok: false, reason: 'Repo not found, or PAT lacks access to it' }
+  if (res.status === 404) return { ok: false, reason: pat ? 'Repo not found, or PAT lacks access to it' : 'Repo not found or not accessible' }
   return { ok: false, reason: `GitHub returned ${res.status}` }
 }
 

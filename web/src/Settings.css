@@ -139,3 +139,175 @@ button[type='submit']:disabled {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* ─── Advanced settings panel ──────────────────────────────── */
+
+.adv-toggle-wrap {
+  max-width: 480px;
+  margin: 1.5rem auto 3rem;
+}
+
+.adv-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #555;
+  padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.adv-chevron {
+  display: inline-block;
+  font-size: 0.7em;
+  transition: transform 0.15s ease;
+}
+
+.adv-chevron.adv-chevron-open {
+  transform: rotate(90deg);
+}
+
+.adv-settings {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.adv-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin-bottom: 0.5rem;
+}
+
+/* Color presets */
+.adv-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.adv-preset-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.adv-preset-btn.adv-preset-active {
+  outline: 2px solid #051c07;
+  outline-offset: 2px;
+}
+
+.adv-custom-color {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.adv-checkbox {
+  width: auto !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  accent-color: #051c07;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.adv-checkbox-label {
+  display: inline !important;
+  flex-direction: unset !important;
+  gap: unset !important;
+  margin-bottom: 0 !important;
+  font-size: 0.88rem;
+}
+
+.adv-color-swatch {
+  width: 2rem !important;
+  height: 2rem !important;
+  padding: 0 !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Slider rows */
+.adv-row {
+  margin-bottom: 0.6rem;
+}
+
+.adv-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.15rem;
+}
+
+.adv-row-label {
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.adv-row-value {
+  font-size: 0.78rem;
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.adv-slider {
+  width: 100% !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+  background: transparent !important;
+  cursor: pointer;
+  accent-color: #051c07;
+}
+
+/* Color rows */
+.adv-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.adv-color-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Reset button */
+.adv-reset-btn {
+  margin-top: 1.25rem;
+  width: 100%;
+  padding: 0.6rem;
+  background: transparent;
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.adv-reset-btn:active {
+  background: #fef2f2;
+}

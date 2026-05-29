@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
+import { getFileContent } from './github'
+import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings } from './viewerSettings'
+import { getContentFromCache } from './FileBrowser'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
@@ -11,6 +14,7 @@ function App() {
   const [page, setPage] = useState('loading')
   const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
+  const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
   const toastTimer = useRef(null)
 
   function showToast(message, ms = 2000) {
@@ -20,6 +24,9 @@ function App() {
   }
 
   useEffect(() => {
+    // Load viewer settings independently — failure just keeps the defaults
+    getViewerSettings().then(vs => setViewerSettings(vs)).catch(() => {})
+
     getConfig()
       .then(cfg => {
         if (!isConfigValid(cfg)) {
@@ -27,7 +34,6 @@ function App() {
           setPage('setup')
           return
         }
-        // Restore the page the user was on before a reload; default to 'main'.
         const prior = history.state?.page
         const initial = (prior === 'settings' || prior === 'main') ? prior : 'main'
         history.replaceState({ page: initial }, '', '#' + initial)
@@ -63,6 +69,25 @@ function App() {
     setPage('file')
   }
 
+  async function handleWikilinkClick(path) {
+    let content = getContentFromCache(path)
+    if (content === undefined) {
+      try {
+        const cfg = await getConfig()
+        content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
+      } catch {
+        showToast(`Could not load ${path}`)
+        return
+      }
+    }
+    openFile(path, content)
+  }
+
+  async function updateViewerSettings(newSettings) {
+    setViewerSettings(newSettings)
+    try { await saveViewerSettings(newSettings) } catch {}
+  }
+
   return (
     <>
       {page === 'setup' && (
@@ -90,10 +115,21 @@ function App() {
         />
       )}
       {page === 'settings' && (
-        <Settings onClose={() => history.back()} showToast={showToast} />
+        <Settings
+          onClose={() => history.back()}
+          showToast={showToast}
+          viewerSettings={viewerSettings}
+          onViewerSettingsChange={updateViewerSettings}
+        />
       )}
       {page === 'file' && fileView && (
-        <FileView path={fileView.path} content={fileView.content} onBack={() => history.back()} />
+        <FileView
+          path={fileView.path}
+          content={fileView.content}
+          onBack={() => history.back()}
+          viewerSettings={viewerSettings}
+          onWikilinkClick={handleWikilinkClick}
+        />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}
     </>

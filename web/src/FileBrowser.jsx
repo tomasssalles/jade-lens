@@ -15,6 +15,10 @@ function isExcluded(item) {
 // to settings and back). Invalidated automatically when repoUrl changes.
 let _cache = null // { repoUrl, items, contentMap, truncated } | null
 
+export function getContentFromCache(path) {
+  return _cache?.contentMap?.get(path)
+}
+
 export default function FileBrowser({ onFileOpen }) {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)

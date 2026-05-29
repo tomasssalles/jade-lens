@@ -74,3 +74,8 @@
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   white-space: pre;
 }
+
+.file-view-json {
+  flex: 1;
+  overflow: auto;
+}

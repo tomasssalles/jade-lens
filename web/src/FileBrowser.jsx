@@ -20,10 +20,10 @@ export function getContentFromCache(path) {
 }
 
 export default function FileBrowser({ onFileOpen }) {
-  const [status, setStatus] = useState('loading')
+  const [status, setStatus] = useState(() => _cache ? 'ready' : 'loading')
   const [error, setError] = useState(null)
-  const [treeItems, setTreeItems] = useState([])
-  const [truncated, setTruncated] = useState(false)
+  const [treeItems, setTreeItems] = useState(() => _cache?.items ?? [])
+  const [truncated, setTruncated] = useState(() => _cache?.truncated ?? false)
   const [openDirs, setOpenDirs] = useState(() => {
     try {
       const saved = sessionStorage.getItem('openDirs')
@@ -32,7 +32,7 @@ export default function FileBrowser({ onFileOpen }) {
       return new Set()
     }
   })
-  const contentMapRef = useRef(new Map())
+  const contentMapRef = useRef(_cache?.contentMap ?? new Map())
 
   useEffect(() => {
     let cancelled = false

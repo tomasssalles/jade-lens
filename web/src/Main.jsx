@@ -9,10 +9,7 @@ export default function Main({ onSettings, onFileOpen }) {
           <GearIcon />
         </button>
       )}
-      {onSettings
-        ? <FileBrowser onFileOpen={onFileOpen} />
-        : <h1>Welcome to Jade Lens</h1>
-      }
+      {onSettings && <FileBrowser onFileOpen={onFileOpen} />}
     </div>
   )
 }

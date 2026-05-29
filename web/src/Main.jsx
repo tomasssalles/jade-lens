@@ -1,7 +1,8 @@
 import GearIcon from './assets/gear.svg?react'
 import FileBrowser from './FileBrowser'
 
-export default function Main({ onSettings, onFileOpen }) {
+export default function Main({ onSettings, onFileOpen, jadeConfig, onJadeConfig }) {
+  const assistantName = jadeConfig?.assistant?.name
   return (
     <div className="main">
       {onSettings && (
@@ -9,7 +10,8 @@ export default function Main({ onSettings, onFileOpen }) {
           <GearIcon />
         </button>
       )}
-      {onSettings && <FileBrowser onFileOpen={onFileOpen} />}
+      {assistantName && <h1 className="assistant-name">{assistantName}</h1>}
+      {onSettings && <FileBrowser onFileOpen={onFileOpen} onJadeConfig={onJadeConfig} />}
     </div>
   )
 }

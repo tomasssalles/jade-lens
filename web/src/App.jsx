@@ -15,6 +15,7 @@ function App() {
   const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
+  const [jadeConfig, setJadeConfig] = useState(null)
   const toastTimer = useRef(null)
 
   function showToast(message, ms = 2000) {
@@ -112,6 +113,8 @@ function App() {
         <Main
           onSettings={page === 'main' ? () => goTo('settings') : undefined}
           onFileOpen={page === 'main' ? openFile : undefined}
+          jadeConfig={jadeConfig}
+          onJadeConfig={setJadeConfig}
         />
       )}
       {page === 'settings' && (

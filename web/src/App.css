@@ -13,3 +13,10 @@ h1 {
   color: #888;
   font: 0.75rem ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+.assistant-name {
+  text-align: center;
+  margin: 1.25rem 0 1rem;
+  font-size: 1.5rem;
+  text-transform: capitalize;
+}

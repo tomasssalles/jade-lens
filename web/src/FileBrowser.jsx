@@ -19,7 +19,13 @@ export function getContentFromCache(path) {
   return _cache?.contentMap?.get(path)
 }
 
-export default function FileBrowser({ onFileOpen }) {
+function parseJadeConfig(map) {
+  const raw = map.get('.jade/config.json')
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+export default function FileBrowser({ onFileOpen, onJadeConfig }) {
   const [status, setStatus] = useState(() => _cache ? 'ready' : 'loading')
   const [error, setError] = useState(null)
   const [treeItems, setTreeItems] = useState(() => _cache?.items ?? [])
@@ -45,6 +51,8 @@ export default function FileBrowser({ onFileOpen }) {
             setTruncated(_cache.truncated)
             contentMapRef.current = _cache.contentMap
             setStatus('ready')
+            const jadeCfg = parseJadeConfig(_cache.contentMap)
+            if (jadeCfg) onJadeConfig?.(jadeCfg)
           }
           return
         }
@@ -61,6 +69,8 @@ export default function FileBrowser({ onFileOpen }) {
         if (!cancelled) {
           contentMapRef.current = map
           _cache = { repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated }
+          const jadeCfg = parseJadeConfig(map)
+          if (jadeCfg) onJadeConfig?.(jadeCfg)
         }
       } catch (err) {
         if (!cancelled) {

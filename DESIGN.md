@@ -232,9 +232,21 @@ Three conventions considered:
 
 A JSON file at `index.json` (data repo root), maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything. The index lives at the root rather than under `.jade/` because the bot is the writer and the bot can't touch `.jade/` (§4.2's protected-paths rule).
 
-#### Contents
+#### Format
 
-For each primary JSON file: filename, brief conceptual description, optional grouping, optional behavioural annotations.
+`index.json` is a **JSON array**. Each element is an object with at minimum:
+
+- **`"File"`** — a wikilink to the primary file, e.g. `"[[Projects/Citizenship.json]]"`.
+- **`"Scope"`** — a short description of what the file holds and what kinds of information belong there.
+
+Additional fields (annotations, flags) slot in alongside these two. Example:
+
+```json
+[
+  {"File": "[[Projects/Citizenship.json]]", "Scope": "Track applications, documents, and deadlines for the citizenship process"},
+  {"File": "[[Calendar/Events.json]]",      "Scope": "Calendar events", "alwaysLoad": true}
+]
+```
 
 The index does **not** contain:
 - Line counts.
@@ -247,7 +259,7 @@ The index does **not** contain:
 
 #### `alwaysLoad` annotation
 
-Any index entry can carry `alwaysLoad: true`. The runtime includes such files in every interaction's prompt at a stable, cache-friendly position.
+Any index entry can carry `"alwaysLoad": true`. The runtime includes such files in every interaction's prompt at a stable, cache-friendly position.
 
 The bot maintains the annotation. When it identifies context-essential input ("I prefer to work out in the morning"), it writes the data normally *and* marks the destination as always-load.
 
@@ -255,7 +267,7 @@ This lets preferences and similar always-needed context be treated as ordinary b
 
 #### `lazyLoadSidecars` annotation *(tentative)*
 
-For the unusual case of a JSON file with many large sidecars rarely needed, the index entry for that file can carry `lazyLoadSidecars: true`. The runtime then skips eager-loading the sidecars for that file. Default behaviour is eager (§6.2).
+For the unusual case of a JSON file with many large sidecars rarely needed, the index entry for that file can carry `"lazyLoadSidecars": true`. The runtime then skips eager-loading the sidecars for that file. Default behaviour is eager (§6.2).
 
 ### 4.7 Preferences
 
@@ -536,13 +548,7 @@ A search / filter affordance covers the cases where navigation isn't fast enough
 **Promoted views for very common patterns.** A small, fixed set of specialised views — calendar grid, kanban board, table, timeline — is supported as exceptions. The runtime knows which view to use via a per-file index annotation:
 
 ```json
-{
-  "calendar/events.json": {
-    "description": "calendar events",
-    "view": "calendar",
-    "alwaysLoad": true
-  }
-}
+{"File": "[[Calendar/Events.json]]", "Scope": "Calendar events", "view": "calendar", "alwaysLoad": true}
 ```
 
 The bot maintains the annotation when it creates or restructures the file. The UI honors it from a fixed **view registry** (a first-class concept in the runtime). The UI doesn't recognise data shapes itself — the bot tells it.

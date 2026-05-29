@@ -53,10 +53,11 @@ missing or empty fields rather than rendering `{{undefined}}` placeholders.
 
 ### `index.json` (at the data repo root)
 
-Starts empty; the bot adds entries as it creates primary files.
+Starts empty; the bot appends entries as it creates primary files. Each entry
+is an object with at minimum a `"File"` wikilink and a `"Scope"` description.
 
 ```json
-{}
+[]
 ```
 
 ### `.gitignore`

@@ -25,6 +25,10 @@ function normalizeWikilinkPath(p) {
   return p.replace(/^\.\//, '').replace(/\/+/g, '/').replace(/^\//, '')
 }
 
+function formatPath(p) {
+  return p.replace(/\.json$/i, '').split('/').filter(Boolean).join(' / ')
+}
+
 function renderStringValue(v, settings, onWikilinkClick) {
   if (isUrl(v)) {
     return (
@@ -67,7 +71,7 @@ function renderStringValue(v, settings, onWikilinkClick) {
             cursor: 'pointer',
           }}
         >
-          {normalized}
+          {formatPath(normalized)}
         </a>
       )
       last = wikilinkRe.lastIndex
@@ -229,7 +233,6 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
 // ─── File breadcrumb ──────────────────────────────────────────────────────────
 
 function FileBreadcrumb({ filePath, s, onBack }) {
-  const parts = filePath.replace(/\.json$/i, '').split('/').filter(Boolean)
   const titleColor = getTitleColor(s)
   return (
     <div style={{
@@ -258,7 +261,7 @@ function FileBreadcrumb({ filePath, s, onBack }) {
           <ArrowLeftIcon style={{ width: s.fontSize + 4, height: s.fontSize + 4 }} />
         </button>
       )}
-      <span>{parts.join(' / ')}</span>
+      <span>{formatPath(filePath)}</span>
     </div>
   )
 }

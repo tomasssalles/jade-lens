@@ -26,7 +26,7 @@ function normalizeWikilinkPath(p) {
 }
 
 function formatPath(p) {
-  return p.replace(/\.[^./]+$/i, '').split('/').filter(Boolean).join(' / ')
+  return p.replace(/(?<=[^/])\.[^./]+$/i, '').split('/').filter(Boolean).join(' / ')
 }
 
 function renderStringValue(v, settings, onWikilinkClick) {

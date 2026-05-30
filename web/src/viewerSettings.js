@@ -20,6 +20,7 @@ export const DEFAULT_VIEWER_SETTINGS = {
   keyFontWeight: 600,
   wikilinkColor: '#00965a',
   urlColor: '#2563eb',
+  timeFormat: 'auto',  // 'auto' | '12h' | '24h'
 }
 
 export const BASE_COLORS = [

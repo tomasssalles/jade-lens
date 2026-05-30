@@ -74,7 +74,7 @@ button[type='submit'] {
   display: block;
   margin: 0 auto;
   padding: 0.75rem;
-  background: var(--jl-wikilink-color, #00965a);
+  background: #006644;
   color: white;
   border: none;
   border-radius: 6px;
@@ -318,4 +318,26 @@ button[type='submit']:disabled {
 
 .adv-reset-btn:active {
   background: #fef2f2;
+}
+
+/* Choice rows (e.g. time format toggle) */
+.adv-choice-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.adv-choice-btn {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: transparent;
+  color: #444;
+  cursor: pointer;
+}
+
+.adv-choice-btn.adv-choice-active {
+  background: #051c07;
+  color: #fff;
+  border-color: #051c07;
 }

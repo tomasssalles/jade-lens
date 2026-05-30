@@ -4,6 +4,7 @@ import './Settings.css'
 import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
+import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache } from './FileBrowser'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
@@ -110,7 +111,7 @@ function App() {
   }
 
   return (
-    <>
+    <TimeFormatContext.Provider value={viewerSettings.timeFormat ?? 'auto'}>
       {page === 'setup' && (
         <>
           <h1>Welcome to Jade Lens</h1>
@@ -155,7 +156,7 @@ function App() {
         />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}
-    </>
+    </TimeFormatContext.Provider>
   )
 }
 

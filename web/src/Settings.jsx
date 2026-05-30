@@ -36,6 +36,26 @@ function ColorRow({ label, value, onChange }) {
   )
 }
 
+function ChoiceRow({ label, value, options, onChange }) {
+  return (
+    <div className="adv-color-row">
+      <span className="adv-row-label">{label}</span>
+      <div className="adv-choice-group">
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            className={`adv-choice-btn${value === opt.value ? ' adv-choice-active' : ''}`}
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AdvancedSettings({ settings: s, onChange }) {
   function set(key, value) {
     onChange({ ...s, [key]: value })
@@ -96,27 +116,23 @@ function AdvancedSettings({ settings: s, onChange }) {
       <ColorRow label="Wikilink" value={s.wikilinkColor} onChange={v => set('wikilinkColor', v)} />
       <ColorRow label="URL" value={s.urlColor} onChange={v => set('urlColor', v)} />
 
+      <div className="adv-section-label" style={{ marginTop: '1rem' }}>Dates</div>
+      <ChoiceRow
+        label="Time format"
+        value={s.timeFormat ?? 'auto'}
+        options={[
+          { value: 'auto', label: 'Auto' },
+          { value: '12h', label: '12h' },
+          { value: '24h', label: '24h' },
+        ]}
+        onChange={v => set('timeFormat', v)}
+      />
+
       <button type="button" className="adv-reset-btn" onClick={() => onChange({ ...DEFAULT_VIEWER_SETTINGS })}>
         Reset to defaults
       </button>
     </div>
   )
-}
-
-function TimeDiagnostic() {
-  try {
-    const resolved = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions()
-    const sample = new Date(2025, 0, 1, 13, 30).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' })
-    return (
-      <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#888', maxWidth: 480, margin: '0.5rem auto 0', lineHeight: 1.6 }}>
-        <div>locale: {resolved.locale}</div>
-        <div>hourCycle: {resolved.hourCycle}</div>
-        <div>13:30 → {sample}</div>
-      </div>
-    )
-  } catch (e) {
-    return <div style={{ fontSize: '0.75rem', color: '#888' }}>time diag error: {String(e)}</div>
-  }
 }
 
 export default function Settings({ onClose, showToast, viewerSettings, onViewerSettingsChange }) {
@@ -130,7 +146,6 @@ export default function Settings({ onClose, showToast, viewerSettings, onViewerS
         </button>
         <h2>Settings</h2>
       </div>
-      <TimeDiagnostic />
       <SettingsForm onSuccess={onClose} showToast={showToast} />
       <div className="adv-toggle-wrap">
         <button type="button" className="adv-toggle-btn" onClick={() => setAdvOpen(v => !v)}>

@@ -4,6 +4,12 @@ The JSON card viewer is the default view for `.json` files in the data repo. Oth
 
 ---
 
+## File breadcrumb
+
+Each file view opens with a breadcrumb header rendered inside the topmost card: a back button (←) followed by the formatted file path (extension stripped, segments joined with ` / `). Tapping back pushes the history entry so the browser back button works normally.
+
+---
+
 ## Everything is cards
 
 All structured data is rendered as nested cards. A JSON object is a sequence of key–value pairs; each pair is a card. A JSON array is a sequence of elements; each element is a card. This rule applies recursively at every depth with no special cases.
@@ -39,7 +45,7 @@ JSON keys are used as display labels verbatim. The bot is instructed to write hu
 
 Lightweight, high-confidence heuristics are applied to render values by type: dates are formatted in locale-aware form, booleans show as ✓ / ✗, nulls as ∅, URLs as clickable links, wikilinks as navigable in-app links, and short string arrays as inline chips. All other strings render as plain text.
 
-Wikilinks (`[[path]]`) navigate to the referenced file within the app, pushing a new entry onto the history stack so the back button returns to the file containing the link.
+Wikilinks (`[[path]]`) navigate to the referenced file within the app, pushing a new entry onto the history stack so the back button returns to the file containing the link. The display text is the formatted path — extension stripped, path segments joined with ` / ` (e.g. `[[Projects/New language.json]]` renders as `Projects / New language`).
 
 **Future work:** dead wikilinks (where the target file no longer exists) should be colored distinctly (e.g. red) to signal the broken reference. Currently they render the same as live links.
 

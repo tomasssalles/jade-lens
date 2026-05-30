@@ -103,6 +103,22 @@ function AdvancedSettings({ settings: s, onChange }) {
   )
 }
 
+function TimeDiagnostic() {
+  try {
+    const resolved = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions()
+    const sample = new Date(2025, 0, 1, 13, 30).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' })
+    return (
+      <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#888', maxWidth: 480, margin: '0.5rem auto 0', lineHeight: 1.6 }}>
+        <div>locale: {resolved.locale}</div>
+        <div>hourCycle: {resolved.hourCycle}</div>
+        <div>13:30 → {sample}</div>
+      </div>
+    )
+  } catch (e) {
+    return <div style={{ fontSize: '0.75rem', color: '#888' }}>time diag error: {String(e)}</div>
+  }
+}
+
 export default function Settings({ onClose, showToast, viewerSettings, onViewerSettingsChange }) {
   const [advOpen, setAdvOpen] = useState(false)
 
@@ -114,6 +130,7 @@ export default function Settings({ onClose, showToast, viewerSettings, onViewerS
         </button>
         <h2>Settings</h2>
       </div>
+      <TimeDiagnostic />
       <SettingsForm onSuccess={onClose} showToast={showToast} />
       <div className="adv-toggle-wrap">
         <button type="button" className="adv-toggle-btn" onClick={() => setAdvOpen(v => !v)}>

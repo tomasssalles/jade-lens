@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './Settings.css'
 import SettingsForm from './SettingsForm'
 import ArrowLeftIcon from './assets/arrow-left.svg?react'
-import { DEFAULT_VIEWER_SETTINGS, BASE_COLORS, getCardColor } from './viewerSettings'
+import { DEFAULT_VIEWER_SETTINGS, BASE_COLORS } from './viewerSettings'
 
 function SliderRow({ label, value, min, max, step = 1, onChange }) {
   return (
@@ -107,7 +107,7 @@ export default function Settings({ onClose, showToast, viewerSettings, onViewerS
   const [advOpen, setAdvOpen] = useState(false)
 
   return (
-    <div className="settings-page" style={{ background: getCardColor(0, viewerSettings ?? DEFAULT_VIEWER_SETTINGS) }}>
+    <div className="settings-page">
       <div className="page-header">
         <button className="icon-button" onClick={onClose} aria-label="Back">
           <ArrowLeftIcon />

@@ -36,7 +36,11 @@
   cursor: default;
 }
 
-/* Inline markdown inside card viewer — collapse paragraph wrapper */
+/* Inline markdown inside card viewer — render on same line as key label */
+.jl-inline-markdown {
+  display: inline;
+  vertical-align: baseline;
+}
 .jl-inline-markdown p {
   margin: 0;
   display: inline;

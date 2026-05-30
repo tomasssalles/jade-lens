@@ -40,18 +40,20 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
   if (isMarkdown) {
     const s = viewerSettings
     return (
-      <div className="file-view" style={{
-        background: getCardColor(0, s),
-        color: getTextColor(0, s),
-      }}>
-        <div style={{
-          padding: `${s.cardPaddingY * 2}px ${s.cardPaddingX * 2}px`,
-          boxSizing: 'border-box',
-          minHeight: '100%',
+      <div className="file-view">
+        <div className="file-view-md" style={{
+          background: getCardColor(0, s),
+          color: getTextColor(0, s),
         }}>
-          <FileBreadcrumb filePath={path} s={s} onBack={onBack} />
-          <div className="jl-file-content">
-            <MarkdownRenderer content={content} onWikilinkClick={onWikilinkClick} />
+          <div style={{
+            padding: `${s.cardPaddingY * 2}px ${s.cardPaddingX * 2}px`,
+            boxSizing: 'border-box',
+            minHeight: '100%',
+          }}>
+            <FileBreadcrumb filePath={path} s={s} onBack={onBack} />
+            <div className="jl-file-content">
+              <MarkdownRenderer content={content} onWikilinkClick={onWikilinkClick} />
+            </div>
           </div>
         </div>
       </div>

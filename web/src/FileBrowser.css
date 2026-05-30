@@ -79,3 +79,8 @@
   flex: 1;
   overflow: auto;
 }
+
+.file-view-md {
+  flex: 1;
+  overflow: auto;
+}

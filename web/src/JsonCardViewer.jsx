@@ -1,93 +1,13 @@
 import { useEffect, useState } from 'react'
-import { getCardColor, getTextColor, getBorderColor, getTitleColor } from './viewerSettings'
-import ArrowLeftIcon from './assets/arrow-left.svg?react'
+import { getCardColor, getTextColor, getBorderColor } from './viewerSettings'
+import FileBreadcrumb from './FileBreadcrumb'
+import MarkdownRenderer from './MarkdownRenderer'
 
 // ─── Value helpers ────────────────────────────────────────────────────────────
 
-function isDate(v) {
-  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?/.test(v)
-}
-
-function formatDate(v) {
-  try {
-    const d = new Date(v)
-    if (isNaN(d)) return v
-    if (v.length === 10) return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-    return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  } catch { return v }
-}
-
-function isUrl(v) {
-  return typeof v === 'string' && /^https?:\/\/\S+$/.test(v)
-}
-
-function normalizeWikilinkPath(p) {
-  return p.replace(/^\.\//, '').replace(/\/+/g, '/').replace(/^\//, '')
-}
-
-function formatPath(p) {
-  return p.replace(/(?<=[^/])\.[^./]+$/i, '').split('/').filter(Boolean).join(' / ')
-}
-
-function renderStringValue(v, settings, onWikilinkClick) {
-  if (isUrl(v)) {
-    return (
-      <a href={v} target="_blank" rel="noopener noreferrer" style={{
-        color: settings.urlColor,
-        textDecoration: 'underline',
-        textDecorationColor: settings.urlColor + '66',
-        textUnderlineOffset: 2,
-        wordBreak: 'break-all',
-      }}>
-        {v}
-      </a>
-    )
-  }
-
-  const wikilinkRe = /\[\[([^\]]+)\]\]/g
-  if (wikilinkRe.test(v)) {
-    wikilinkRe.lastIndex = 0
-    const parts = []
-    let last = 0
-    let m
-    while ((m = wikilinkRe.exec(v)) !== null) {
-      if (m.index > last) parts.push(<span key={`t${last}`}>{v.slice(last, m.index)}</span>)
-      const normalized = normalizeWikilinkPath(m[1])
-      parts.push(
-        <a
-          key={`w${m.index}`}
-          href="#"
-          onClick={e => { e.preventDefault(); onWikilinkClick?.(normalized) }}
-          style={{
-            color: settings.wikilinkColor,
-            textDecoration: 'underline',
-            textDecorationColor: settings.wikilinkColor + '66',
-            textUnderlineOffset: 2,
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.88em',
-            background: 'rgba(0,0,0,0.04)',
-            borderRadius: 3,
-            padding: '1px 5px',
-            cursor: 'pointer',
-          }}
-        >
-          {formatPath(normalized)}
-        </a>
-      )
-      last = wikilinkRe.lastIndex
-    }
-    if (last < v.length) parts.push(<span key={`t${last}`}>{v.slice(last)}</span>)
-    return <span style={{ lineHeight: 1.6 }}>{parts}</span>
-  }
-
-  if (isDate(v)) return <span title={v}>{formatDate(v)}</span>
-
-  return <span>{v}</span>
-}
-
 function isShortStringArray(v) {
   return Array.isArray(v) && v.length > 0 && v.every(
-    x => typeof x === 'string' && x.length < 40 && !/\[\[/.test(x) && !isUrl(x)
+    x => typeof x === 'string' && x.length < 40 && !/\[\[/.test(x) && !/^https?:\/\//.test(x)
   )
 }
 
@@ -175,7 +95,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
         {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        {renderStringValue(value, s, onWikilinkClick)}
+        <MarkdownRenderer content={value} onWikilinkClick={onWikilinkClick} inline />
       </Card>
     )
   }
@@ -230,42 +150,6 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
   return <Card depth={depth} s={s} isWide={isWide}>{String(value)}</Card>
 }
 
-// ─── File breadcrumb ──────────────────────────────────────────────────────────
-
-function FileBreadcrumb({ filePath, s, onBack }) {
-  const titleColor = getTitleColor(s)
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-      fontWeight: 700,
-      fontSize: s.fontSize + 2,
-      color: titleColor,
-      marginBottom: s.siblingGap + 6,
-      paddingBottom: 8,
-      borderBottom: `1px solid ${getBorderColor(s)}55`,
-      wordBreak: 'break-word',
-    }}>
-      {onBack && (
-        <button onClick={onBack} aria-label="Back" style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 0,
-          color: titleColor,
-          display: 'flex',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}>
-          <ArrowLeftIcon style={{ width: s.fontSize + 4, height: s.fontSize + 4 }} />
-        </button>
-      )}
-      <span>{formatPath(filePath)}</span>
-    </div>
-  )
-}
-
 // ─── Top-level export ─────────────────────────────────────────────────────────
 
 export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onBack }) {
@@ -279,14 +163,12 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
 
   const isWide = windowWidth >= settings.wideBreakpoint
 
-  // Flatten the root to a list of top-level items
   let topItems
   if (Array.isArray(data)) {
     topItems = data.map((item, i) => ({ key: String(i), value: item, label: null }))
   } else if (data && typeof data === 'object') {
     const keys = Object.keys(data)
     if (keys.length === 1 && Array.isArray(data[keys[0]])) {
-      // Single-array-root: unwrap, render array elements directly
       topItems = data[keys[0]].map((item, i) => ({ key: String(i), value: item, label: null }))
     } else {
       topItems = Object.entries(data).map(([k, v]) => ({ key: k, value: v, label: k }))

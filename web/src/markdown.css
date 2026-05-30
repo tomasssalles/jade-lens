@@ -1,0 +1,132 @@
+/* Wikilinks */
+.jl-wikilink {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 3px;
+  padding: 1px 5px;
+  text-decoration: underline;
+  text-decoration-color: var(--jl-wikilink-color-faded, rgba(0, 150, 90, 0.4));
+  text-underline-offset: 2px;
+  color: var(--jl-wikilink-color, #00965a);
+  cursor: pointer;
+}
+.jl-wikilink:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* URLs */
+.jl-url {
+  color: var(--jl-url-color, #2563eb);
+  text-decoration: underline;
+  text-decoration-color: var(--jl-url-color-faded, rgba(37, 99, 235, 0.4));
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.jl-url:hover {
+  text-decoration-color: var(--jl-url-color, #2563eb);
+}
+
+/* Dates — tooltip only for now; add cursor: pointer when interactive */
+.jl-date {}
+
+/* Checkboxes — not interactive yet; add cursor: pointer when interactive */
+.jl-checkbox {
+  margin-right: 6px;
+  cursor: default;
+}
+
+/* Inline markdown inside card viewer — collapse paragraph wrapper */
+.jl-inline-markdown p {
+  margin: 0;
+  display: inline;
+}
+
+/* Markdown container */
+.jl-markdown {
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Headings */
+.jl-markdown h1, .jl-markdown h2, .jl-markdown h3,
+.jl-markdown h4, .jl-markdown h5, .jl-markdown h6 {
+  color: var(--jl-title-color);
+  font-weight: 700;
+  margin: 0.75em 0 0.25em;
+}
+
+/* Paragraphs */
+.jl-markdown p {
+  margin: 0.4em 0;
+}
+.jl-markdown p:first-child { margin-top: 0; }
+.jl-markdown p:last-child { margin-bottom: 0; }
+
+/* Lists */
+.jl-markdown ul, .jl-markdown ol {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+.jl-markdown li { margin: 0.15em 0; }
+
+/* Inline code */
+.jl-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+/* Code blocks */
+.jl-markdown pre {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 5px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.jl-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Blockquotes */
+.jl-markdown blockquote {
+  border-left: 3px solid var(--jl-border-color, #ccc);
+  margin: 0.4em 0 0.4em 0;
+  padding-left: 12px;
+  opacity: 0.85;
+}
+
+/* Horizontal rules */
+.jl-markdown hr {
+  border: none;
+  border-top: 1px solid var(--jl-border-color, #ccc);
+  margin: 12px 0;
+}
+
+/* Tables */
+.jl-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0;
+}
+.jl-markdown th, .jl-markdown td {
+  border: 1px solid var(--jl-border-color, #ccc);
+  padding: 4px 8px;
+  text-align: left;
+}
+.jl-markdown th {
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Markdown file page content area */
+.jl-file-content {
+  padding: 0 0 2rem;
+  max-width: 680px;
+}

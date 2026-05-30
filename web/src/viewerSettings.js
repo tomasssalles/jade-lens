@@ -90,6 +90,16 @@ export function getTitleColor(s) {
   return `hsl(${hue}, ${Math.min(sat + 10, 50)}%, ${Math.max(s.baseLightnessStart - 35, 20)}%)`
 }
 
+export function applySettingsCssVars(settings) {
+  const root = document.documentElement
+  root.style.setProperty('--jl-wikilink-color', settings.wikilinkColor)
+  root.style.setProperty('--jl-wikilink-color-faded', settings.wikilinkColor + '66')
+  root.style.setProperty('--jl-url-color', settings.urlColor)
+  root.style.setProperty('--jl-url-color-faded', settings.urlColor + '66')
+  root.style.setProperty('--jl-title-color', getTitleColor(settings))
+  root.style.setProperty('--jl-border-color', getBorderColor(settings))
+}
+
 export async function getViewerSettings() {
   const db = await getDB()
   const saved = await db.get('config', 'viewerSettings')

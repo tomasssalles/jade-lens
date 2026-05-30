@@ -3,7 +3,7 @@ import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
-import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings } from './viewerSettings'
+import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { getContentFromCache } from './FileBrowser'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
@@ -99,6 +99,10 @@ function App() {
     }
     openFile(path, content)
   }
+
+  useEffect(() => {
+    applySettingsCssVars(viewerSettings)
+  }, [viewerSettings])
 
   async function updateViewerSettings(newSettings) {
     setViewerSettings(newSettings)

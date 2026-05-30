@@ -32,6 +32,11 @@
 
 /* Checkboxes — not interactive yet; add cursor: pointer when interactive */
 .jl-checkbox {
+  /* Reset the global input rule from Settings.css */
+  width: auto !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
   margin-right: 6px;
   cursor: default;
 }

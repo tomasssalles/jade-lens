@@ -33,11 +33,11 @@ function remarkStripHtml() {
 
 const remarkPlugins = [remarkGfm, remarkWikilinks, remarkDates, remarkStripHtml]
 
-const rehypePlugins = [[rehypeHighlight, {
-  languages: { python, javascript, typescript, json, bash, xml, css, sql, yaml, ini },
-  detect: false,
+const rehypeHighlightOptions = {
+  languages: { python, javascript, typescript, json, bash, html: xml, css, sql, yaml, toml: ini },
   ignoreMissing: true,
-}]]
+}
+const rehypePlugins = [[rehypeHighlight, rehypeHighlightOptions]]
 
 // inline=true: suppresses paragraph margins for card viewer string values
 export default function MarkdownRenderer({ content, onWikilinkClick, inline = false }) {

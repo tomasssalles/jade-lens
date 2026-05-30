@@ -12,11 +12,12 @@ values in the JSON card viewer.
 ### Required packages
 
 ```bash
-npm install react-markdown remark-gfm
+npm install react-markdown remark-gfm rehype-highlight
 ```
 
 - `react-markdown`: the core renderer.
 - `remark-gfm`: GFM (task lists, strikethrough, tables, autolinks).
+- `rehype-highlight`: syntax highlighting via highlight.js (MIT).
 
 ### Required for custom plugins
 
@@ -420,7 +421,55 @@ Markdown file pages use `MarkdownRenderer` without `inline`:
 
 ---
 
-## 9. Future: making checkboxes interactive
+## 9. Syntax highlighting
+
+### Packages
+
+`rehype-highlight` is a rehype plugin that applies highlight.js tokenization to
+fenced code blocks. Languages are cherry-picked to avoid bundling all of
+highlight.js (~1 MB minified).
+
+### Configuration
+
+```js
+import rehypeHighlight from 'rehype-highlight'
+import python from 'highlight.js/lib/languages/python'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import json from 'highlight.js/lib/languages/json'
+import bash from 'highlight.js/lib/languages/bash'
+import xml from 'highlight.js/lib/languages/xml'     // covers HTML too
+import css from 'highlight.js/lib/languages/css'
+import sql from 'highlight.js/lib/languages/sql'
+import yaml from 'highlight.js/lib/languages/yaml'
+import ini from 'highlight.js/lib/languages/ini'     // covers TOML too
+import 'highlight.js/styles/github.css'
+
+const rehypePlugins = [[rehypeHighlight, {
+  languages: { python, javascript, typescript, json, bash, xml, css, sql, yaml, ini },
+  detect: false,       // no auto-detection when language tag is absent
+  ignoreMissing: true, // unknown language tags → plain monospace, no error
+}]]
+```
+
+Pass to `ReactMarkdown` alongside the existing `remarkPlugins`:
+
+```jsx
+<ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
+  {content}
+</ReactMarkdown>
+```
+
+### CSS interaction
+
+`github.css` sets `background: #fff` on `.hljs`. Our `.jl-markdown pre code`
+rule resets this with `background: none !important` so the `<pre>` block keeps
+the app's own tinted background. Token colors from `.hljs-*` classes are
+unaffected.
+
+---
+
+## 10. Future: making checkboxes interactive
 
 1. Remove `disabled` from the checkbox `input` component.
 2. Add `onChange` that: determines the line number of the checkbox, computes a
@@ -431,7 +480,7 @@ No architectural changes. No new libraries. No tiptap.
 
 ---
 
-## 10. Future: making dates interactive
+## 11. Future: making dates interactive
 
 Modify `DateNode` to show a native date picker on tap:
 
@@ -465,7 +514,7 @@ the callback (unified diff for markdown files, JSON Patch for card strings).
 
 ---
 
-## 11. Future: visual consistency with tiptap
+## 12. Future: visual consistency with tiptap
 
 1. Tiptap node views apply the same `jl-*` CSS classes.
 2. Reset tiptap container: `.ProseMirror { padding: 0; margin: 0; }` and

@@ -108,7 +108,7 @@
   margin: 0.6em 0;
 }
 .jl-markdown pre code {
-  background: none;
+  background: none !important;
   padding: 0;
 }
 

@@ -136,6 +136,22 @@ yet).
 **Future:** tapping a checkbox emits a unified diff flipping `[ ]` ↔ `[x]` at
 the specific line. Micro-edit, no tiptap.
 
+### Syntax highlighting for code blocks
+
+Fenced code blocks with a language tag (e.g. ` ```python `) are syntax-highlighted
+using `rehype-highlight` (a rehype plugin wrapping highlight.js) with the GitHub
+light theme.
+
+Languages are cherry-picked rather than bundling all of highlight.js:
+Python, JavaScript, TypeScript, JSON, Bash, XML/HTML, CSS, SQL, YAML, and INI/TOML.
+Unrecognized language tags render as plain monospace — no errors, no fallback
+detection.
+
+The GitHub theme is a safe default: it assumes a white background, which matches
+the app's lightly tinted depth-0 card color. The theme's colors appear on token
+spans (`.hljs-keyword`, etc.) inside `<code>`, while the `<pre>` block keeps the
+app's own subtle background (`rgba(0,0,0,0.06)`).
+
 ---
 
 ## Editing interface (future)
@@ -191,6 +207,7 @@ classes, ensuring visual identity between read-only and editable states.
 - The app uses shared CSS classes for custom elements.
 - Checkboxes render but are not interactive in the current version.
 - Dates render as formatted text but are not interactive in the current version.
+- Fenced code blocks are syntax-highlighted via `rehype-highlight` (GitHub theme, cherry-picked languages).
 
 ### Decided in principle, implemented later
 - Micro-edits (checkboxes, dates) as interactive `react-markdown` components.

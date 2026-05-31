@@ -60,18 +60,20 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
         const { items, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
         const filtered = items.filter(item => !isExcluded(item))
         if (cancelled) return
+
+        // Fetch all file contents before rendering the tree so the jade config
+        // (and the H1 it drives) is available at the same time as the tree,
+        // preventing the layout jitter caused by the H1 pushing the tree down.
+        const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, items)
+        if (cancelled) return
+
+        contentMapRef.current = map
+        _cache = { repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated }
         setTreeItems(filtered)
         setTruncated(truncated)
         setStatus('ready')
-
-        // Background: pre-fetch all file contents (including hidden dot-paths)
-        const map = await getAllFileContents(cfg.githubRepoUrl, cfg.githubPat, items)
-        if (!cancelled) {
-          contentMapRef.current = map
-          _cache = { repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated }
-          const jadeCfg = parseJadeConfig(map)
-          if (jadeCfg) onJadeConfig?.(jadeCfg)
-        }
+        const jadeCfg = parseJadeConfig(map)
+        if (jadeCfg) onJadeConfig?.(jadeCfg)
       } catch (err) {
         if (!cancelled) {
           setError(err.message)

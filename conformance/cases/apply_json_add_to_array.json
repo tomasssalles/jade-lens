@@ -1,0 +1,15 @@
+{
+  "name": "json_patch appends to an array and re-serialises pretty-printed",
+  "description": "Core json_patch happy path: an RFC 6902 add to an array end. The whole file is re-serialised in the canonical form (2-space indent, trailing newline). One operations-log entry is appended.",
+  "before": { "shopping.json": "{\n  \"items\": []\n}\n" },
+  "commit_message": "Add groceries to shopping list",
+  "operations": [
+    { "op": "json_patch", "path": "shopping.json", "patch": [{ "op": "add", "path": "/items/-", "value": "groceries" }] }
+  ],
+  "expect": {
+    "after": {
+      "shopping.json": "{\n  \"items\": [\n    \"groceries\"\n  ]\n}\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add groceries to shopping list\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"shopping.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"groceries\"}]}]}\n"
+    }
+  }
+}

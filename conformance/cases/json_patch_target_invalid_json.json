@@ -1,0 +1,9 @@
+{
+  "name": "json_patch on a file that isn't valid JSON is rejected",
+  "description": "The target ends in .json and exists as a file, but its current content doesn't parse as JSON, so the patch can't be applied. Distinct from JSON_PATCH_APPLY_FAILED (which is a valid-JSON file the RFC 6902 op can't be applied to).",
+  "before": { "broken.json": "{ this is not valid json\n" },
+  "operations": [
+    { "op": "json_patch", "path": "broken.json", "patch": [{ "op": "add", "path": "/x", "value": 1 }] }
+  ],
+  "expect": { "error": "JSON_PATCH_TARGET_INVALID_JSON" }
+}

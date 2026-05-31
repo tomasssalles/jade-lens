@@ -1,0 +1,9 @@
+{
+  "name": "json_patch targeting a directory is rejected",
+  "description": "The path passes the .json-suffix rule but resolves to a directory (here a directory literally named 'data.json'), so application fails. Distinct from TARGET_NOT_FOUND (the path does exist) and from the suffix rule (the suffix is fine).",
+  "before": { "data.json/keep.md": "# placeholder so the directory exists\n" },
+  "operations": [
+    { "op": "json_patch", "path": "data.json", "patch": [{ "op": "add", "path": "/x", "value": 1 }] }
+  ],
+  "expect": { "error": "TARGET_NOT_A_FILE" }
+}

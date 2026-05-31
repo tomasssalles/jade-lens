@@ -1,0 +1,9 @@
+{
+  "name": "unified_diff with an unparseable diff is rejected",
+  "description": "The diff text can't be parsed (malformed hunk header), so the op is rejected before any application. Distinct from UNIFIED_DIFF_APPLY_FAILED (a well-formed diff whose removed line doesn't match the file).",
+  "before": { "notes.md": "hello\n" },
+  "operations": [
+    { "op": "unified_diff", "path": "notes.md", "diff": "@@ bad header @@\n-x\n+y\n" }
+  ],
+  "expect": { "error": "UNIFIED_DIFF_PARSE_FAILED" }
+}

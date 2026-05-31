@@ -1,0 +1,7 @@
+{
+  "name": "operation that is not a JSON object is rejected",
+  "description": "Every operation must be a JSON object. A bare string (or any non-object) in the operations list fails structural validation.",
+  "before": {},
+  "operations": [ "not an object" ],
+  "expect": { "error": "OP_NOT_OBJECT" }
+}

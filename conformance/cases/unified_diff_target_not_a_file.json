@@ -1,0 +1,9 @@
+{
+  "name": "unified_diff targeting a directory is rejected",
+  "description": "The path passes the not-.json suffix rule but resolves to a directory, so application fails with TARGET_NOT_A_FILE (the path exists, it just isn't a file).",
+  "before": { "notes/keep.md": "# placeholder so the directory exists\n" },
+  "operations": [
+    { "op": "unified_diff", "path": "notes", "diff": "@@ -1 +1 @@\n-a\n+b\n" }
+  ],
+  "expect": { "error": "TARGET_NOT_A_FILE" }
+}

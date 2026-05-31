@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import ArrowLeftIcon from './assets/arrow-left.svg?react'
 import JsonCardViewer from './JsonCardViewer'
 import FileBreadcrumb from './FileBreadcrumb'
@@ -6,7 +6,20 @@ import MarkdownRenderer from './MarkdownRenderer'
 import { getCardColor, getTextColor } from './viewerSettings'
 import './FileBrowser.css'
 
+const scrollPositions = new Map()
+
 export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick }) {
+  const scrollerRef = useRef(null)
+
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (el) el.scrollTop = scrollPositions.get(path) ?? 0
+  }, [path])
+
+  function handleScroll(e) {
+    scrollPositions.set(path, e.currentTarget.scrollTop)
+  }
+
   const isJson = path.endsWith('.json')
   const isMarkdown = path.endsWith('.md')
 
@@ -23,7 +36,7 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
   if (isJson && parsed?.data !== null) {
     return (
       <div className="file-view">
-        <div className="file-view-json">
+        <div className="file-view-json" ref={scrollerRef} onScroll={handleScroll}>
           <JsonCardViewer
             data={parsed.data}
             filePath={path}
@@ -41,7 +54,7 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
     const s = viewerSettings
     return (
       <div className="file-view">
-        <div className="file-view-md" style={{
+        <div className="file-view-md" ref={scrollerRef} onScroll={handleScroll} style={{
           background: getCardColor(0, s),
           color: getTextColor(0, s),
         }}>
@@ -69,7 +82,7 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
         </button>
         <span className="file-view-path">{path}</span>
       </div>
-      <pre className="file-view-content">
+      <pre className="file-view-content" ref={scrollerRef} onScroll={handleScroll}>
         {isJson && parsed?.error ? `JSON parse error: ${parsed.error}\n\n${content}` : content}
       </pre>
     </div>

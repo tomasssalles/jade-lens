@@ -153,9 +153,13 @@ For a case that must be **rejected**, replace `after` with an `error` code:
   `before` (no partial application).
 - **Exactly one** of `after` / `error` is present.
 - Content strings are verbatim, including trailing newlines. JSON Patch results
-  are serialised by the pipeline as `json.dumps(result, indent=2) + "\n"`; the
-  fixtures encode that exact form. (If a future client serialises JSON
-  differently, that's a real contract question to resolve here, not paper over.)
+  are serialised by the pipeline as `json.dumps(result, indent=2) + "\n"` today;
+  the fixtures encode that exact form. Note this is a **transitional** form: the
+  canonical serialisation is decided to be the JS form
+  (`JSON.stringify(obj, null, 2) + "\n"`), with Python changing to match and the
+  cross-client contract staying byte-identical — see §4 "Decided (not yet
+  implemented)". When that lands, the affected fixtures move to the JS form in
+  the same commit.
 
 ---
 
@@ -197,15 +201,29 @@ for each case in cases/:
 - **All other files are compared byte-for-byte**, after the timestamp handling
   above. Content is verbatim, trailing newlines included.
 
-### Known open point: re-serialised JSON data files
+### Decided (not yet implemented): canonical JSON serialisation is JS-style
 
 When `json_patch` modifies a `.json` data file, the pipeline re-serialises the
-whole file (Python: `json.dumps(result, indent=2) + "\n"`). Python's and JS's
-pretty-printers are *nearly* identical at `indent=2` but not guaranteed so
-(non-ASCII escaping, float formatting, empty containers). Until the JS pipeline
-lands and we pick a **canonical JSON serialisation** both clients must produce,
-fixtures whose `after` contains a pipeline-re-serialised JSON file encode the
-Python form, and that exact form becomes the contract the JS client must match.
+whole file (Python today: `json.dumps(result, indent=2) + "\n"`). Python's and
+JS's pretty-printers are *nearly* identical at `indent=2` but not guaranteed so
+(non-ASCII escaping, float formatting, empty containers).
+
+**Decision:** the canonical serialisation both clients must emit is the
+**JS form** — `JSON.stringify(obj, null, 2) + "\n"`. The contract stays
+**byte-identical** across clients; Python is the side that must change to match,
+because JS is representationally weaker and cannot reproduce the Python-only
+forms (most importantly, a JS client loses integer-valued floats on `JSON.parse`
+— `1.0` is already the Number `1` in memory before it ever re-serialises, so a
+byte-canonical contract can only be agreed on JS's terms). Concrete deltas the
+Python pipeline owes (all at the single `json.dumps` site in
+`operations.py`, see §3): emit floats JS-style (`1.0` → `1`), stop escaping
+non-ASCII (JS default is `ensure_ascii=False`), and confirm separators/empty-
+container formatting agree.
+
+This is **not yet implemented** — Python still emits its own form. Until the
+change lands, fixtures whose `after` contains a pipeline-re-serialised JSON file
+encode the *current Python* form. When the JS-style serialiser lands, those
+fixtures are updated in the same commit and the JS form becomes the contract.
 Cases that only modify JSON *textually* (e.g. the wikilink rewriter's in-place
 regex replace, which preserves formatting) are unaffected — they compare
 byte-for-byte safely.

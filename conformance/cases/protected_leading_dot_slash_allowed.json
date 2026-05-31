@@ -1,0 +1,15 @@
+{
+  "name": "a leading './' is stripped and the path is allowed",
+  "description": "PurePosixPath strips a leading './', so './notes.md' resolves to 'notes.md' — not a protected top-level dot-path — and the create succeeds, writing 'notes.md'.",
+  "before": {},
+  "commit_message": "Create notes via ./ path",
+  "operations": [
+    { "op": "create_file", "path": "./notes.md", "content": "# notes\n" }
+  ],
+  "expect": {
+    "after": {
+      "notes.md": "# notes\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Create notes via ./ path\", \"operations\": [{\"op\": \"create_file\", \"path\": \"./notes.md\", \"content\": \"# notes\\n\"}]}\n"
+    }
+  }
+}

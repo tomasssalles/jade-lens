@@ -1,0 +1,8 @@
+{
+  "name": "delete_path targeting a protected path is rejected",
+  "before": {},
+  "operations": [
+    { "op": "delete_path", "path": ".jade/operations-log" }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

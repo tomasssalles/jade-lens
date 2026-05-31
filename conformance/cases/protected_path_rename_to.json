@@ -1,0 +1,8 @@
+{
+  "name": "rename_path with a protected destination is rejected",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": ".claude/oops.md" }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

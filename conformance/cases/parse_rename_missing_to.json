@@ -1,0 +1,9 @@
+{
+  "name": "rename_path missing the 'to' key is rejected",
+  "description": "OP_MISSING_KEYS on a different op than the create_file case — rename_path requires both 'from' and 'to'.",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": "a.md" }
+  ],
+  "expect": { "error": "OP_MISSING_KEYS" }
+}

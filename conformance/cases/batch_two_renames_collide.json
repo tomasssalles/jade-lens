@@ -1,0 +1,10 @@
+{
+  "name": "two renames whose destinations collide is rejected",
+  "description": "Two rename ops landing on the same 'to' path are two structure ops on one path — a multiple-structure-ops collision.",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": "a.md", "to": "x.md" },
+    { "op": "rename_path", "from": "b.md", "to": "x.md" }
+  ],
+  "expect": { "error": "BATCH_MULTIPLE_STRUCTURE_OPS" }
+}

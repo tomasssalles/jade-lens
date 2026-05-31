@@ -1,0 +1,9 @@
+{
+  "name": "json_patch with a bare patch object instead of a list is rejected",
+  "description": "A realistic bot mistake (DESIGN §12.2): forgetting to wrap a single RFC 6902 op in a list. The op looks valid but 'patch' must be a list.",
+  "before": {},
+  "operations": [
+    { "op": "json_patch", "path": "todos.json", "patch": { "op": "add", "path": "/todos/-", "value": "groceries" } }
+  ],
+  "expect": { "error": "OP_WRONG_FIELD_TYPE" }
+}

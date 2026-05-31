@@ -1,0 +1,10 @@
+{
+  "name": "unified_diff on a path being renamed away in the same batch is rejected",
+  "description": "A path touched by a rename (as its source) and by a content op in the same batch is an incompatible-category collision.",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" },
+    { "op": "unified_diff", "path": "old.md", "diff": "@@ -1 +1 @@\n-a\n+A\n" }
+  ],
+  "expect": { "error": "BATCH_INCOMPATIBLE_CATEGORIES" }
+}

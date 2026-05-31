@@ -1,0 +1,8 @@
+{
+  "name": "json_patch targeting a protected path is rejected",
+  "before": {},
+  "operations": [
+    { "op": "json_patch", "path": ".jade/index.json", "patch": [{ "op": "add", "path": "/x", "value": 1 }] }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

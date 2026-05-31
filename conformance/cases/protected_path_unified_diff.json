@@ -1,0 +1,8 @@
+{
+  "name": "unified_diff targeting a protected path is rejected",
+  "before": {},
+  "operations": [
+    { "op": "unified_diff", "path": ".gitignore", "diff": "@@ -1 +1 @@\n-a\n+b\n" }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "deleting a directory whose files reference each other internally succeeds",
+  "description": "References from files inside the deleted directory don't count toward the dangling-wikilink check — those files are gone by the time the post-pass scans. The batch succeeds.",
+  "before": {
+    "doomed/a.md": "[[doomed/b.md]] inside\n",
+    "doomed/b.md": "# b\n"
+  },
+  "commit_message": "Delete dir with internal refs",
+  "operations": [
+    { "op": "delete_path", "path": "doomed" }
+  ],
+  "expect": {
+    "after": {
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete dir with internal refs\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"doomed\"}]}\n"
+    }
+  }
+}

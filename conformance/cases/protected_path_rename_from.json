@@ -1,0 +1,8 @@
+{
+  "name": "rename_path with a protected source is rejected",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": ".jade/version", "to": "version.txt" }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

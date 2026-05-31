@@ -1,0 +1,10 @@
+{
+  "name": "delete_path and json_patch on the same path in one batch is rejected",
+  "description": "Incompatible op categories (structure vs content) on one path — a different category pairing than the existing batch_incompatible_categories case.",
+  "before": {},
+  "operations": [
+    { "op": "json_patch", "path": "x.json", "patch": [] },
+    { "op": "delete_path", "path": "x.json" }
+  ],
+  "expect": { "error": "BATCH_INCOMPATIBLE_CATEGORIES" }
+}

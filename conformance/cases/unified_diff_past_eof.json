@@ -1,0 +1,9 @@
+{
+  "name": "unified_diff hunk referencing past end-of-file is rejected",
+  "description": "A well-formed diff whose hunk addresses a line beyond the file's length fails application (distinct from a malformed/unparseable diff).",
+  "before": { "notes.md": "a\nb\n" },
+  "operations": [
+    { "op": "unified_diff", "path": "notes.md", "diff": "@@ -5 +5 @@\n-z\n+Z\n" }
+  ],
+  "expect": { "error": "UNIFIED_DIFF_APPLY_FAILED" }
+}

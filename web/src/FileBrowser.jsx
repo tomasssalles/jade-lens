@@ -108,7 +108,8 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
         }
 
         // Persist to IDB
-        setCachedRepo({ repoUrl: cfg.githubRepoUrl, branch, items: newItems, contentMap: map, truncated })
+        const jadeCfg = parseJadeConfig(map)
+        setCachedRepo({ repoUrl: cfg.githubRepoUrl, branch, items: newItems, contentMap: map, truncated, jadeConfig: jadeCfg ?? null })
 
         if (!cancelled) {
           const filtered = newItems.filter(item => !isExcluded(item))
@@ -173,7 +174,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
         const map = await fetchBlobs(cfg.githubRepoUrl, cfg.githubPat, items)
         if (cancelled) return
 
-        setCachedRepo({ repoUrl: cfg.githubRepoUrl, branch, items, contentMap: map, truncated })
+        setCachedRepo({ repoUrl: cfg.githubRepoUrl, branch, items, contentMap: map, truncated, jadeConfig: parseJadeConfig(map) ?? null })
         if (!cancelled) applyData(items, map, truncated, cfg.githubRepoUrl)
 
       } catch (err) {

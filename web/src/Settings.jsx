@@ -135,7 +135,7 @@ function AdvancedSettings({ settings: s, onChange }) {
   )
 }
 
-export default function Settings({ onClose, showToast, viewerSettings, onViewerSettingsChange }) {
+export default function Settings({ onClose, onProfile, showToast, viewerSettings, onViewerSettingsChange }) {
   const [advOpen, setAdvOpen] = useState(false)
 
   return (
@@ -156,6 +156,10 @@ export default function Settings({ onClose, showToast, viewerSettings, onViewerS
           <AdvancedSettings settings={viewerSettings} onChange={onViewerSettingsChange} />
         )}
       </div>
+      <button type="button" className="adv-toggle-btn profile-link" onClick={onProfile}>
+        <span className="adv-chevron">▶</span>
+        Profile
+      </button>
     </div>
   )
 }

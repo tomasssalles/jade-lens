@@ -341,3 +341,28 @@ button[type='submit']:disabled {
   color: #fff;
   border-color: #051c07;
 }
+
+/* Profile page */
+.profile-note {
+  max-width: 480px;
+  margin: 0 auto 1.5rem;
+  font-size: 0.88rem;
+  opacity: 0.7;
+}
+
+.profile-note code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Profile link in Settings — same style as adv-toggle-btn but positioned below advanced panel */
+.profile-link {
+  max-width: 480px;
+  margin: 0.5rem auto 0;
+  display: flex;
+}

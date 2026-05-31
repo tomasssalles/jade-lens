@@ -9,6 +9,7 @@ import { getContentFromCache } from './FileBrowser'
 import { getCachedRepo } from './repoCache'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
+import ProfilePage from './ProfilePage'
 import Main from './Main'
 import FileView from './FileView'
 
@@ -38,26 +39,32 @@ function App() {
           setPage('setup')
           return
         }
+
+        // Read repo cache once — used for both jade config preload and file restore
+        let cached = null
+        try { cached = await getCachedRepo() } catch {}
+        const cacheValid = cached?.repoUrl === cfg.githubRepoUrl
+
+        // Preload jade config so the H1 is ready on first render (no flicker)
+        if (cacheValid && cached.jadeConfig) setJadeConfig(cached.jadeConfig)
+
         const prior = history.state?.page
         if (prior === 'file') {
           const filePath = history.state?.filePath
-          if (filePath) {
-            try {
-              const cached = await getCachedRepo()
-              const content = cached?.contentMap?.get(filePath)
-              if (content !== undefined) {
-                setFileView({ path: filePath, content })
-                setPage('file')
-                return
-              }
-            } catch {}
+          if (filePath && cacheValid) {
+            const content = cached.contentMap?.get(filePath)
+            if (content !== undefined) {
+              setFileView({ path: filePath, content })
+              setPage('file')
+              return
+            }
           }
           // File not in cache — fall back to main
           history.replaceState({ page: 'main' }, '', '#main')
           setPage('main')
           return
         }
-        const initial = (prior === 'settings' || prior === 'main') ? prior : 'main'
+        const initial = (prior === 'settings' || prior === 'main' || prior === 'profile') ? prior : 'main'
         history.replaceState({ page: initial }, '', '#' + initial)
         setPage(initial)
       })
@@ -161,10 +168,14 @@ function App() {
       {page === 'settings' && (
         <Settings
           onClose={() => history.back()}
+          onProfile={() => goTo('profile')}
           showToast={showToast}
           viewerSettings={viewerSettings}
           onViewerSettingsChange={updateViewerSettings}
         />
+      )}
+      {page === 'profile' && (
+        <ProfilePage onClose={() => history.back()} jadeConfig={jadeConfig} />
       )}
       {page === 'file' && fileView && (
         <FileView

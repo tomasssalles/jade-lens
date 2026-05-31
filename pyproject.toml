@@ -31,4 +31,6 @@ path = "jadelens/__init__.py"
 packages = ["jadelens"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# "tests" holds the Python-internal suite; "conformance/runners/python" runs
+# the cross-client mutation conformance suite (see conformance/README.md).
+testpaths = ["tests", "conformance/runners/python"]

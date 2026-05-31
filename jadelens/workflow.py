@@ -24,6 +24,7 @@ from pathlib import Path
 
 from jadelens.operations import (
     ApplyError,
+    ConformanceError,
     CreateFile,
     DeletePath,
     JsonPatch,
@@ -39,7 +40,7 @@ class WorkflowError(Exception):
     """A workflow-level failure (clean-tree precondition, git plumbing, etc.)."""
 
 
-class BatchValidationError(Exception):
+class BatchValidationError(ConformanceError):
     """The batch of operations violates a path-touching rule."""
 
 
@@ -77,7 +78,8 @@ def validate_batch(operations: list[Operation]) -> None:
             entries[op.to_path].append((i, "structure", "rename_path (to)"))
         else:
             raise BatchValidationError(
-                f"Unknown op type at index {i}: {type(op).__name__}"
+                f"Unknown op type at index {i}: {type(op).__name__}",
+                code="OP_UNKNOWN_TYPE",
             )
 
     for path, ops_here in entries.items():
@@ -86,14 +88,16 @@ def validate_batch(operations: list[Operation]) -> None:
             detail = ", ".join(f"op {i}: {summary}" for i, _, summary in ops_here)
             raise BatchValidationError(
                 f"Path {path!r} is touched by incompatible op categories in "
-                f"one batch ({detail}). Split into separate batches."
+                f"one batch ({detail}). Split into separate batches.",
+                code="BATCH_INCOMPATIBLE_CATEGORIES",
             )
         if next(iter(categories)) == "structure" and len(ops_here) > 1:
             detail = ", ".join(f"op {i}: {summary}" for i, _, summary in ops_here)
             raise BatchValidationError(
                 f"Path {path!r} is touched by multiple structure ops in one "
                 f"batch ({detail}). Only one of create_file / delete_path / "
-                f"rename_path is allowed per path per batch."
+                f"rename_path is allowed per path per batch.",
+                code="BATCH_MULTIPLE_STRUCTURE_OPS",
             )
 
 
@@ -319,5 +323,6 @@ def _post_apply_wikilink_pass(
                 raise ApplyError(
                     f"delete_path: {op.path!r} is still referenced by "
                     f"wikilinks after the batch completed — clean these up "
-                    f"in the same batch:\n  {detail}"
+                    f"in the same batch:\n  {detail}",
+                    code="DELETE_DANGLING_WIKILINK",
                 )

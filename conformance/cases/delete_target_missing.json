@@ -1,0 +1,8 @@
+{
+  "name": "delete_path rejected when the target does not exist",
+  "before": {},
+  "operations": [
+    { "op": "delete_path", "path": "ghost.md" }
+  ],
+  "expect": { "error": "TARGET_NOT_FOUND" }
+}

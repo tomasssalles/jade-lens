@@ -1,0 +1,8 @@
+{
+  "name": "create_file rejected when .json content doesn't parse",
+  "before": {},
+  "operations": [
+    { "op": "create_file", "path": "x.json", "content": "{not valid json}" }
+  ],
+  "expect": { "error": "CREATE_FILE_INVALID_JSON" }
+}

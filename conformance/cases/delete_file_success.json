@@ -1,0 +1,14 @@
+{
+  "name": "delete_path removes a file with no remaining references",
+  "before": { "stale.md": "# Stale\n", "keep.md": "# Keep\n" },
+  "commit_message": "Remove stale note",
+  "operations": [
+    { "op": "delete_path", "path": "stale.md" }
+  ],
+  "expect": {
+    "after": {
+      "keep.md": "# Keep\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}]}\n"
+    }
+  }
+}

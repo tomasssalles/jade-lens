@@ -1,5 +1,9 @@
 import { useMemo } from 'react'
 
+// The bot-maintained map of the data (DESIGN.md §4.6). Pinned to the top of
+// the tree as a distinct, emphasized entry rather than sorted in alphabetically.
+const INDEX_PATH = 'Index.json'
+
 function buildTree(flatItems) {
   const root = {}
   for (const item of flatItems) {
@@ -66,11 +70,28 @@ function TreeNode({ node, onFileClick, openDirs, onToggle, depth }) {
 
 export default function FileTree({ items, onFileClick, openDirs, onToggle }) {
   const tree = useMemo(() => buildTree(items), [items])
-  const entries = sorted(Object.values(tree))
+
+  // Pin the root-level index file to the top as a distinct entry; everything
+  // else sorts alphabetically below it.
+  const indexNode = tree[INDEX_PATH]?.type === 'blob' ? tree[INDEX_PATH] : null
+  const rest = sorted(Object.values(tree).filter(n => n !== indexNode))
 
   return (
     <div className="file-tree">
-      {entries.map(node => (
+      {indexNode && (
+        <>
+          <div
+            className="tree-item tree-file tree-index"
+            style={{ paddingLeft: '0.75rem' }}
+            onClick={() => onFileClick(indexNode.fullPath)}
+          >
+            <span className="tree-index-icon" aria-hidden="true">★</span>
+            {stripExt(indexNode.name)}
+          </div>
+          <div className="tree-index-separator" />
+        </>
+      )}
+      {rest.map(node => (
         <TreeNode
           key={node.fullPath}
           node={node}

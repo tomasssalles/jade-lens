@@ -1,0 +1,8 @@
+{
+  "name": "rename_path rejected when the source does not exist",
+  "before": {},
+  "operations": [
+    { "op": "rename_path", "from": "ghost.md", "to": "new.md" }
+  ],
+  "expect": { "error": "TARGET_NOT_FOUND" }
+}

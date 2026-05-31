@@ -230,11 +230,11 @@ Three conventions considered:
 
 ### 4.6 The index file
 
-A JSON file at `index.json` (data repo root), maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything. The index lives at the root rather than under `.jade/` because the bot is the writer and the bot can't touch `.jade/` (§4.2's protected-paths rule).
+A JSON file at `Index.json` (data repo root), maintained by the bot, describing which **primary JSON files** exist and conceptually what each holds. The index is the bot's map of the data; it lets the bot pick which files to read without scanning everything. The index lives at the root rather than under `.jade/` because the bot is the writer and the bot can't touch `.jade/` (§4.2's protected-paths rule). The capitalised `Index.json` follows the human-readable naming convention applied to all primary files (§5 / the SKILL guidance), rather than being the lone lowercase exception.
 
 #### Format
 
-`index.json` is a **JSON array**. Each element is an object with at minimum:
+`Index.json` is a **JSON array**. Each element is an object with at minimum:
 
 - **`"File"`** — a wikilink to the primary file, e.g. `"[[Projects/Citizenship.json]]"`.
 - **`"Scope"`** — a short description of what the file holds and what kinds of information belong there.

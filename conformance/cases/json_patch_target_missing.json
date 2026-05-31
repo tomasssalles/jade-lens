@@ -1,0 +1,8 @@
+{
+  "name": "json_patch rejected when the target file does not exist",
+  "before": {},
+  "operations": [
+    { "op": "json_patch", "path": "ghost.json", "patch": [{ "op": "add", "path": "/a", "value": 1 }] }
+  ],
+  "expect": { "error": "TARGET_NOT_FOUND" }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "operation with a non-string path is rejected",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "op": "delete_path", "path": 123 }
+  ],
+  "expect": { "error": "OP_WRONG_FIELD_TYPE" }
+}

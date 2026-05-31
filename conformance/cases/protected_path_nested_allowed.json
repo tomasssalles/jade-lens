@@ -1,0 +1,15 @@
+{
+  "name": "a nested (non-top-level) dot-path is allowed",
+  "description": "Only the leading path component matters; projects/.draft/ is fine.",
+  "before": {},
+  "commit_message": "Add a nested draft note",
+  "operations": [
+    { "op": "create_file", "path": "projects/.draft/notes.md", "content": "# Draft\n" }
+  ],
+  "expect": {
+    "after": {
+      "projects/.draft/notes.md": "# Draft\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add a nested draft note\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/.draft/notes.md\", \"content\": \"# Draft\\n\"}]}\n"
+    }
+  }
+}

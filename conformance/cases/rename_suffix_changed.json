@@ -1,0 +1,9 @@
+{
+  "name": "rename_path rejected when a file's suffix changes",
+  "description": "Type-changing file renames (notes.md -> notes.json) are refused.",
+  "before": { "notes.md": "# Notes\n" },
+  "operations": [
+    { "op": "rename_path", "from": "notes.md", "to": "notes.json" }
+  ],
+  "expect": { "error": "RENAME_SUFFIX_CHANGED" }
+}

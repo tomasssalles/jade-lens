@@ -1,0 +1,8 @@
+{
+  "name": "operation missing the 'op' field is rejected",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "path": "x.json", "patch": [] }
+  ],
+  "expect": { "error": "OP_MISSING_OP_FIELD" }
+}

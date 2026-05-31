@@ -1,0 +1,9 @@
+{
+  "name": "create_file rejected for a non-editable suffix",
+  "description": "Only .json and .md are creatable; .txt is rejected.",
+  "before": {},
+  "operations": [
+    { "op": "create_file", "path": "notes.txt", "content": "hi" }
+  ],
+  "expect": { "error": "CREATE_FILE_BAD_SUFFIX" }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "unified_diff rejected when a removed line doesn't match",
+  "description": "The '-' line must match the file at the claimed position.",
+  "before": { "notes.md": "actual line\n" },
+  "operations": [
+    { "op": "unified_diff", "path": "notes.md", "diff": "@@ -1 +1 @@\n-wrong line\n+new line\n" }
+  ],
+  "expect": { "error": "UNIFIED_DIFF_APPLY_FAILED" }
+}

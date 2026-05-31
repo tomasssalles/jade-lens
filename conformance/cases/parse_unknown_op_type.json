@@ -1,0 +1,8 @@
+{
+  "name": "unknown op type is rejected",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "op": "frobnicate", "path": "x.json" }
+  ],
+  "expect": { "error": "OP_UNKNOWN_TYPE" }
+}

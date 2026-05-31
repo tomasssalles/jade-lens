@@ -1,0 +1,9 @@
+{
+  "name": "json_patch rejected when an RFC 6902 op fails",
+  "description": "Removing a path that doesn't exist fails per RFC 6902.",
+  "before": { "x.json": "{\n  \"a\": 1\n}\n" },
+  "operations": [
+    { "op": "json_patch", "path": "x.json", "patch": [{ "op": "remove", "path": "/missing" }] }
+  ],
+  "expect": { "error": "JSON_PATCH_APPLY_FAILED" }
+}

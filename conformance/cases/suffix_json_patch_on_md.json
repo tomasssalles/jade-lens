@@ -1,0 +1,8 @@
+{
+  "name": "json_patch rejected on a non-.json file",
+  "before": { "notes.md": "# Notes\n" },
+  "operations": [
+    { "op": "json_patch", "path": "notes.md", "patch": [] }
+  ],
+  "expect": { "error": "JSON_PATCH_WRONG_SUFFIX" }
+}

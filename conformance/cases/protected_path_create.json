@@ -1,0 +1,9 @@
+{
+  "name": "ops targeting a protected top-level dot-path are rejected",
+  "description": "The bot may not write under .jade/ (or any top-level dotfile).",
+  "before": {},
+  "operations": [
+    { "op": "create_file", "path": ".jade/secrets.json", "content": "{}" }
+  ],
+  "expect": { "error": "PROTECTED_PATH" }
+}

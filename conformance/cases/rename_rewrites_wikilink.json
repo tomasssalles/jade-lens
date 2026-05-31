@@ -1,0 +1,19 @@
+{
+  "name": "rename_path rewrites wikilinks in referencing files",
+  "description": "Renaming a markdown file rewrites every [[old]] wikilink pointing at it (here, inside a JSON string value) to [[new]] via the post-apply pass, textually preserving the referencing file's formatting. One operations-log entry is appended for the batch.",
+  "before": {
+    "Projects/Leasing.json": "{\n  \"notes\": \"[[Projects/old.md]]\"\n}\n",
+    "Projects/old.md": "# Old notes\n"
+  },
+  "commit_message": "Rename old notes to new notes",
+  "operations": [
+    { "op": "rename_path", "from": "Projects/old.md", "to": "Projects/new.md" }
+  ],
+  "expect": {
+    "after": {
+      "Projects/Leasing.json": "{\n  \"notes\": \"[[Projects/new.md]]\"\n}\n",
+      "Projects/new.md": "# Old notes\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old notes to new notes\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Projects/old.md\", \"to\": \"Projects/new.md\"}]}\n"
+    }
+  }
+}

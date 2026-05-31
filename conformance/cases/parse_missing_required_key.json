@@ -1,0 +1,9 @@
+{
+  "name": "operation missing a required key is rejected",
+  "description": "json_patch requires op/path/patch; omitting patch is rejected.",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "op": "json_patch", "path": "x.json" }
+  ],
+  "expect": { "error": "OP_MISSING_KEYS" }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "unified_diff rejected on a .json file",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "op": "unified_diff", "path": "x.json", "diff": "@@ -1 +1 @@\n-[]\n+[1]\n" }
+  ],
+  "expect": { "error": "UNIFIED_DIFF_WRONG_SUFFIX" }
+}

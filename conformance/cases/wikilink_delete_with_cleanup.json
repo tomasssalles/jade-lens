@@ -1,0 +1,19 @@
+{
+  "name": "delete succeeds when a same-batch diff clears the only reference",
+  "description": "Order within the batch doesn't matter: the delete and the reference-removing diff can be in either order; the wikilink scan only sees the end state.",
+  "before": {
+    "Hub.md": "See [[old.md]] for details.\n",
+    "old.md": "# Old\n"
+  },
+  "commit_message": "Delete old note and clear its reference",
+  "operations": [
+    { "op": "delete_path", "path": "old.md" },
+    { "op": "unified_diff", "path": "Hub.md", "diff": "@@ -1 +1 @@\n-See [[old.md]] for details.\n+See the archive for details.\n" }
+  ],
+  "expect": {
+    "after": {
+      "Hub.md": "See the archive for details.\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete old note and clear its reference\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"old.md\"}, {\"op\": \"unified_diff\", \"path\": \"Hub.md\", \"diff\": \"@@ -1 +1 @@\\n-See [[old.md]] for details.\\n+See the archive for details.\\n\"}]}\n"
+    }
+  }
+}

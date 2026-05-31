@@ -1,0 +1,9 @@
+{
+  "name": "json_patch with a non-list patch is rejected",
+  "description": "A common bot mistake: passing a single op object instead of a list of ops.",
+  "before": { "x.json": "{}\n" },
+  "operations": [
+    { "op": "json_patch", "path": "x.json", "patch": { "op": "add", "path": "/a", "value": 1 } }
+  ],
+  "expect": { "error": "OP_WRONG_FIELD_TYPE" }
+}

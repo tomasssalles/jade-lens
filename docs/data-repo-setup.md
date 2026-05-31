@@ -21,12 +21,13 @@ global `/<name>` invocation.
 ├── .jade/
 │   └── config.json            # user + assistant names, shared across devices
 ├── .gitignore                 # ignores .claude/skills/ (the rendered skill)
-└── index.json                 # bot-maintained map of primary files (starts empty)
+└── Index.json                 # bot-maintained map of primary files (starts empty)
 ```
 
 `.jade/` and `.claude/` are off-limits to the bot (enforced by
-`jadelens-apply`). `index.json` lives at the root because it *is*
-bot-managed — see DESIGN.md §4.6.
+`jadelens-apply`). `Index.json` lives at the root because it *is*
+bot-managed — see DESIGN.md §4.6. It's capitalised to match the
+human-readable naming convention used for all primary files.
 
 ## File contents
 
@@ -51,7 +52,7 @@ rendered skill (or running `jaderebuild`) picks up the new values.
 All three fields are required. `jadelens render-skill` fails loud on
 missing or empty fields rather than rendering `{{undefined}}` placeholders.
 
-### `index.json` (at the data repo root)
+### `Index.json` (at the data repo root)
 
 Starts empty; the bot appends entries as it creates primary files. Each entry
 is an object with at minimum a `"File"` wikilink and a `"Scope"` description.

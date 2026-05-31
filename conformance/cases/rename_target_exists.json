@@ -1,0 +1,8 @@
+{
+  "name": "rename_path rejected when the target already exists",
+  "before": { "a.md": "A\n", "b.md": "B\n" },
+  "operations": [
+    { "op": "rename_path", "from": "a.md", "to": "b.md" }
+  ],
+  "expect": { "error": "TARGET_EXISTS" }
+}

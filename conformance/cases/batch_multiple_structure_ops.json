@@ -1,0 +1,10 @@
+{
+  "name": "batch rejected when one path is touched by multiple structure ops",
+  "description": "Two structure ops (rename to X, then create X) target the same path.",
+  "before": { "a.md": "A\n" },
+  "operations": [
+    { "op": "rename_path", "from": "a.md", "to": "b.md" },
+    { "op": "create_file", "path": "b.md", "content": "new B\n" }
+  ],
+  "expect": { "error": "BATCH_MULTIPLE_STRUCTURE_OPS" }
+}

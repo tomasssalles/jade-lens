@@ -1,0 +1,8 @@
+{
+  "name": "operation with an unexpected key is rejected",
+  "before": { "x.json": "[]\n" },
+  "operations": [
+    { "op": "delete_path", "path": "x.json", "extra": true }
+  ],
+  "expect": { "error": "OP_UNEXPECTED_KEYS" }
+}

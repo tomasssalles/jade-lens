@@ -1,0 +1,14 @@
+{
+  "name": "create_file writes content and creates missing parents",
+  "before": {},
+  "commit_message": "Add leasing notes",
+  "operations": [
+    { "op": "create_file", "path": "projects/leasing/notes.md", "content": "# Leasing\n\nFirst note.\n" }
+  ],
+  "expect": {
+    "after": {
+      "projects/leasing/notes.md": "# Leasing\n\nFirst note.\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add leasing notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/leasing/notes.md\", \"content\": \"# Leasing\\n\\nFirst note.\\n\"}]}\n"
+    }
+  }
+}

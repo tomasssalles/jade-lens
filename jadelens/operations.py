@@ -22,11 +22,28 @@ from jadelens.unified_diff import (
 )
 
 
-class ValidationError(Exception):
+class ConformanceError(Exception):
+    """Base for pipeline errors that carry a stable, language-agnostic code.
+
+    The ``code`` is the cross-client contract (see conformance/README.md §5):
+    prose messages may be reworded freely, but the code is what the
+    conformance suite asserts on. ``code`` may be ``None`` for legacy raise
+    sites not yet assigned a code.
+    """
+
+    code: str | None = None
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        if code is not None:
+            self.code = code
+
+
+class ValidationError(ConformanceError):
     """A bot-emitted operation failed structural validation."""
 
 
-class ApplyError(Exception):
+class ApplyError(ConformanceError):
     """An operation failed during application to the data repo."""
 
 
@@ -44,7 +61,10 @@ class CreateFile:
     def apply(self, data_repo: Path) -> None:
         target = data_repo / self.path
         if target.exists():
-            raise ApplyError(f"create_file: target already exists: {self.path}")
+            raise ApplyError(
+                f"create_file: target already exists: {self.path}",
+                code="TARGET_EXISTS",
+            )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(self.content)
 
@@ -58,7 +78,10 @@ class DeletePath:
     def apply(self, data_repo: Path) -> None:
         target = data_repo / self.path
         if not target.exists():
-            raise ApplyError(f"delete_path: target does not exist: {self.path}")
+            raise ApplyError(
+                f"delete_path: target does not exist: {self.path}",
+                code="TARGET_NOT_FOUND",
+            )
         # `git rm -r --force` handles file or directory and stages deletion.
         _git(data_repo, ["rm", "-r", "--force", "--", self.path])
 
@@ -73,11 +96,13 @@ class RenamePath:
         target = data_repo / self.to_path
         if not source.exists():
             raise ApplyError(
-                f"rename_path: source does not exist: {self.from_path}"
+                f"rename_path: source does not exist: {self.from_path}",
+                code="TARGET_NOT_FOUND",
             )
         if target.exists():
             raise ApplyError(
-                f"rename_path: target already exists: {self.to_path}"
+                f"rename_path: target already exists: {self.to_path}",
+                code="TARGET_EXISTS",
             )
         # If renaming a file (not a directory), the target must share the
         # source's suffix — we don't allow type-changing renames like
@@ -86,7 +111,8 @@ class RenamePath:
         if source.is_file() and source.suffix != target.suffix:
             raise ApplyError(
                 f"rename_path: file suffix must be preserved "
-                f"(source {source.suffix!r}, target {target.suffix!r})"
+                f"(source {source.suffix!r}, target {target.suffix!r})",
+                code="RENAME_SUFFIX_CHANGED",
             )
         # git mv doesn't auto-create the target's parent directory; do it
         # ourselves so renames into a new subdirectory work in one step
@@ -104,18 +130,21 @@ class JsonPatch:
         target = data_repo / self.path
         if not target.exists():
             raise ApplyError(
-                f"json_patch: target file does not exist: {self.path}"
+                f"json_patch: target file does not exist: {self.path}",
+                code="TARGET_NOT_FOUND",
             )
         if not target.is_file():
             raise ApplyError(
-                f"json_patch: target is not a file: {self.path}"
+                f"json_patch: target is not a file: {self.path}",
+                code="TARGET_NOT_A_FILE",
             )
 
         try:
             original = json.loads(target.read_text())
         except json.JSONDecodeError as e:
             raise ApplyError(
-                f"json_patch: target {self.path} is not valid JSON: {e}"
+                f"json_patch: target {self.path} is not valid JSON: {e}",
+                code="JSON_PATCH_TARGET_INVALID_JSON",
             ) from e
 
         try:
@@ -123,7 +152,8 @@ class JsonPatch:
             result = patch.apply(original)
         except jsonpatch.JsonPatchException as e:
             raise ApplyError(
-                f"json_patch: failed to apply patch on {self.path}: {e}"
+                f"json_patch: failed to apply patch on {self.path}: {e}",
+                code="JSON_PATCH_APPLY_FAILED",
             ) from e
 
         target.write_text(json.dumps(result, indent=2) + "\n")
@@ -138,11 +168,13 @@ class UnifiedDiff:
         target = data_repo / self.path
         if not target.exists():
             raise ApplyError(
-                f"unified_diff: target file does not exist: {self.path}"
+                f"unified_diff: target file does not exist: {self.path}",
+                code="TARGET_NOT_FOUND",
             )
         if not target.is_file():
             raise ApplyError(
-                f"unified_diff: target is not a file: {self.path}"
+                f"unified_diff: target is not a file: {self.path}",
+                code="TARGET_NOT_A_FILE",
             )
 
         original = target.read_text()
@@ -150,11 +182,13 @@ class UnifiedDiff:
             new_content = apply_unified_diff(original, self.diff)
         except DiffParseError as e:
             raise ApplyError(
-                f"unified_diff: parse error on {self.path}: {e}"
+                f"unified_diff: parse error on {self.path}: {e}",
+                code="UNIFIED_DIFF_PARSE_FAILED",
             ) from e
         except DiffApplyError as e:
             raise ApplyError(
-                f"unified_diff: apply failed on {self.path}: {e}"
+                f"unified_diff: apply failed on {self.path}: {e}",
+                code="UNIFIED_DIFF_APPLY_FAILED",
             ) from e
 
         target.write_text(new_content)
@@ -171,11 +205,12 @@ def parse_operation(raw: Any) -> Operation:
     """
     if not isinstance(raw, dict):
         raise ValidationError(
-            f"Operation must be a JSON object, got {type(raw).__name__}"
+            f"Operation must be a JSON object, got {type(raw).__name__}",
+            code="OP_NOT_OBJECT",
         )
     op_type = raw.get("op")
     if op_type is None:
-        raise ValidationError("Operation missing 'op' field")
+        raise ValidationError("Operation missing 'op' field", code="OP_MISSING_OP_FIELD")
 
     parsers = {
         "create_file": _parse_create_file,
@@ -187,7 +222,8 @@ def parse_operation(raw: Any) -> Operation:
     parser = parsers.get(op_type)
     if parser is None:
         raise ValidationError(
-            f"Unknown op type {op_type!r}. Allowed: {sorted(parsers)}"
+            f"Unknown op type {op_type!r}. Allowed: {sorted(parsers)}",
+            code="OP_UNKNOWN_TYPE",
         )
     return parser(raw)
 
@@ -199,7 +235,8 @@ def _parse_create_file(raw: dict) -> CreateFile:
     if not path.endswith(EDITABLE_FILE_SUFFIXES):
         raise ValidationError(
             f"create_file path must end with one of {EDITABLE_FILE_SUFFIXES} "
-            f"(got {path!r})"
+            f"(got {path!r})",
+            code="CREATE_FILE_BAD_SUFFIX",
         )
     content = _require_str(raw, "content")
     if path.endswith(".json"):
@@ -207,7 +244,8 @@ def _parse_create_file(raw: dict) -> CreateFile:
             json.loads(content)
         except json.JSONDecodeError as e:
             raise ValidationError(
-                f"create_file content for {path!r} is not valid JSON: {e}"
+                f"create_file content for {path!r} is not valid JSON: {e}",
+                code="CREATE_FILE_INVALID_JSON",
             ) from e
     return CreateFile(path=path, content=content)
 
@@ -235,12 +273,14 @@ def _parse_json_patch(raw: dict) -> JsonPatch:
     if not path.endswith(".json"):
         raise ValidationError(
             f"json_patch path must end with '.json' (got {path!r}); "
-            f"use unified_diff for non-JSON files"
+            f"use unified_diff for non-JSON files",
+            code="JSON_PATCH_WRONG_SUFFIX",
         )
     patch = raw["patch"]
     if not isinstance(patch, list):
         raise ValidationError(
-            f"json_patch 'patch' must be a list, got {type(patch).__name__}"
+            f"json_patch 'patch' must be a list, got {type(patch).__name__}",
+            code="OP_WRONG_FIELD_TYPE",
         )
     return JsonPatch(path=path, patch=patch)
 
@@ -252,7 +292,8 @@ def _parse_unified_diff(raw: dict) -> UnifiedDiff:
     if path.endswith(".json"):
         raise ValidationError(
             f"unified_diff cannot target JSON files (got {path!r}); "
-            f"use json_patch for .json files"
+            f"use json_patch for .json files",
+            code="UNIFIED_DIFF_WRONG_SUFFIX",
         )
     return UnifiedDiff(path=path, diff=_require_str(raw, "diff"))
 
@@ -272,7 +313,8 @@ def _reject_protected_path(path: str, field: str = "path") -> None:
         raise ValidationError(
             f"{field} {path!r} targets a protected top-level path. "
             f"Anything starting with '.' (.claude/, .git/, .gitignore, "
-            f".jade/, ...) is reserved for tooling and out of bounds."
+            f".jade/, ...) is reserved for tooling and out of bounds.",
+            code="PROTECTED_PATH",
         )
 
 
@@ -282,11 +324,13 @@ def _require_exact_keys(raw: dict, allowed: set[str]) -> None:
     extra = keys - allowed
     if missing:
         raise ValidationError(
-            f"Operation {raw.get('op')!r} missing required keys: {sorted(missing)}"
+            f"Operation {raw.get('op')!r} missing required keys: {sorted(missing)}",
+            code="OP_MISSING_KEYS",
         )
     if extra:
         raise ValidationError(
-            f"Operation {raw.get('op')!r} has unexpected keys: {sorted(extra)}"
+            f"Operation {raw.get('op')!r} has unexpected keys: {sorted(extra)}",
+            code="OP_UNEXPECTED_KEYS",
         )
 
 
@@ -294,7 +338,8 @@ def _require_str(raw: dict, key: str) -> str:
     value = raw[key]
     if not isinstance(value, str):
         raise ValidationError(
-            f"Field {key!r} must be a string, got {type(value).__name__}"
+            f"Field {key!r} must be a string, got {type(value).__name__}",
+            code="OP_WRONG_FIELD_TYPE",
         )
     return value
 

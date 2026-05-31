@@ -11,6 +11,7 @@ export default function Main({ onSettings, onFileOpen, jadeConfig, onJadeConfig 
         </button>
       )}
       {assistantName && <h1 className="assistant-name">{assistantName}</h1>}
+      <div className="build-sha">{__BUILD_SHA__}</div>
       {onSettings && <FileBrowser onFileOpen={onFileOpen} onJadeConfig={onJadeConfig} />}
     </div>
   )

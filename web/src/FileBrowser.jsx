@@ -151,6 +151,14 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
         // 2. IDB cache (may already be resolved via _idbReady)
         const cached = _idbReady !== null ? _idbReady : await getCachedRepo()
         if (cached?.repoUrl === cfg.githubRepoUrl) {
+          // Migrate old records that predate jadeConfig storage
+          if (!cached.jadeConfig) {
+            const jadeCfg = parseJadeConfig(cached.contentMap)
+            if (jadeCfg) {
+              cached.jadeConfig = jadeCfg
+              setCachedRepo({ ...cached })
+            }
+          }
           if (!cancelled) {
             // If we initialised from this data already (status='ready'), only
             // update contentMapRef and jade config — don't re-set tree state.

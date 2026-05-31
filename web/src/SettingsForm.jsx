@@ -4,7 +4,7 @@ import { checkRepoAccess } from './github'
 import EyeIcon from './assets/eye.svg?react'
 import EyeOffIcon from './assets/eye-off.svg?react'
 
-export default function SettingsForm({ onSuccess, showToast }) {
+export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')
   const [githubPat, setGithubPat] = useState('')
   const [loaded, setLoaded] = useState({ githubRepoUrl: '', githubPat: '' })
@@ -96,6 +96,23 @@ export default function SettingsForm({ onSuccess, showToast }) {
           Stored as plain text in this browser. Any web app served from the same domain can read it.
         </span>
       </label>
+      {jadeConfig && (
+        <>
+          <div className="settings-section-header">Profile</div>
+          <label>
+            Assistant name
+            <input type="text" value={jadeConfig.assistant?.name ?? ''} disabled />
+          </label>
+          <label>
+            Your full name
+            <input type="text" value={jadeConfig.user?.full_name ?? ''} disabled />
+          </label>
+          <label>
+            Your short name
+            <input type="text" value={jadeConfig.user?.short_name ?? ''} disabled />
+          </label>
+        </>
+      )}
       <button type="submit" disabled={unchanged || checking}>
         {checking ? 'Checking…' : 'Save'}
       </button>

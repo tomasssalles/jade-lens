@@ -9,9 +9,19 @@ import { getContentFromCache } from './FileBrowser'
 import { getCachedRepo } from './repoCache'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
-import ProfilePage from './ProfilePage'
 import Main from './Main'
 import FileView from './FileView'
+
+function parseJadeConfig(map) {
+  if (!map) return null
+  const raw = map.get('.jade/config.json')
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+// Module-level IDB preload so jadeConfig is available synchronously on first render
+let _appPreload = null
+getCachedRepo().then(d => { _appPreload = d }).catch(() => {})
 
 function App() {
   // 'init' = silent restore in progress (file view reload), renders nothing
@@ -19,7 +29,10 @@ function App() {
   const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
-  const [jadeConfig, setJadeConfig] = useState(null)
+  // Initialise synchronously from preload so the H1 is present on the first render
+  const [jadeConfig, setJadeConfig] = useState(() =>
+    _appPreload ? (_appPreload.jadeConfig ?? parseJadeConfig(_appPreload.contentMap)) : null
+  )
   const toastTimer = useRef(null)
 
   function showToast(message, ms = 2000) {
@@ -45,8 +58,11 @@ function App() {
         try { cached = await getCachedRepo() } catch {}
         const cacheValid = cached?.repoUrl === cfg.githubRepoUrl
 
-        // Preload jade config so the H1 is ready on first render (no flicker)
-        if (cacheValid && cached.jadeConfig) setJadeConfig(cached.jadeConfig)
+        // Set jade config (fallback: parse from contentMap for old IDB records lacking jadeConfig)
+        if (cacheValid) {
+          const jadeCfg = cached.jadeConfig ?? parseJadeConfig(cached.contentMap)
+          if (jadeCfg) setJadeConfig(jadeCfg)
+        }
 
         const prior = history.state?.page
         if (prior === 'file') {
@@ -64,7 +80,7 @@ function App() {
           setPage('main')
           return
         }
-        const initial = (prior === 'settings' || prior === 'main' || prior === 'profile') ? prior : 'main'
+        const initial = (prior === 'settings' || prior === 'main') ? prior : 'main'
         history.replaceState({ page: initial }, '', '#' + initial)
         setPage(initial)
       })
@@ -168,14 +184,11 @@ function App() {
       {page === 'settings' && (
         <Settings
           onClose={() => history.back()}
-          onProfile={() => goTo('profile')}
           showToast={showToast}
+          jadeConfig={jadeConfig}
           viewerSettings={viewerSettings}
           onViewerSettingsChange={updateViewerSettings}
         />
-      )}
-      {page === 'profile' && (
-        <ProfilePage onClose={() => history.back()} jadeConfig={jadeConfig} />
       )}
       {page === 'file' && fileView && (
         <FileView

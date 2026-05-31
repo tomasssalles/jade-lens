@@ -135,7 +135,7 @@ function AdvancedSettings({ settings: s, onChange }) {
   )
 }
 
-export default function Settings({ onClose, onProfile, showToast, viewerSettings, onViewerSettingsChange }) {
+export default function Settings({ onClose, showToast, jadeConfig, viewerSettings, onViewerSettingsChange }) {
   const [advOpen, setAdvOpen] = useState(false)
 
   return (
@@ -146,7 +146,7 @@ export default function Settings({ onClose, onProfile, showToast, viewerSettings
         </button>
         <h2>Settings</h2>
       </div>
-      <SettingsForm onSuccess={onClose} showToast={showToast} />
+      <SettingsForm onSuccess={onClose} showToast={showToast} jadeConfig={jadeConfig} />
       <div className="adv-toggle-wrap">
         <button type="button" className="adv-toggle-btn" onClick={() => setAdvOpen(v => !v)}>
           <span className={`adv-chevron${advOpen ? ' adv-chevron-open' : ''}`}>▶</span>
@@ -156,10 +156,6 @@ export default function Settings({ onClose, onProfile, showToast, viewerSettings
           <AdvancedSettings settings={viewerSettings} onChange={onViewerSettingsChange} />
         )}
       </div>
-      <button type="button" className="adv-toggle-btn profile-link" onClick={onProfile}>
-        <span className="adv-chevron">▶</span>
-        Profile
-      </button>
     </div>
   )
 }

@@ -44,8 +44,10 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
     }
   }, [isJson, content])
 
-  // JSON with valid data → card viewer (manages its own layout + breadcrumb)
-  if (isJson && parsed?.data !== null) {
+  // JSON that parsed successfully → card viewer (manages its own layout +
+  // breadcrumb). `parsed.error === null` distinguishes valid `null` content
+  // (renders fine) from a parse failure (falls through to the text view).
+  if (isJson && parsed && parsed.error === null) {
     return (
       <div className="file-view">
         <div className="file-view-json" ref={scrollerRef} onScroll={handleScroll}>

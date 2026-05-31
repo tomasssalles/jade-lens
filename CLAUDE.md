@@ -8,7 +8,7 @@ These files are meant to (among other things) bring you up to speed when a new s
 
 The project has a PolyForm Noncommercial License. This means we have to be careful when adding new dependencies (they must have very permissive licenses that allow us to use them while adding our more restrictive license).
 
-This is mostly a Python project, uv-managed. Call `uv run pytest` for tests. The `./web` subdirectory is a React web-app built with Vite and deployed to github pages by running the workflow at `.github/workflows/deploy-pages.yml` (manually triggered).
+This is mostly a Python project, uv-managed. Call `uv run pytest` for tests. The `./web` subdirectory is a React web-app built with Vite and deployed to github pages by running the workflow at `.github/workflows/deploy-pages.yml` (manually triggered). The web app has its own checks (run from `./web`): `npm run lint`, `npm test` (Vitest), and `npm run build`; see `./web/README.md` for an architecture overview.
 
 ## Branch policy
 

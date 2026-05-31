@@ -17,5 +17,16 @@ export default defineConfig([
       globals: { ...globals.browser, __BUILD_SHA__: 'readonly' },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Empty `catch {}` is a deliberate idiom here: best-effort IDB/storage
+      // reads and writes that should never break the UI on failure.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
+  },
+  {
+    files: ['**/*.test.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
   },
 ])

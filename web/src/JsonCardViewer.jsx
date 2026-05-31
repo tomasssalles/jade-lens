@@ -1,7 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { getCardColor, getTextColor, getBorderColor } from './viewerSettings'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
+
+// Subscribe to a media query and return whether it currently matches.
+// Re-renders only when the match flips, not on every resize pixel.
+function useMediaQuery(query) {
+  const subscribe = useCallback((onChange) => {
+    const mql = window.matchMedia(query)
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [query])
+  const getSnapshot = useCallback(() => window.matchMedia(query).matches, [query])
+  return useSyncExternalStore(subscribe, getSnapshot)
+}
 
 // ─── Value helpers ────────────────────────────────────────────────────────────
 
@@ -153,15 +165,9 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
 // ─── Top-level export ─────────────────────────────────────────────────────────
 
 export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onBack }) {
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth)
-
-  useEffect(() => {
-    const handler = () => setWindowWidth(window.innerWidth)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
-
-  const isWide = windowWidth >= settings.wideBreakpoint
+  // Track only the wide/narrow boolean, not the raw width, so we re-render on
+  // the breakpoint crossing rather than on every resize pixel.
+  const isWide = useMediaQuery(`(min-width: ${settings.wideBreakpoint}px)`)
 
   let topItems
   if (Array.isArray(data)) {

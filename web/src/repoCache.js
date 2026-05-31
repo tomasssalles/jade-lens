@@ -1,5 +1,30 @@
 import { getDB } from './db'
 
+// ─── Shape ──────────────────────────────────────────────────────────────────
+//
+// A cached repo record is:
+//   { repoUrl, branch, items, contentMap: Map<path,string>, truncated, jadeConfig }
+//
+// It lives in two places:
+//   • IndexedDB  — survives page reloads (persisted via setCachedRepo).
+//   • In-memory  — survives in-app navigation only (the "session cache").
+//
+// This module is the single source of truth for both, plus the one-time
+// module-load preload that lets the first render show cached data without a
+// "Loading…" flash.
+
+// ─── jade config parsing ──────────────────────────────────────────────────────
+
+// Extract and parse `.jade/config.json` from a content map. Returns the parsed
+// object, or null if absent / unparseable.
+export function parseJadeConfig(contentMap) {
+  const raw = contentMap?.get('.jade/config.json')
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+// ─── IndexedDB persistence ────────────────────────────────────────────────────
+
 export async function getCachedRepo() {
   const db = await getDB()
   return (await db.get('repo', 'data')) ?? null
@@ -7,4 +32,38 @@ export async function getCachedRepo() {
 
 export function setCachedRepo(data) {
   return getDB().then(db => db.put('repo', data, 'data')).catch(() => {})
+}
+
+// ─── Module-load preload ──────────────────────────────────────────────────────
+// Kick off the IDB read once, at import time, so the data is likely ready by
+// the time the first component renders. `_preloaded` holds the resolved value
+// for synchronous access; `preloadPromise` is awaitable for the not-yet-ready case.
+
+let _preloaded = null
+export const preloadPromise = getCachedRepo()
+  .then(d => { _preloaded = d; return d })
+  .catch(() => { _preloaded = null; return null })
+
+// The preloaded repo record if the IDB read has already resolved, else null.
+// Always returns null synchronously when the read is still in flight — callers
+// that need the value either way should await `preloadPromise`.
+export function getPreloadedRepo() {
+  return _preloaded
+}
+
+// ─── In-memory session cache ──────────────────────────────────────────────────
+// Survives in-app navigation (component remounts), lost on page reload.
+
+let _session = null  // { repoUrl, items (filtered), contentMap, truncated }
+
+export function getSessionCache() {
+  return _session
+}
+
+export function setSessionCache(data) {
+  _session = data
+}
+
+export function getContentFromCache(path) {
+  return _session?.contentMap?.get(path)
 }

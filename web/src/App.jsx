@@ -1,27 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
-import { getContentFromCache } from './FileBrowser'
-import { getCachedRepo } from './repoCache'
+import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig } from './repoCache'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 
-function parseJadeConfig(map) {
-  if (!map) return null
-  const raw = map.get('.jade/config.json')
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
+function jadeConfigFromRepo(repo) {
+  if (!repo) return null
+  return repo.jadeConfig ?? parseJadeConfig(repo.contentMap)
 }
-
-// Module-level IDB preload so jadeConfig is available synchronously on first render
-let _appPreload = null
-getCachedRepo().then(d => { _appPreload = d }).catch(() => {})
 
 function App() {
   // 'init' = silent restore in progress (file view reload), renders nothing
@@ -29,17 +22,16 @@ function App() {
   const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
-  // Initialise synchronously from preload so the H1 is present on the first render
-  const [jadeConfig, setJadeConfig] = useState(() =>
-    _appPreload ? (_appPreload.jadeConfig ?? parseJadeConfig(_appPreload.contentMap)) : null
-  )
+  // Initialise synchronously from the module-load preload so the H1 is present
+  // on the first render (no flash) when IDB resolved before mount.
+  const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
   const toastTimer = useRef(null)
 
-  function showToast(message, ms = 2000) {
+  const showToast = useCallback((message, ms = 2000) => {
     setToastMessage(message)
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastMessage(null), ms)
-  }
+  }, [])
 
   useEffect(() => {
     // Load viewer settings independently — failure just keeps the defaults
@@ -58,9 +50,8 @@ function App() {
         try { cached = await getCachedRepo() } catch {}
         const cacheValid = cached?.repoUrl === cfg.githubRepoUrl
 
-        // Set jade config (fallback: parse from contentMap for old IDB records lacking jadeConfig)
         if (cacheValid) {
-          const jadeCfg = cached.jadeConfig ?? parseJadeConfig(cached.contentMap)
+          const jadeCfg = jadeConfigFromRepo(cached)
           if (jadeCfg) setJadeConfig(jadeCfg)
         }
 
@@ -90,6 +81,26 @@ function App() {
       })
   }, [])
 
+  const openFile = useCallback((path, content) => {
+    history.pushState({ page: 'file', filePath: path }, '', '#main-file')
+    setFileView({ path, content })
+    setPage('file')
+  }, [])
+
+  const handleWikilinkClick = useCallback(async (path) => {
+    let content = getContentFromCache(path)
+    if (content === undefined) {
+      try {
+        const cfg = await getConfig()
+        content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
+      } catch {
+        showToast(`Could not load ${path}`)
+        return
+      }
+    }
+    openFile(path, content)
+  }, [openFile, showToast])
+
   useEffect(() => {
     async function onPopState(e) {
       const newPage = e.state?.page ?? 'main'
@@ -113,45 +124,28 @@ function App() {
       }
     }
     window.addEventListener('popstate', onPopState)
+    const timer = toastTimer
     return () => {
       window.removeEventListener('popstate', onPopState)
-      clearTimeout(toastTimer.current)
+      clearTimeout(timer.current)
     }
   }, [])
 
-  function goTo(newPage) {
+  const goTo = useCallback((newPage) => {
     history.pushState({ page: newPage }, '', '#' + newPage)
     setPage(newPage)
-  }
-
-  function openFile(path, content) {
-    history.pushState({ page: 'file', filePath: path }, '', '#main-file')
-    setFileView({ path, content })
-    setPage('file')
-  }
-
-  async function handleWikilinkClick(path) {
-    let content = getContentFromCache(path)
-    if (content === undefined) {
-      try {
-        const cfg = await getConfig()
-        content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
-      } catch {
-        showToast(`Could not load ${path}`)
-        return
-      }
-    }
-    openFile(path, content)
-  }
+  }, [])
 
   useEffect(() => {
     applySettingsCssVars(viewerSettings)
   }, [viewerSettings])
 
-  async function updateViewerSettings(newSettings) {
+  const updateViewerSettings = useCallback(async (newSettings) => {
     setViewerSettings(newSettings)
     try { await saveViewerSettings(newSettings) } catch {}
-  }
+  }, [])
+
+  const handleSettings = useCallback(() => goTo('settings'), [goTo])
 
   return (
     <TimeFormatContext.Provider value={viewerSettings.timeFormat ?? 'auto'}>
@@ -175,7 +169,7 @@ function App() {
           Keeping it at the same JSX position lets React update props without remounting. */}
       {(page === 'loading' || page === 'main') && (
         <Main
-          onSettings={page === 'main' ? () => goTo('settings') : undefined}
+          onSettings={page === 'main' ? handleSettings : undefined}
           onFileOpen={page === 'main' ? openFile : undefined}
           jadeConfig={jadeConfig}
           onJadeConfig={setJadeConfig}

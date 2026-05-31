@@ -1,14 +1,33 @@
 # Conformance suite — pending work
 
-> **Status:** planning doc / work order. Captured 2026-05-31 so the work
-> survives session/token limits. Two independent bodies of work:
-> **Part A** — make Python's JSON serialisation JS-faithful and byte-canonical.
-> **Part B** — close the conformance test-case gaps found by auditing the
-> pre-existing Python tests against the §2 scope of `conformance/README.md`.
+> **Status (updated 2026-05-31): Part A and Part B Tiers 1–3 are DONE.**
+> The conformance suite is at **62 cases** (from 29). What's implemented:
+> - **Part A** — `operations.dumps_js_canonical` (ensure_ascii=False +
+>   integer-valued-float→int) at the json_patch re-serialisation site, with unit
+>   tests (`tests/test_json_canonical.py`) and the
+>   `apply_json_canonical_serialisation` conformance case. README §3–§4 and
+>   DESIGN §12.2 flipped to "implemented"; changelog noted.
+> - **Part B** — all Tier 1 (json_patch happy path + 4 missing error codes),
+>   Tier 2 (directory ops, partial-batch atomicity, mixed batch, log-append,
+>   cross-client wikilink behaviours), and Tier 3 (variant cases) fixtures added.
+>   Two planned cases were skipped as already-covered (noted in their tier).
 >
-> Neither is started. The contract decision in Part A is already recorded in
-> `conformance/README.md` §3–§4 and `DESIGN.md` §12.2; this doc is the
-> implementation detail behind it.
+> **What remains (deliberately deferred):** the JS pipeline doesn't exist yet,
+> so the JS *runner* (`conformance/runners/js/`) is still future work — the
+> suite currently has one runner (Python). The serialisation edge cases in §A.4
+> below (large integer-valued floats ≥1e21, non-finite floats) are documented
+> but not specially handled; no fixture needs them in this domain.
+>
+> The rest of this doc is retained as the **edge-case reference** (cited from
+> `conformance/README.md` §4) and the record of what was audited.
+
+---
+
+> **Original work order (captured before implementation).** Two independent
+> bodies of work: **Part A** — make Python's JSON serialisation JS-faithful and
+> byte-canonical. **Part B** — close the conformance test-case gaps found by
+> auditing the pre-existing Python tests against the §2 scope of
+> `conformance/README.md`.
 
 ---
 

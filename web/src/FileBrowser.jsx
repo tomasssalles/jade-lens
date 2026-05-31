@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getConfig } from './config'
-import { getDB } from './db'
+import { getCachedRepo, setCachedRepo } from './repoCache'
 import { getRepoTree, fetchBlobs, getFileContent } from './github'
 import FileTree from './FileTree'
 import './FileBrowser.css'
@@ -12,40 +12,42 @@ function isExcluded(item) {
   return false
 }
 
-// ─── Repo IndexedDB cache ──────────────────────────────────────────────────
-// Stored value: { repoUrl, branch, items (all raw), contentMap (Map), truncated }
-// `items` includes all tree items (unfiltered) so SHA comparison works on next load.
-
-async function getCachedRepo() {
-  const db = await getDB()
-  return (await db.get('repo', 'data')) ?? null
-}
-
-function setCachedRepo(data) {
-  return getDB().then(db => db.put('repo', data, 'data')).catch(() => {})
-}
-
-// ─── Session-level cache ───────────────────────────────────────────────────
-// Survives in-app navigation (e.g. settings → back). Lost on page refresh.
-// Stores filtered items only (display concern).
-
-let _cache = null // { repoUrl, items, contentMap, truncated }
-
-export function getContentFromCache(path) {
-  return _cache?.contentMap?.get(path)
-}
-
 function parseJadeConfig(map) {
   const raw = map.get('.jade/config.json')
   if (!raw) return null
   try { return JSON.parse(raw) } catch { return null }
 }
 
+// ─── Session-level cache ───────────────────────────────────────────────────
+// Survives in-app navigation. Lost on page reload.
+
+let _cache = null  // { repoUrl, items (filtered), contentMap, truncated }
+
+export function getContentFromCache(path) {
+  return _cache?.contentMap?.get(path)
+}
+
+// ─── IDB preload ───────────────────────────────────────────────────────────
+// Start reading IDB as early as possible (module load time) so the data is
+// likely already available when the component first renders, eliminating
+// the "Loading…" flash for users returning to the file tree.
+
+let _idbReady = null  // resolved IDB data (or null if not ready yet)
+getCachedRepo().then(d => { _idbReady = d }).catch(() => { _idbReady = null })
+
+// ──────────────────────────────────────────────────────────────────────────
+
 export default function FileBrowser({ onFileOpen, onJadeConfig }) {
-  const [status, setStatus] = useState(() => _cache ? 'ready' : 'loading')
+  // Initialise synchronously from whatever is already in memory.
+  // _idbReady may already be set if the IDB read completed before this render.
+  const initData = _cache ?? (_idbReady ?? null)
+
+  const [status, setStatus] = useState(() => initData ? 'ready' : 'loading')
+  const [treeItems, setTreeItems] = useState(() =>
+    initData ? (initData.items?.filter ? initData.items.filter(item => !isExcluded(item)) : (initData.items ?? [])) : []
+  )
+  const [truncated, setTruncated] = useState(() => initData?.truncated ?? false)
   const [error, setError] = useState(null)
-  const [treeItems, setTreeItems] = useState(() => _cache?.items ?? [])
-  const [truncated, setTruncated] = useState(() => _cache?.truncated ?? false)
   const [openDirs, setOpenDirs] = useState(() => {
     try {
       const saved = sessionStorage.getItem('openDirs')
@@ -54,12 +56,11 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
       return new Set()
     }
   })
-  const contentMapRef = useRef(_cache?.contentMap ?? new Map())
+  const contentMapRef = useRef(initData?.contentMap ?? new Map())
 
   useEffect(() => {
     let cancelled = false
 
-    // Apply a loaded dataset to React state and session cache.
     function applyData(rawItems, contentMap, truncated, repoUrl) {
       const filtered = rawItems.filter(item => !isExcluded(item))
       _cache = { repoUrl, items: filtered, contentMap, truncated }
@@ -71,15 +72,12 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
       if (jadeCfg) onJadeConfig?.(jadeCfg)
     }
 
-    // Background refresh after restoring from IDB.
-    // Fetches the tree, compares SHAs, fetches only changed blobs.
-    // Silent on failure — cached data remains visible.
     async function refreshInBackground(cfg, cached) {
       try {
         const { items: newItems, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
         if (cancelled) return
 
-        // SHA comparison: find new or changed blobs
+        // SHA comparison: classify changes
         const oldShaMap = new Map(cached.items.map(i => [i.path, i.sha]))
         const newPathSet = new Set(newItems.map(i => i.path))
         const changedItems = newItems.filter(i =>
@@ -88,16 +86,19 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
           oldShaMap.get(i.path) !== i.sha
         )
         const hasDeleted = cached.items.some(i => !newPathSet.has(i.path))
+        const hasAdded = newItems.some(i => i.type === 'blob' && !oldShaMap.has(i.path))
+        const treeStructureChanged = hasDeleted || hasAdded
+        const contentChanged = changedItems.length > 0
 
-        if (changedItems.length === 0 && !hasDeleted) return  // no changes
+        if (!treeStructureChanged && !contentChanged) return  // true no-op
 
         // Fetch only changed/new blobs
-        const freshContent = changedItems.length > 0
+        const freshContent = contentChanged
           ? await fetchBlobs(cfg.githubRepoUrl, cfg.githubPat, changedItems)
           : new Map()
         if (cancelled) return
 
-        // Build updated map: keep unchanged, drop deleted, overlay changed
+        // Rebuild content map: keep unchanged, drop deleted, overlay changed
         const map = new Map()
         for (const [path, content] of cached.contentMap) {
           if (newPathSet.has(path)) map.set(path, content)
@@ -106,16 +107,34 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
           map.set(path, content)
         }
 
+        // Persist to IDB
         setCachedRepo({ repoUrl: cfg.githubRepoUrl, branch, items: newItems, contentMap: map, truncated })
-        if (!cancelled) applyData(newItems, map, truncated, cfg.githubRepoUrl)
-      } catch { /* silent — user continues seeing cached data */ }
+
+        if (!cancelled) {
+          const filtered = newItems.filter(item => !isExcluded(item))
+          _cache = { repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated }
+          contentMapRef.current = map
+
+          // Only update visible tree state if the structure actually changed
+          if (treeStructureChanged) {
+            setTreeItems(filtered)
+            setTruncated(truncated)
+          }
+
+          // Always notify jade config if it could have changed
+          if (contentChanged) {
+            const jadeCfg = parseJadeConfig(map)
+            if (jadeCfg) onJadeConfig?.(jadeCfg)
+          }
+        }
+      } catch { /* background failures are silent */ }
     }
 
     async function load() {
       try {
         const cfg = await getConfig()
 
-        // 1. Session cache hit: in-app navigation (settings → back etc.), no refresh needed.
+        // 1. Session cache: in-app navigation, no network needed
         if (_cache?.repoUrl === cfg.githubRepoUrl) {
           if (!cancelled) {
             contentMapRef.current = _cache.contentMap
@@ -128,15 +147,26 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
           return
         }
 
-        // 2. IDB cache hit: restore immediately, then silently check for updates.
-        const cached = await getCachedRepo()
+        // 2. IDB cache (may already be resolved via _idbReady)
+        const cached = _idbReady !== null ? _idbReady : await getCachedRepo()
         if (cached?.repoUrl === cfg.githubRepoUrl) {
-          if (!cancelled) applyData(cached.items, cached.contentMap, cached.truncated, cfg.githubRepoUrl)
+          if (!cancelled) {
+            // If we initialised from this data already (status='ready'), only
+            // update contentMapRef and jade config — don't re-set tree state.
+            if (status === 'ready' && initData === cached) {
+              contentMapRef.current = cached.contentMap
+              _cache = { repoUrl: cfg.githubRepoUrl, items: treeItems, contentMap: cached.contentMap, truncated: cached.truncated }
+              const jadeCfg = parseJadeConfig(cached.contentMap)
+              if (jadeCfg) onJadeConfig?.(jadeCfg)
+            } else {
+              applyData(cached.items, cached.contentMap, cached.truncated, cfg.githubRepoUrl)
+            }
+          }
           await refreshInBackground(cfg, cached)
           return
         }
 
-        // 3. No cache: full fetch, then persist.
+        // 3. No cache: full fetch
         const { items, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
         if (cancelled) return
 

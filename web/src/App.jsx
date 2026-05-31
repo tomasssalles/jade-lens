@@ -6,13 +6,15 @@ import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache } from './FileBrowser'
+import { getCachedRepo } from './repoCache'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 
 function App() {
-  const [page, setPage] = useState('loading')
+  // 'init' = silent restore in progress (file view reload), renders nothing
+  const [page, setPage] = useState(() => history.state?.page === 'file' ? 'init' : 'loading')
   const [fileView, setFileView] = useState(null) // { path, content } | null
   const [toastMessage, setToastMessage] = useState(null)
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
@@ -30,13 +32,31 @@ function App() {
     getViewerSettings().then(vs => setViewerSettings(vs)).catch(() => {})
 
     getConfig()
-      .then(cfg => {
+      .then(async cfg => {
         if (!isConfigValid(cfg)) {
           history.replaceState({ page: 'setup' }, '', '#setup')
           setPage('setup')
           return
         }
         const prior = history.state?.page
+        if (prior === 'file') {
+          const filePath = history.state?.filePath
+          if (filePath) {
+            try {
+              const cached = await getCachedRepo()
+              const content = cached?.contentMap?.get(filePath)
+              if (content !== undefined) {
+                setFileView({ path: filePath, content })
+                setPage('file')
+                return
+              }
+            } catch {}
+          }
+          // File not in cache — fall back to main
+          history.replaceState({ page: 'main' }, '', '#main')
+          setPage('main')
+          return
+        }
         const initial = (prior === 'settings' || prior === 'main') ? prior : 'main'
         history.replaceState({ page: initial }, '', '#' + initial)
         setPage(initial)

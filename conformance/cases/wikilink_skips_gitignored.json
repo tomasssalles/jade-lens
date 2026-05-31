@@ -1,0 +1,23 @@
+{
+  "name": "wikilink rewrite skips gitignored files",
+  "description": "A gitignored file containing a matching wikilink is never rewritten — it's the user's private space and can't be safely reverted on failure. A tracked file with the same link IS rewritten. (The runner seeds `private.md` via `before`; it stays on disk untracked-and-ignored, so it appears unchanged in `after`.)",
+  "before": {
+    ".gitignore": "private.md\n",
+    "private.md": "[[old.md]] in my notes\n",
+    "tracked.md": "[[old.md]] in tracked\n",
+    "old.md": "# original\n"
+  },
+  "commit_message": "Rename, leaving gitignored refs alone",
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" }
+  ],
+  "expect": {
+    "after": {
+      ".gitignore": "private.md\n",
+      "private.md": "[[old.md]] in my notes\n",
+      "tracked.md": "[[new.md]] in tracked\n",
+      "new.md": "# original\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+    }
+  }
+}

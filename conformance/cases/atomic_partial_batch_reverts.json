@@ -1,0 +1,10 @@
+{
+  "name": "a failure mid-batch reverts the earlier successful ops",
+  "description": "Atomicity across a multi-op batch: the first create_file succeeds, the second fails (target exists). The whole batch must revert — the first file must NOT survive, and no log entry is appended. This is stronger than a single-op rejection, which can't prove the earlier op was rolled back.",
+  "before": { "exists.json": "{\n  \"original\": true\n}\n" },
+  "operations": [
+    { "op": "create_file", "path": "new.json", "content": "{}\n" },
+    { "op": "create_file", "path": "exists.json", "content": "{}\n" }
+  ],
+  "expect": { "error": "TARGET_EXISTS" }
+}

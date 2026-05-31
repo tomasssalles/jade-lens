@@ -1,0 +1,17 @@
+{
+  "name": "operations-log appends to an existing log file",
+  "description": "When the version's operations-log already has entries, a new batch appends a line rather than replacing the file. `before` seeds the log with one prior entry (a runner precondition — .jade/ is protected, so it's not written via an op); `after` has two lines.",
+  "before": {
+    ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"earlier\", \"commit_message\": \"seed entry\", \"operations\": []}\n"
+  },
+  "commit_message": "Add x",
+  "operations": [
+    { "op": "create_file", "path": "x.md", "content": "hi\n" }
+  ],
+  "expect": {
+    "after": {
+      "x.md": "hi\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"earlier\", \"commit_message\": \"seed entry\", \"operations\": []}\n{\"ts\": \"<TS>\", \"commit_message\": \"Add x\", \"operations\": [{\"op\": \"create_file\", \"path\": \"x.md\", \"content\": \"hi\\n\"}]}\n"
+    }
+  }
+}

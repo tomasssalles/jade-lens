@@ -1,0 +1,19 @@
+{
+  "name": "non-matching wikilinks are preserved byte-identical on rewrite",
+  "description": "In a file with both a matching and several non-matching wikilinks, only the matching one is rewritten. The non-matching links are returned byte-identical even when denormalised ([[./unrelated.md]], [[also/]]) — normalisation happens only as a side effect of an actual rewrite, never on links left alone (DESIGN §4.3).",
+  "before": {
+    "old.md": "# original\n",
+    "ref.md": "see [[old.md]] and [[./unrelated.md]] and [[also/]]\n"
+  },
+  "commit_message": "Rename preserving unrelated links",
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" }
+  ],
+  "expect": {
+    "after": {
+      "new.md": "# original\n",
+      "ref.md": "see [[new.md]] and [[./unrelated.md]] and [[also/]]\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename preserving unrelated links\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+    }
+  }
+}

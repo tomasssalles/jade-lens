@@ -1,0 +1,19 @@
+{
+  "name": "rename rewrites a wikilink in a markdown file",
+  "description": "The basic post-apply wikilink pass: renaming a file rewrites every [[old]] reference in a markdown file to [[new]], preserving surrounding text.",
+  "before": {
+    "old.md": "# original\n",
+    "ref.md": "see [[old.md]] for details\n"
+  },
+  "commit_message": "Rename old to new",
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" }
+  ],
+  "expect": {
+    "after": {
+      "new.md": "# original\n",
+      "ref.md": "see [[new.md]] for details\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old to new\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+    }
+  }
+}

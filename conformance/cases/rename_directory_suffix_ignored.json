@@ -1,0 +1,17 @@
+{
+  "name": "directory rename is not subject to the suffix-preservation rule",
+  "description": "The suffix-must-be-preserved rule applies only to file renames (to keep op-vs-suffix classification coherent). A directory whose name has a dotted segment can be renamed to one without it.",
+  "before": {
+    "projects.v1/a.md": "# a\n"
+  },
+  "commit_message": "Drop version suffix from projects dir",
+  "operations": [
+    { "op": "rename_path", "from": "projects.v1", "to": "projects" }
+  ],
+  "expect": {
+    "after": {
+      "projects/a.md": "# a\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Drop version suffix from projects dir\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects.v1\", \"to\": \"projects\"}]}\n"
+    }
+  }
+}

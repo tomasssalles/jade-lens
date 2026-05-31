@@ -1,0 +1,22 @@
+{
+  "name": "mixed batch: create_file + json_patch + rename_path",
+  "description": "An end-to-end batch exercising three op categories together: a new file is created, a JSON file is patched (and re-serialised canonically), and a file is renamed. One operations-log entry captures all three ops in order.",
+  "before": {
+    "old.md": "hello\n",
+    "data.json": "{\n  \"items\": []\n}\n"
+  },
+  "commit_message": "Mixed batch",
+  "operations": [
+    { "op": "create_file", "path": "new.md", "content": "# new\n" },
+    { "op": "json_patch", "path": "data.json", "patch": [{ "op": "add", "path": "/items/-", "value": "a" }] },
+    { "op": "rename_path", "from": "old.md", "to": "renamed.md" }
+  ],
+  "expect": {
+    "after": {
+      "new.md": "# new\n",
+      "data.json": "{\n  \"items\": [\n    \"a\"\n  ]\n}\n",
+      "renamed.md": "hello\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Mixed batch\", \"operations\": [{\"op\": \"create_file\", \"path\": \"new.md\", \"content\": \"# new\\n\"}, {\"op\": \"json_patch\", \"path\": \"data.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"a\"}]}, {\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"renamed.md\"}]}\n"
+    }
+  }
+}

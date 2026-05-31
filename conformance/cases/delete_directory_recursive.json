@@ -1,0 +1,17 @@
+{
+  "name": "delete_path removes a directory and all its contents",
+  "description": "delete_path is recursive: deleting a directory removes every file beneath it. Only the operations-log entry remains.",
+  "before": {
+    "archive/old1.md": "# one\n",
+    "archive/sub/old2.md": "# two\n"
+  },
+  "commit_message": "Remove archive directory",
+  "operations": [
+    { "op": "delete_path", "path": "archive" }
+  ],
+  "expect": {
+    "after": {
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove archive directory\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"archive\"}]}\n"
+    }
+  }
+}

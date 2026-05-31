@@ -1,0 +1,17 @@
+{
+  "name": "rename rewrites a file's wikilink to itself",
+  "description": "A file containing a wikilink to itself has that self-reference rewritten too: after the rename, the moved file's self-link points at its new location.",
+  "before": {
+    "old.md": "I am [[old.md]] looking at myself\n"
+  },
+  "commit_message": "Rename with self-reference",
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" }
+  ],
+  "expect": {
+    "after": {
+      "new.md": "I am [[new.md]] looking at myself\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with self-reference\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+    }
+  }
+}

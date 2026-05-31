@@ -1,0 +1,20 @@
+{
+  "name": "an explicit diff on a reference overrides the rename's auto-rewrite",
+  "description": "The bot can rename a file and, in the same batch, emit a unified_diff that rewrites a referencing line to something other than the auto-target. Because the post-apply pass only sees the batch's end state, no [[old]] survives to be auto-rewritten, so the explicit edit wins.",
+  "before": {
+    "old.md": "# original\n",
+    "ref.md": "see [[old.md]] for details\n"
+  },
+  "commit_message": "Rename with explicit override",
+  "operations": [
+    { "op": "rename_path", "from": "old.md", "to": "new.md" },
+    { "op": "unified_diff", "path": "ref.md", "diff": "@@ -1 +1 @@\n-see [[old.md]] for details\n+see [[something_else.md]] for details\n" }
+  ],
+  "expect": {
+    "after": {
+      "new.md": "# original\n",
+      "ref.md": "see [[something_else.md]] for details\n",
+      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with explicit override\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}, {\"op\": \"unified_diff\", \"path\": \"ref.md\", \"diff\": \"@@ -1 +1 @@\\n-see [[old.md]] for details\\n+see [[something_else.md]] for details\\n\"}]}\n"
+    }
+  }
+}

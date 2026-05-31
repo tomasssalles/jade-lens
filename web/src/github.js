@@ -51,9 +51,9 @@ export async function getRepoTree(repoUrl, pat) {
   return { items: tree, branch: default_branch, truncated }
 }
 
-// Pre-fetch all blob contents in parallel. Returns a Map<path, string>.
-// Skips files larger than 200 KB; failed fetches are silently omitted.
-export async function getAllFileContents(repoUrl, pat, items) {
+// Fetch blob contents for a given list of tree items in parallel.
+// Returns a Map<path, string>. Files over 200 KB and failed fetches are silently omitted.
+export async function fetchBlobs(repoUrl, pat, items) {
   const parsed = parseRepoUrl(repoUrl)
   if (!parsed) throw new Error('Could not parse repo URL')
   const { owner, repo } = parsed

@@ -8,6 +8,7 @@ ops in a batch have applied successfully.
 """
 
 import json
+import math
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -51,6 +52,55 @@ class ApplyError(ConformanceError):
 # entry here automatically extends what unified_diff can target (since
 # unified_diff allows anything except .json — the json_patch path).
 EDITABLE_FILE_SUFFIXES = (".json", ".md")
+
+
+# JS switches Number→string to exponent notation at this magnitude; below it,
+# integer-valued numbers print as plain digits (which a Python ``int`` matches).
+_JS_INTEGER_PRINT_LIMIT = 1e21
+
+
+def _to_js_canonical(obj: Any) -> Any:
+    """Normalise a parsed-JSON value to the form a JS client would produce.
+
+    JS is representationally weaker than Python for JSON numbers: after
+    ``JSON.parse`` an integer-valued float like ``1.0`` is already the Number
+    ``1`` and re-serialises as ``1``. For the cross-client byte-identity
+    contract (conformance/README.md §3–§4) the canonical serialisation is the
+    JS form, so Python converts integer-valued floats to ints before dumping.
+    Genuine fractions (``1.5``) are written identically by both clients and
+    pass through unchanged.
+
+    Only magnitudes JS prints as plain integer digits are converted; at
+    ``abs(x) >= 1e21`` JS uses exponent notation (``"1e+21"``), which a plain
+    ``int`` would not reproduce, so those stay floats (a known residual edge —
+    such magnitudes don't occur in this domain; see conformance/PENDING_WORK.md
+    §A.4).
+    """
+    if isinstance(obj, bool):
+        # bool is a subclass of int — never coerce it.
+        return obj
+    if isinstance(obj, float):
+        if math.isfinite(obj) and obj.is_integer() and abs(obj) < _JS_INTEGER_PRINT_LIMIT:
+            return int(obj)
+        return obj
+    if isinstance(obj, dict):
+        return {k: _to_js_canonical(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_js_canonical(v) for v in obj]
+    return obj
+
+
+def dumps_js_canonical(obj: Any) -> str:
+    """Serialise ``obj`` to the canonical JS-faithful form, byte-matching
+    ``JSON.stringify(obj, null, 2) + "\\n"``.
+
+    Two deltas from a bare ``json.dumps(obj, indent=2)``: ``ensure_ascii=False``
+    (JS emits raw UTF-8, not ``\\uXXXX``) and the integer-valued-float
+    normalisation in ``_to_js_canonical``. Item/key separators already match JS
+    at ``indent=2``. This is the single byte-contract serialisation site for
+    re-serialised ``.json`` data files (conformance/README.md §3–§4).
+    """
+    return json.dumps(_to_js_canonical(obj), ensure_ascii=False, indent=2) + "\n"
 
 
 @dataclass(slots=True, frozen=True)
@@ -156,7 +206,7 @@ class JsonPatch:
                 code="JSON_PATCH_APPLY_FAILED",
             ) from e
 
-        target.write_text(json.dumps(result, indent=2) + "\n")
+        target.write_text(dumps_js_canonical(result))
 
 
 @dataclass(slots=True, frozen=True)

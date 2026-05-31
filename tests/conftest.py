@@ -27,6 +27,13 @@ def data_repo(tmp_path: Path) -> Path:
         ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
         check=True,
     )
+    # Pin signing off as repo-local config so the production `git commit` inside
+    # workflow.run inherits it too — keeps the fixture self-contained in
+    # environments that force commit signing (mirrors the conformance runner).
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "commit.gpgsign", "false"],
+        check=True,
+    )
     jade_dir = tmp_path / ".jade"
     jade_dir.mkdir()
     (jade_dir / "version").write_text("v0.1.0\n")

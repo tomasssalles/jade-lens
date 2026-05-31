@@ -6,7 +6,17 @@ import MarkdownRenderer from './MarkdownRenderer'
 import { getCardColor, getTextColor } from './viewerSettings'
 import './FileBrowser.css'
 
-const scrollPositions = new Map()
+// Persist scroll positions across reloads via sessionStorage
+const scrollPositions = (() => {
+  const map = new Map()
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key?.startsWith('jl-scroll:')) map.set(key.slice(10), +sessionStorage.getItem(key))
+    }
+  } catch {}
+  return map
+})()
 
 export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick }) {
   const scrollerRef = useRef(null)
@@ -17,7 +27,9 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
   }, [path])
 
   function handleScroll(e) {
-    scrollPositions.set(path, e.currentTarget.scrollTop)
+    const y = e.currentTarget.scrollTop
+    scrollPositions.set(path, y)
+    try { sessionStorage.setItem('jl-scroll:' + path, y) } catch {}
   }
 
   const isJson = path.endsWith('.json')

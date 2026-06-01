@@ -398,11 +398,23 @@ scope:
 > JS-native (`JSON.stringify(obj, null, 2) + "\n"`). The pipeline is pure logic
 > (no git/network/IndexedDB) — those belong to Phase 1.
 
-**Phase 1 — Web commit substrate**
-- [ ] `github.js` write path (blob→tree→commit→ref)
+**Phase 1 — Web commit substrate** 🚧 IN PROGRESS
+- [x] GitHub Git Data API write path — `web/src/sync/githubWrite.js`
+      (`computeTreeChanges` tree-diff; `commitFileMap` = tree→commit→ref using
+      inline blob content + `sha:null` deletes; `getBranchHead`;
+      `PushConflictError` on 422 non-fast-forward; `GitHubWriteError` w/ status)
+- [x] mocked-API unit tests green (`githubWrite.test.js`)
 - [ ] IndexedDB queue state (base SHA, pristine base, queue, working content)
-- [ ] sequential build-and-push; log line in the tree; single-IDB-txn bookkeeping
-- [ ] mocked-API unit tests green
+- [ ] sequential build-and-push across queued batches; single-IDB-txn bookkeeping
+- [ ] integration: pipeline (`mutation/run`) → queue → `commitFileMap`
+
+> Note: the write layer uses one `create tree` call with **inline `content`**
+> for added/modified entries (GitHub creates the blobs) + `sha:null` for deletes,
+> rather than separate `create blob` calls — fewer round trips, same atomicity
+> (only the ref update mutates remote). The remaining Phase 1 work is the
+> IndexedDB-backed operation queue and wiring it to the pipeline + write layer;
+> it needs a fake-IndexedDB (or storage abstraction) to unit-test, which is the
+> next increment.
 
 **Phase 2 — Web sync + conflict + stash**
 - [ ] sync-on-focus flow

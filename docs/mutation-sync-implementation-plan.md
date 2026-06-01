@@ -291,8 +291,8 @@ matches what the web app writes.
 
 ### Phase 5 — Web: grow editing capabilities
 
-**Goal / done:** text editing (session-batched, tiptap, drafts) and structured
-creation (forms), per `docs/web/editing.md`.
+**Goal / done:** text editing (session-batched, tiptap, drafts), per
+`docs/web/editing.md`.
 
 **Dependencies:** Phases 0–3.
 
@@ -302,7 +302,12 @@ creation (forms), per `docs/web/editing.md`.
   IndexedDB incl. the startup draft-vs-remote → stash path
   (`docs/web/editing.md` "Edit-mode lifecycle", "In-app navigation…", "Draft
   persistence").
-- Structured creation: schema-backed forms → one batch on submit.
+
+> **Not here: structured-creation forms.** The third mutation tier (forms) acts
+> *only* on data kinds with a registered schema/view, and **none exist yet** —
+> the schema / view-registry mechanism (DESIGN §4.9) is a separate unbuilt
+> feature. With all data freeform, there is nothing to put in a form. Forms are
+> gated on that feature and are out of scope for this plan (see §5).
 
 **Verification:** per sub-step; `npm run lint`, `npm test`, `npm run build`.
 
@@ -328,6 +333,9 @@ scope:
 
 - **Inline-vs-sidecar promotion** (DESIGN §4.4) — doesn't exist in Python *or*
   JS; ignore it entirely until separately scheduled.
+- **Structured-creation forms** (the third mutation tier) — gated on a
+  schema / view-registry feature (DESIGN §4.9) that doesn't exist yet. No
+  registered data kinds = nothing to form. Out of scope until schemas land.
 - **Identical-op dedupe** on conflict (`docs/sync-and-conflicts.md` §3, §6).
 - **Post-push atomicity hardening** beyond the single IndexedDB transaction
   (the dedupe / client-tagged-commits options in `docs/sync-and-conflicts.md` §6).
@@ -412,7 +420,7 @@ scope:
 **Phase 5 — Web grow editing**
 - [ ] text editing (session/tiptap/save/cancel/nav-detection)
 - [ ] draft persistence + startup draft-vs-remote → stash
-- [ ] structured-creation forms
+- [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
 
 **Phase 6 — Cross-client conformance (future)**
 - [ ] stash/sync parity scope (web ↔ /jade)

@@ -398,23 +398,43 @@ scope:
 > JS-native (`JSON.stringify(obj, null, 2) + "\n"`). The pipeline is pure logic
 > (no git/network/IndexedDB) — those belong to Phase 1.
 
-**Phase 1 — Web commit substrate** 🚧 IN PROGRESS
+**Phase 1 — Web commit substrate** ✅ DONE
 - [x] GitHub Git Data API write path — `web/src/sync/githubWrite.js`
       (`computeTreeChanges` tree-diff; `commitFileMap` = tree→commit→ref using
       inline blob content + `sha:null` deletes; `getBranchHead`;
       `PushConflictError` on 422 non-fast-forward; `GitHubWriteError` w/ status)
 - [x] mocked-API unit tests green (`githubWrite.test.js`)
-- [ ] IndexedDB queue state (base SHA, pristine base, queue, working content)
-- [ ] sequential build-and-push across queued batches; single-IDB-txn bookkeeping
-- [ ] integration: pipeline (`mutation/run`) → queue → `commitFileMap`
+- [x] IndexedDB queue state (base SHA, pristine base, queue, working content)
+- [x] sequential build-and-push across queued batches; single-IDB-txn bookkeeping
+- [x] integration: pipeline (`mutation/run`) → queue → `commitFileMap`
 
 > Note: the write layer uses one `create tree` call with **inline `content`**
 > for added/modified entries (GitHub creates the blobs) + `sha:null` for deletes,
 > rather than separate `create blob` calls — fewer round trips, same atomicity
-> (only the ref update mutates remote). The remaining Phase 1 work is the
-> IndexedDB-backed operation queue and wiring it to the pipeline + write layer;
-> it needs a fake-IndexedDB (or storage abstraction) to unit-test, which is the
-> next increment.
+> (only the ref update mutates remote).
+>
+> The operation queue (`web/src/sync/opQueue.js`) holds all sync state in a
+> **single record** behind a small storage port (`queueStore.js`): `baseCommitSha`,
+> `baseTreeSha`, pristine `baseMap`, the ordered `queue` of unpushed batches, and
+> the live `workingMap`. A single-record write is one structured-clone IDB
+> transaction, so the post-push base-advance (SHA bump + queue shift) is atomic
+> "for free" — the §6 known-gap mitigation. `OpQueue.push` builds-and-pushes one
+> commit **per batch** sequentially, parenting each on the previous success and
+> **stopping at the first `PushConflictError`** (the Phase 2 stash hook); the
+> remaining queue and the advanced base are preserved.
+>
+> **Testability decision (owner-confirmed): storage abstraction over a
+> fake-IndexedDB dep.** The queue logic is written against the `QueueStore` port;
+> `createMemoryQueueStore()` (structuredClone-isolated) backs the unit tests,
+> `createIdbQueueStore()` (db.js store `sync`, db version bumped 2→3) backs the
+> browser. Zero new deps. The push driver takes an injectable `commit` fn so the
+> sequential/conflict/advance logic is tested without network. Per-batch
+> `timestamp` is frozen at enqueue and reused on push-replay so the ops-log line
+> is byte-identical either way. Tests: `web/src/sync/opQueue.test.js` (10 cases).
+>
+> Not yet wired into the app UI — `init()`/`enqueue()` are driven by tests; the
+> real read-path → `init` and edit → `enqueue`/`push` wiring lands with the
+> checkbox edit in Phase 3 (the conflict/stash branch of `push` is Phase 2).
 
 **Phase 2 — Web sync + conflict + stash**
 - [ ] sync-on-focus flow

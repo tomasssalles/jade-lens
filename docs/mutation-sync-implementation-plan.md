@@ -195,6 +195,11 @@ indicator + stashed-changes view work.
 
 **Dependencies:** Phase 0 (replay for ancestors/rebase), Phase 1 (commit path).
 
+> **First, settle the queue ↔ repoCache wiring (§6.1).** This phase is where the
+> read path first feeds the queue (`init` from a full read + `getBranchHead`
+> SHAs) and where remote updates must land on the content authority. Implement
+> the §6.1 contract here — including the truncation guard on `init`.
+
 **What to build:**
 - Sync-on-focus flow (`docs/sync-and-conflicts.md` §2): fetch, compare remote vs
   base, fast-forward non-conflicting files, route same-file collisions to the
@@ -245,6 +250,10 @@ through Phases 1–2 and syncs; read-only-PAT errors are surfaced clearly.
 - Source-line mapping is the fiddly part — the remark pipeline must preserve
   enough position info to locate the source checkbox. Check the existing remark
   plugins (`web/src/plugins/`).
+- **Render from the content authority (§6.1).** After a toggle commits, the view
+  must re-render from `queue.workingMap`, and `repoCache` must be refreshed from
+  it — otherwise a reload shows the pre-toggle state. This is the §6.1 contract's
+  render half.
 
 **Verification:** unit test for diff derivation from a toggle; manual end-to-end
 toggle → commit → push → (cross-device) sync. `npm run lint`, `npm test`,
@@ -367,7 +376,39 @@ scope:
 - **Keep these docs current.** If implementation reveals a design gap, update the
   relevant doc (`docs/…`, `DESIGN.md`) in the same PR, and tick §8 here.
 
----
+### 6.1 Open: queue ↔ repoCache integration (deferred to UI-wiring, Phase 2/3)
+
+**Decision (owner-confirmed): keep the queue's `sync` IndexedDB store *parallel*
+to the existing `repo` read cache; the queue is the content authority once
+initialised.** Phase 1 shipped the store this way but did **not** wire it to the
+read cache or the render path — that wiring is deferred to when editing goes live
+(read-path→`init` in Phase 2's sync, render-from-`workingMap` in Phase 3). Until
+then `repoCache` is the only content layer the app actually reads. The contract to
+implement when wiring:
+
+- **Content lives in three maps** across two stores: `repoCache.contentMap` (store
+  `repo`) vs the queue's `baseMap` + `workingMap` (store `sync`). They overlap;
+  the repo content can sit in IDB ~2×. Accepted — cheap at single-user text
+  volumes. The cost we're managing is **drift**, not bytes.
+- **One render authority.** Once a repo is initialised in the queue,
+  `queue.workingMap` is the single source of truth for rendering. `repoCache`
+  demotes to the cold-start / no-flicker preload (`getPreloadedRepo`,
+  `getSessionCache` in `repoCache.js`) and must be **refreshed from
+  `workingMap`** after every edit/push so a reload doesn't show pre-edit content.
+  Render rule: prefer `workingMap` when the queue is initialised, else
+  `repoCache.contentMap`.
+- **The SHA gap.** The read path (`github.js`) fetches the tree *by branch name*
+  and returns `{items, branch, truncated}` — no commit/tree SHA. The queue's
+  `init` needs both; get them from `githubWrite.getBranchHead` when wiring the
+  read path to `init`.
+- **⚠️ Truncation is a correctness constraint, not a nicety.** `repoCache` may hold
+  a `truncated` (partial) tree for large repos. `computeTreeChanges(base, new)`
+  reads a missing-because-truncated file as a **deletion** — so the queue must
+  **never `init` from a truncated content map**. Guard `init` to refuse (or fully
+  hydrate first) when `truncated` is set. No guard exists yet; add it with the
+  wiring.
+
+
 
 ## 7. Quick verification reference
 
@@ -433,8 +474,11 @@ scope:
 > is byte-identical either way. Tests: `web/src/sync/opQueue.test.js` (10 cases).
 >
 > Not yet wired into the app UI — `init()`/`enqueue()` are driven by tests; the
-> real read-path → `init` and edit → `enqueue`/`push` wiring lands with the
-> checkbox edit in Phase 3 (the conflict/stash branch of `push` is Phase 2).
+> real read-path → `init` and edit → `enqueue`/`push` wiring lands with sync
+> (Phase 2) and the checkbox edit (Phase 3). **The queue's `sync` store is
+> deliberately parallel to the existing `repo` read cache; how they reconcile
+> (render authority, refresh-on-edit, the truncation guard) is the deferred §6.1
+> contract — implement it when wiring, not before.**
 
 **Phase 2 — Web sync + conflict + stash**
 - [ ] sync-on-focus flow

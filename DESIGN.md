@@ -443,13 +443,15 @@ The `operations` field contains the same typed structures defined in §4.2 — `
 
 **Purpose.** The log preserves operation semantics that a raw git diff would lose — most notably JSON Patch `move` ops, which appear as delete-here + add-there in a diff but as a single intent-carrying op in the log. It also offers programmatic introspection ("every time the runtime promoted inline-to-sidecar," "every rename the bot did this week"), which is especially valuable during early development when the goal is observing and tuning bot behaviour.
 
+**Scope: applied changes to the user's data only.** The log records the evolution of the user's *personal data*, not the whole repo. Repo machinery isn't logged — neither the log file itself nor stash files (§8.4) generate entries. And a batch that was *rolled back* rather than applied — a conflict stashed instead of landing on ground truth (§8.4) — never appears in the log; the stash entry is its sole record. This keeps the log a linear series of changes that actually brought the data to its current state.
+
 ### 7.3 Commit messages
 
 The commit message describes intent.
 
 - **`/jade` skill (Claude Code):** the bot writes a concise 1-line commit message as part of the operation tool call. Verbatim user prompts are *not* repeated — repeating them costs real output tokens (Pro time + rate-limit budget), and the prompt is often near-meaningless without the surrounding Claude Code chat context anyway.
 - **Web app:** the runtime knows the user prompt programmatically and can use it directly in the commit message at zero token cost. Whether to prefer the verbatim prompt, a bot-generated summary, or both is a v0.2.0+ decision.
-- **UI-only edits (web app):** the runtime writes the commit message itself, e.g. `UI: added 3 todo entries; toggled 1 status.`
+- **UI-only edits (web app):** the runtime writes the message itself — a static operation description plus the affected-file list (usually one file), e.g. `Manual edit: toggled checkbox — projects/leasing.md`. Intentionally redundant with the operations-log entry; the point is a skimmable, searchable `git log`. See `docs/web/editing.md`.
 
 ### 7.4 Forward-only correction
 
@@ -471,20 +473,21 @@ The UI never blocks on the network. Local state is the working set; sync runs in
 
 ### 8.2 Triggers and surfacing
 
-Sync triggers:
-- App open.
-- Tab focus-gain.
-- Debounced after writes (~30s of no further edits).
-- Periodic when idle (interval TBD).
-- Manual "Sync now" button.
+**Web app** triggers:
+- **On focus** — app foreground / tab activation pulls latest remote (usually a fast no-op).
+- **On save** — committing a local change (micro-edit, editing-session save, form submit) pushes it.
+
+**`/jade` (Claude Code)** syncs automatically on **every interaction**: the tooling pulls before processing and pushes after. Deliberately aggressive; throttle later only if it causes problems (rate limits, perf). The bot's SKILL.md is told syncing is automatic — it must not pull/push or offer to.
 
 A non-intrusive status indicator shows the current sync state (last-synced timestamp, in-progress, error).
 
-Conflicts surface **non-modally**. In the common case (local is an ancestor of remote), a quiet fast-forward is enough.
+Conflicts surface **non-modally**. In the common case (local is an ancestor of remote), a quiet fast-forward is enough; when a same-file conflict does occur, a persistent unintrusive indicator flags stashed changes (§8.4) rather than a blocking modal.
 
-### 8.3 Remote storage substrate (open)
+Full mechanism: `docs/sync-and-conflicts.md`; the web-app edit UX that feeds it: `docs/web/editing.md`.
 
-Three candidates have been weighed:
+### 8.3 Remote storage substrate
+
+Three candidates were weighed:
 
 | Substrate | What lives there | Pros | Cons |
 |---|---|---|---|
@@ -492,7 +495,7 @@ Three candidates have been weighed:
 | **GitHub repo with fine-grained commits as a de-facto patch log** | Same files; one commit per bot action, commit message holds the raw prompt | Most patch-log benefits (audit, prompt-attached-to-change, append-only history) without a new schema | Same latency / quota tradeoffs; commit messages become semantically loaded |
 | **Firebase / Supabase free-tier** | Documents or rows | Faster than git; designed for app data; real-time updates available | Third-party signup; vendor lock-in concern parallel to the AI multi-vendor wish; free-tier quota limits |
 
-*Working assumption for v1: GitHub repo of state files.* Supabase (or similar) is on the table if a DB is adopted for query-heavy data (§4.8). Not locked.
+**Decided for v1: GitHub repo of state files.** Each atomic change is a commit. The web app commits via the GitHub Git Data API using an **operation-queue** model (a "local commit" is a queued op-batch + resulting content + the base commit SHA, in IndexedDB) — there's no local git in the browser, and GitHub's git smart-HTTP isn't CORS-reachable from a Pages origin without a third-party proxy we won't introduce for private data. `/jade` uses a real local clone. Commit/push mechanics and conflict handling are in §8.4 and `docs/sync-and-conflicts.md`. A later move to Postgres for query-heavy data (§4.8, §15.2) is anticipated; the sync/conflict design is kept substrate-agnostic (no dependence on git's merge; self-contained stash entries) so it survives that move. Supabase (or similar) remains on the table for the DB case.
 
 ### 8.4 Conflict resolution
 
@@ -500,14 +503,13 @@ Single user across multiple non-simultaneous devices. Conflicts are expected to 
 
 > **No loss of information the user has already provided.**
 
-Two candidate approaches:
+The decided model (full mechanism in `docs/sync-and-conflicts.md`):
 
-| Approach | Pros | Cons |
-|---|---|---|
-| **Three-way semantic merge on JSON** (compare base, remote, local field-by-field; auto-merge non-overlapping fields; surface true conflicts) | Robust; handles any data shape | Real implementation effort; per-domain conflict UI |
-| **Data-shape choices that make conflicts vanishingly rare** (append-only logs, narrow scoped updates, time-keyed records) | Most conflicts dodge themselves | Limits how the bot can structure data; doesn't eliminate the residual case |
+- **File-level detection.** A conflict is the *same file* changed both locally and remotely since the last sync. Different files on different devices both apply — no conflict, the common case. There is **no within-file merge** (not at the JSON-path, array-element, or text-line level): it requires data semantics and is fragile, and same-file conflicts are rare. Structural ops count as changes — delete/move of X means X changed; a directory op means every file under it (recursive) changed; any file touched on both sides conflicts regardless of op kind.
+- **Pushed version wins.** Whoever syncs first is ground truth and is never rolled back (a successfully pushed change disappearing is unacceptable). The second device's conflicting change yields.
+- **Stash, don't lose.** The losing batch is saved to `.jade/stash/<ts>-<uuid>.json` in the (synced) repo — the **full batch** plus a self-contained ancestor snapshot — and the files it touched are reset to remote. The user reviews stashed entries and marks each *done* (replayed manually) or *won't do*; resolving deletes the entry. A persistent, non-intrusive indicator shows while the stash is non-empty. The same flow and entry format run on both clients; on `/jade` the bot manages the stash only via dedicated tooling commands, never touching `.jade/` directly (§4.2).
 
-Hybrid is plausible: prefer conflict-rare shapes; fall back to semantic merge for the residual. *Open* (§18).
+This satisfies the invariant — nothing is silently dropped — while keeping history linear: the operations log stays a linear series of *applied* changes, and stashed (rolled-back) batches are excluded from it (§7.2). Smart merging, bot-assisted replay, and auto-apply are deferred (§15.2). A known local-atomicity edge in the web app's push path is tracked in `docs/sync-and-conflicts.md` §6.
 
 ---
 
@@ -530,6 +532,14 @@ Every UI mutation produces the same artefacts the bot produces — operations of
 5. Queue for sync.
 
 This means **UI edits are indistinguishable from bot edits at the data layer** — one code path for all data mutation, one audit substrate. A user appending three paragraphs to an inline JSON string via the UI triggers the same automatic promotion to a `.md` sidecar that the bot would.
+
+**How the UI batches edits into pipeline calls** — three tiers, each aligned with a UX mode so the user never manages "batching" or "committing" (full detail in `docs/web/editing.md`):
+
+- **Micro-edits → immediate commit.** One self-contained interaction (checkbox toggle, date pick, single field) → one op → one commit. No mode, no save button.
+- **Text editing → batched by session.** Entering edit mode on a markdown file or JSON string field (tiptap) and exiting via **save or in-app navigation** commits the whole session as one batch; **cancel** discards; backgrounding the app neither saves nor discards (a draft persists locally so an OS kill is recoverable).
+- **Structured creation → batched by form.** A schema-backed form (calendar event, etc.) commits the whole record on submit.
+
+Open-ended user-managed batches (open a batch, edit across files, submit later) were considered and **rejected** — they burden the user with pending state, interact badly with the bot's commits on another device, and the GitLab-style "reduce reviewer noise" motivation doesn't apply to a single-user app.
 
 ### 9.3 Navigation: index as table-of-contents
 
@@ -1154,9 +1164,7 @@ Safety improvements (origin isolation, encryption, self-host option) raise the t
 
 The following are explicitly not yet decided. Each may close out during implementation as the constraints become concrete.
 
-- **Remote storage substrate** — GitHub repo of files vs. GitHub with fine-grained patch-log-style commits vs. Firebase/Supabase (§8.3). *Working assumption: GitHub repo.*
-- **Whether to adopt a database in v1** for query-heavy data (§4.8). *Working assumption: no DB for v1.*
-- **Conflict resolution mechanics** (§8.4) — semantic merge vs. data-shape choices vs. hybrid. Mostly insurance for the single-user-multi-device pattern.
+- **Whether to adopt a database in v1** for query-heavy data (§4.8). *Working assumption: no DB for v1.* (The remote substrate itself is settled for v1 — GitHub repo of files, §8.3 — and conflict resolution is decided, §8.4.)
 - **Sidecar filename convention** (§4.5) — hash vs. JSON-path-derived vs. sidecar-directory-per-JSON. *Leaning sidecar-directory.*
 - **Specifics of the bot's awareness of recent UI edits.** The §9.2 unified pipeline ensures UI edits land in the same files and the same operations log as bot edits, so the bot's next read of state is current by construction. Open sub-question: whether the bot should be shown recent UI-edit log entries as context ("the user just added X via the UI") to inform its reasoning, or whether the data state alone is sufficient signal.
 - **Data types to enumerate beyond the obvious** — to-do, calendar, projects, notes, presentations, preferences are clearly in scope. The full list emerges from use.

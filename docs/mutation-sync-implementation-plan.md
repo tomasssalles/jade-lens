@@ -480,13 +480,35 @@ implement when wiring:
 > (render authority, refresh-on-edit, the truncation guard) is the deferred §6.1
 > contract — implement it when wiring, not before.**
 
-**Phase 2 — Web sync + conflict + stash**
-- [ ] sync-on-focus flow
-- [ ] file-level conflict detection incl. rename/delete semantics
+**Phase 2 — Web sync + conflict + stash** 🚧 IN PROGRESS
+- [x] file-level conflict detection incl. rename/delete semantics  ← (2a) `conflicts.js` done
 - [ ] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
 - [ ] ops-log exclusion of stashed batches
+- [ ] sync-on-focus flow
 - [ ] conflict indicator + stashed-changes view (Done / Won't-do)
 - [ ] conflict state-machine tests green
+
+> **In-progress notes (resume pointer).** Building Phase 2 in sub-batches, pure
+> logic first then UI, each committed+pushed:
+> - **(2a) conflict detection** — `web/src/sync/conflicts.js`: `changedPaths`
+>   (base↔remote diff), `batchTouchedPaths` (per-batch concrete paths incl.
+>   rename from/to + recursive directory delete/rename), `firstConflictIndex`
+>   ("first-conflict-onward" pivot). Pure; unit-tested.
+> - **(2b) stash entry** — `web/src/sync/stash.js`: build the
+>   `docs/sync-and-conflicts.md` §4 entry (`{timestamp, ancestors, operations}`)
+>   + filename `<compactISO>-<shortuuid>.json`. **Decision:** `operations` stores
+>   the raw op objects verbatim (the `{op,path,…}` wire format), NOT the
+>   illustrative `{type,path,payload}` shape sketched in the design doc — the raw
+>   format is the conformance-pinned, cross-client-identical one (Phase 6). Doc
+>   updated to match.
+> - **(2c) sync orchestration** — `OpQueue.sync()` (fetch remote → plan →
+>   rebase/fast-forward or stash-from-first-conflict → push kept + stash
+>   bookkeeping commit). Pure `computeSyncPlan` factored out for tests.
+> - **(2d) app wiring** — read-path→`init` (with `getBranchHead` SHAs + the §6.1
+>   truncation guard), sync-on-focus, render-from-`workingMap`.
+> - **(2e) UI** — conflict indicator (warning glyph while `.jade/stash/`
+>   non-empty) + stashed-changes view (Done / Won't-do → delete entry = normal
+>   commit).
 
 **Phase 3 — Web checkbox toggle (MVP)**
 - [ ] toggle → source-line mapping → unified_diff → commit

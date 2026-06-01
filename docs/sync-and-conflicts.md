@@ -169,26 +169,36 @@ sort, UUID for uniqueness within the same instant.
 
 ```json
 {
-  "timestamp": "2026-06-01T14:30:22Z",
+  "timestamp": "2026-06-01T14:30:22.123Z",
   "ancestors": {
-    "calendar/events.json": "<full file content before local changes>",
-    "calendar/config.json": "<full file content before local changes>"
+    "calendar/config.json": "<full file content before local changes>",
+    "calendar/events.json": "<full file content before local changes>"
   },
   "operations": [
-    { "type": "json_patch", "path": "calendar/events.json", "payload": [ /* ops */ ] },
-    { "type": "json_patch", "path": "calendar/config.json", "payload": [ /* ops */ ] }
+    { "op": "json_patch", "path": "calendar/events.json", "patch": [ /* RFC 6902 */ ] },
+    { "op": "json_patch", "path": "calendar/config.json", "patch": [ /* RFC 6902 */ ] }
   ]
 }
 ```
 
-- `timestamp` — when the local change was originally made.
+- `timestamp` — when the local change was originally made (the queued batch's own
+  ISO timestamp, millisecond-precision, reused verbatim).
 - `ancestors` — path → full file content (string: JSON or markdown source) for
-  **every file the batch touched**, as it was *before* the local changes. Makes
-  the entry **fully self-contained** — understanding what changed never requires
-  querying git (deliberate, for the Postgres-substrate future). Note the ancestor
-  is the pre-local-change baseline, not the live (already-edited-in-place)
-  content — the client must retain the pristine baseline to produce it.
-- `operations` — the **complete batch**, never a subset.
+  **every file the batch touched** that existed at the baseline, as it was
+  *before* the local changes; **keys sorted** for cross-client determinism. A
+  file the batch *creates* has no ancestor and is omitted (its absence is the
+  "before" state). Makes the entry **fully self-contained** — understanding what
+  changed never requires querying git (deliberate, for the Postgres-substrate
+  future). Note the ancestor is the pre-local-change baseline, not the live
+  (already-edited-in-place) content and not the remote version — the client must
+  retain the pristine baseline (the last-synced base) to produce it.
+- `operations` — the **complete batch**, never a subset, stored as the **raw op
+  objects verbatim** (the `{op, path, …}` wire format of DESIGN §4.2). The earlier
+  `{type, path, payload}` sketch is superseded: the raw format is the one the
+  mutation pipeline already speaks and that the conformance suite pins byte-for-
+  byte, so web and `/jade` write **identical** entries (the Phase 6 cross-client
+  goal). The file is serialised JS-canonically (`JSON.stringify(entry, null, 2) +
+  "\n"`) for the same byte-identity reason.
 
 ### Full batches only
 

@@ -482,7 +482,9 @@ implement when wiring:
 
 **Phase 2 — Web sync + conflict + stash** 🚧 IN PROGRESS
 - [x] file-level conflict detection incl. rename/delete semantics  ← (2a) `conflicts.js` done
-- [ ] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
+- [~] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
+      ← (2b) `stash.js` entry construction + filename + serialise done; the
+      stash *commit* wiring lands in (2c) sync orchestration
 - [ ] ops-log exclusion of stashed batches
 - [ ] sync-on-focus flow
 - [ ] conflict indicator + stashed-changes view (Done / Won't-do)

@@ -382,13 +382,21 @@ scope:
 
 ## 8. Progress checklist (update + commit as you go)
 
-**Phase 0 — JS pipeline + conformance runner**
-- [ ] `web/src/mutation/` op parse + validation (error codes match §5)
-- [ ] apply: json_patch / unified_diff / create_file / delete_path / rename_path
-- [ ] wikilink post-apply pass (rename rewrite + delete dangling-check)
-- [ ] ops-log entry construction + atomic-batch (input unchanged on failure)
-- [ ] `conformance/runners/js/` runner + log-line normalization
-- [ ] all 62 conformance cases green in JS; `npm test`/`lint` clean
+**Phase 0 — JS pipeline + conformance runner** ✅ DONE
+- [x] `web/src/mutation/` op parse + validation (error codes match §5)
+- [x] apply: json_patch / unified_diff / create_file / delete_path / rename_path
+- [x] wikilink post-apply pass (rename rewrite + delete dangling-check)
+- [x] ops-log entry construction + atomic-batch (input unchanged on failure)
+- [x] `conformance/runners/js/` runner (`run.mjs`) + log-line normalization
+- [x] all 62 conformance cases green in JS; `npm test`/`lint`/`build` clean
+
+> Notes: full pipeline built (all 5 ops), not just the checkbox path — the whole
+> suite is green, so the JS runner is complete. JSON-Patch (RFC 6902) and the
+> gitignore matcher were **hand-rolled** (zero new deps) to keep the shared core
+> dependency-free; the gitignore matcher is a documented subset (root .gitignore,
+> common patterns) sufficient for the suite. Byte-canonical JSON serialisation is
+> JS-native (`JSON.stringify(obj, null, 2) + "\n"`). The pipeline is pure logic
+> (no git/network/IndexedDB) — those belong to Phase 1.
 
 **Phase 1 — Web commit substrate**
 - [ ] `github.js` write path (blob→tree→commit→ref)

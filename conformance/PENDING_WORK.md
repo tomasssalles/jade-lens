@@ -12,11 +12,11 @@
 >   cross-client wikilink behaviours), and Tier 3 (variant cases) fixtures added.
 >   Two planned cases were skipped as already-covered (noted in their tier).
 >
-> **What remains (deliberately deferred):** the JS pipeline doesn't exist yet,
-> so the JS *runner* (`conformance/runners/js/`) is still future work — the
-> suite currently has one runner (Python). The serialisation edge cases in §A.4
-> below (large integer-valued floats ≥1e21, non-finite floats) are documented
-> but not specially handled; no fixture needs them in this domain.
+> **Update:** the JS pipeline now exists (`web/src/mutation/`) and the JS runner
+> (`conformance/runners/js/run.mjs`) passes all 62 cases — the suite is now
+> bilingual (Python + JS), which was its whole purpose. The serialisation edge
+> cases in §A.4 below (large integer-valued floats ≥1e21, non-finite floats) are
+> documented but not specially handled; no fixture needs them in this domain.
 >
 > The rest of this doc is retained as the **edge-case reference** (cited from
 > `conformance/README.md` §4) and the record of what was audited.

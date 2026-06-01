@@ -289,8 +289,8 @@ conformance/
 ├── README.md          # this file — the contract
 ├── cases/             # *.json fixtures, one case per file
 └── runners/
-    └── python/        # the Python runner (pytest, parametrised over cases/)
-        └── ...        # the JS runner lands here as runners/js/ when built
+    ├── python/       # the Python runner (pytest, parametrised over cases/)
+    └── js/           # the JS runner (run.mjs; drives web/src/mutation)
 ```
 
 Cases are grouped by filename prefix for readability, not by any loaded

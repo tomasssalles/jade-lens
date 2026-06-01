@@ -23,7 +23,21 @@
 // re-derived at push time.
 
 import { run } from '../mutation/index.js';
-import { commitFileMap, PushConflictError } from './githubWrite.js';
+import { commitFileMap, PushConflictError, fetchRemoteState } from './githubWrite.js';
+import { computeSyncPlan } from './conflicts.js';
+import { buildStashEntry, stashFilename, serializeStashEntry } from './stash.js';
+
+/** Replay a list of queued batches over a base map, returning the new map. */
+function replayBatches(baseMap, batches) {
+  let map = baseMap;
+  for (const b of batches) {
+    map = run(map, b.operations, b.commitMessage, { timestamp: b.timestamp });
+  }
+  return map;
+}
+
+const stashCommitMessage = (n) =>
+  `Stash ${n} conflicting local change${n === 1 ? '' : 's'}`;
 
 export class OpQueue {
   /** @param {{load: () => Promise<object|undefined>, save: (s: object) => Promise<void>}} store */
@@ -126,6 +140,91 @@ export class OpQueue {
       pushed += 1;
     }
     return { pushed, conflicted: false };
+  }
+
+  /**
+   * The full sync cycle (docs/sync-and-conflicts.md §2–§4): fetch remote → if it
+   * advanced, rebase the queue onto it, stashing every batch from the first
+   * conflict onward → push the kept batches. Unifies sync-on-focus (a pull that
+   * may stash) and sync-on-save (push the queue, pulling+stashing on rejection).
+   *
+   * Ordering is chosen for no-data-loss: the stash bookkeeping commit lands on
+   * remote *before* the stashed batches are dropped from persisted state, so a
+   * failure after it leaves the stashed work safely recorded on the remote, and
+   * a failure before it leaves the queue fully intact for a retry.
+   *
+   * @param {{pat: string, fetchRemote?: typeof fetchRemoteState, commit?: typeof commitFileMap}} opts
+   * @returns {Promise<{pushed: number, stashed: number, conflicted: boolean}>}
+   */
+  async sync({ pat, fetchRemote = fetchRemoteState, commit = commitFileMap }) {
+    const state = await this.getState();
+    if (!state) return { pushed: 0, stashed: 0, conflicted: false };
+
+    const remote = await fetchRemote(state.repoUrl, pat, state.branch);
+
+    // A truncated remote tree is a partial view; treating missing files as
+    // deletions would spuriously stash. Skip conflict processing and only push
+    // what we can (the §6.1 truncation-guard concern, conservative side).
+    if (remote.truncated) {
+      const r = await this.push({ pat, commit });
+      return { ...r, stashed: 0 };
+    }
+
+    // Remote unchanged → nothing to reconcile; just push the queue.
+    if (remote.commitSha === state.baseCommitSha) {
+      const r = await this.push({ pat, commit });
+      return { ...r, stashed: 0 };
+    }
+
+    // Remote advanced → partition the queue at the first conflict.
+    const plan = computeSyncPlan(state.queue, state.baseMap, remote.contentMap);
+
+    let baseCommitSha = remote.commitSha;
+    let baseTreeSha = remote.treeSha;
+    let baseMap = new Map(remote.contentMap);
+    let stashed = 0;
+
+    if (plan.stashedBatches.length) {
+      // Build the stash files from the PRISTINE base (state.baseMap), then commit
+      // them onto remote first. A non-fast-forward here means the remote moved
+      // again — bail with nothing persisted so the next sync retries cleanly.
+      const stashMap = new Map(baseMap);
+      for (const batch of plan.stashedBatches) {
+        const entry = buildStashEntry(batch, state.baseMap);
+        stashMap.set(stashFilename(batch.timestamp), serializeStashEntry(entry));
+      }
+      let result;
+      try {
+        result = await commit(state.repoUrl, pat, {
+          branch: state.branch,
+          baseCommitSha,
+          baseTreeSha,
+          baseMap,
+          newMap: stashMap,
+          message: stashCommitMessage(plan.stashedBatches.length),
+        });
+      } catch (err) {
+        if (err instanceof PushConflictError) return { pushed: 0, stashed: 0, conflicted: true };
+        throw err;
+      }
+      baseCommitSha = result.commitSha;
+      baseTreeSha = result.treeSha ?? baseTreeSha;
+      baseMap = stashMap;
+      stashed = plan.stashedBatches.length;
+    }
+
+    // Persist the rebased baseline + kept queue, working content recomputed.
+    await this.store.save({
+      ...state,
+      baseCommitSha,
+      baseTreeSha,
+      baseMap,
+      queue: plan.keptQueue,
+      workingMap: replayBatches(baseMap, plan.keptQueue),
+    });
+
+    const r = await this.push({ pat, commit });
+    return { ...r, stashed };
   }
 
   /**

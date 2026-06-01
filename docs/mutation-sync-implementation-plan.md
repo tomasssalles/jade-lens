@@ -482,13 +482,17 @@ implement when wiring:
 
 **Phase 2 — Web sync + conflict + stash** 🚧 IN PROGRESS
 - [x] file-level conflict detection incl. rename/delete semantics  ← (2a) `conflicts.js` done
-- [~] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
-      ← (2b) `stash.js` entry construction + filename + serialise done; the
-      stash *commit* wiring lands in (2c) sync orchestration
-- [ ] ops-log exclusion of stashed batches
-- [ ] sync-on-focus flow
-- [ ] conflict indicator + stashed-changes view (Done / Won't-do)
-- [ ] conflict state-machine tests green
+- [x] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
+      ← (2b) entry construction + (2c) `OpQueue.sync()` stash bookkeeping commit
+- [x] ops-log exclusion of stashed batches  ← (2c): stash commit bypasses the
+      mutation pipeline (no ops-log line); stashed batches are dropped, never pushed
+- [~] sync-on-focus flow  ← (2c) `OpQueue.sync()` is the full fetch→rebase/
+      stash→push cycle (sync-on-focus + sync-on-save unified); wiring it to the
+      window focus event + real `fetchRemoteState` lands in (2d)
+- [ ] conflict indicator + stashed-changes view (Done / Won't-do)  ← (2e)
+- [x] conflict state-machine tests green  ← `conflicts.test.js` + `sync.test.js`
+      (fast-forward rebase, first-conflict-onward stash, pristine ancestor,
+      stash-commit race / no-data-loss, truncated remote)
 
 > **In-progress notes (resume pointer).** Building Phase 2 in sub-batches, pure
 > logic first then UI, each committed+pushed:

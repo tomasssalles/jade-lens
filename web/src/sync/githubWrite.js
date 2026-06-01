@@ -9,7 +9,7 @@
 // ref update (remote advanced under us) surfaces as PushConflictError — the
 // conflict signal the sync/stash layer acts on.
 
-import { parseRepoUrl } from '../github.js';
+import { parseRepoUrl, fetchBlobs } from '../github.js';
 
 const GIT_FILE_MODE = '100644'; // regular, non-executable file
 
@@ -78,6 +78,31 @@ export async function getBranchHead(repoUrl, pat, branch) {
     'get commit',
   );
   return { branch: resolvedBranch, commitSha, treeSha: commit.tree.sha };
+}
+
+/**
+ * Read the full remote state of `branch` as the sync layer needs it: the head
+ * commit + tree SHAs (the push parent / base_tree) and the content map. Fetches
+ * the tree by its SHA (not by branch name) so the SHAs and the content come from
+ * the *same* commit even if the remote advances mid-read.
+ *
+ * @returns {{branch, commitSha, treeSha, contentMap: Map<string,string>, truncated: boolean}}
+ */
+export async function fetchRemoteState(repoUrl, pat, branch) {
+  const head = await getBranchHead(repoUrl, pat, branch);
+  const { owner, repo } = ownerRepo(repoUrl);
+  const treeData = await readJson(
+    await api(`/repos/${owner}/${repo}/git/trees/${head.treeSha}?recursive=1`, pat),
+    'get tree',
+  );
+  const contentMap = await fetchBlobs(repoUrl, pat, treeData.tree ?? []);
+  return {
+    branch: head.branch,
+    commitSha: head.commitSha,
+    treeSha: head.treeSha,
+    contentMap,
+    truncated: !!treeData.truncated,
+  };
 }
 
 /**

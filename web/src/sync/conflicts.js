@@ -115,3 +115,26 @@ export function firstConflictIndex(queue, baseMap, remoteMap) {
   }
   return -1;
 }
+
+/**
+ * Partition a queue against a freshly-fetched remote: the batches that rebase
+ * cleanly onto remote (kept) vs. those stashed whole from the first conflict
+ * onward (§4 "first-conflict-onward"). Pure — the caller turns `stashedBatches`
+ * into stash entries and the kept batches into pushes.
+ *
+ * @param {Array<{operations: Array<object>}>} queue
+ * @param {Map<string,string>} baseMap - the last-synced (pristine) base.
+ * @param {Map<string,string>} remoteMap - freshly-fetched remote content.
+ * @returns {{conflictIndex: number, keptQueue: Array, stashedBatches: Array}}
+ */
+export function computeSyncPlan(queue, baseMap, remoteMap) {
+  const conflictIndex = firstConflictIndex(queue, baseMap, remoteMap);
+  if (conflictIndex === -1) {
+    return { conflictIndex, keptQueue: queue, stashedBatches: [] };
+  }
+  return {
+    conflictIndex,
+    keptQueue: queue.slice(0, conflictIndex),
+    stashedBatches: queue.slice(conflictIndex),
+  };
+}

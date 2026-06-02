@@ -18,6 +18,18 @@ tracks upcoming work.
   with `[]` runs once after mount and `status`/`initData` are set
   synchronously, so this is very low risk.
 
+- **FileBrowser tree can lag after a sync-on-focus.** When the app
+  foregrounds, sync pulls remote changes into the operation queue's
+  working content and re-renders the *open file*, but the FileBrowser
+  *tree* still renders from `repoCache` (items + session cache), which
+  isn't refreshed from the queue on focus. So newly added / renamed /
+  deleted files may not appear in the tree until the next navigation to
+  main remounts FileBrowser (which refreshes against the network). Open-
+  file content stays correct; only the tree listing lags. The clean fix
+  is the full §6.1 render-authority flip (tree renders from `workingMap`
+  too) — deferred (see `docs/mutation-sync-implementation-plan.md` Phase
+  3 notes / Phase 5).
+
 - **Module-level preload skips repo URL validation.** `_appPreload` (in
   `App.jsx`) and `_idbReady` (in `FileBrowser.jsx`) are populated at
   module-load time before the repo URL is known. After a URL change the

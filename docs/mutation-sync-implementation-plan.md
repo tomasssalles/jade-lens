@@ -541,27 +541,40 @@ implement when wiring:
 > tested; Phase 3 just attaches it to `visibilitychange`/`focus` and refreshes the
 > view from `workingMap` after each sync/edit.
 
-**Phase 3 — Web checkbox toggle (MVP)** 🚧 IN PROGRESS
-- [ ] toggle → source-line mapping → unified_diff → commit
-- [ ] static commit message (description + files)
-- [ ] read-only-PAT error surfaced clearly
-- [ ] end-to-end toggle→sync verified; lint/test/build green
+**Phase 3 — Web checkbox toggle (MVP)** ✅ DONE (one documented limitation)
+- [x] toggle → source-line mapping → unified_diff → commit
+- [x] static commit message (description + files)
+- [x] read-only-PAT error surfaced clearly
+- [x] end-to-end toggle→sync: automated coverage + lint/test/build green
+      (live two-tab / cross-device check is the owner's — no component-test infra)
 
-> **In-progress notes (resume pointer).** Sub-batches:
+> **Phase 3 notes (complete).** Sub-batches:
 > - **(3a) edit logic** — `web/src/edit/checkbox.js` `buildCheckboxToggle(content,
 >   line, path)` → one-op `unified_diff` batch flipping `[ ]`↔`[x]` at the source
 >   line + static commit message. `syncController.commitEdit()` = enqueue →
 >   optimistic `push` → on conflict `sync` (stash) → return new working content +
->   status; classifies read-only-PAT (403/401) errors. Pure/unit-tested.
-> - **(3b) renderer** — interactive checkbox in `MarkdownRenderer` via a
->   per-`li` context carrying the source line (from the mdast `listItem`
->   position); the `input` override reads it + calls `onToggle(line, checked)`.
-> - **(3c) wiring** — `FileView`→`App` toggle handler: derive op, `commitEdit`,
->   re-render from `workingMap`, refresh `repoCache`/session (§6.1 render half),
->   error toasts, lazy queue-init (covers reload-straight-into-a-file).
-> - **(3d) focus sync** — the Phase-2 carry-over: `visibilitychange`/`focus` →
->   `OpQueue.sync()` → refresh view + caches + stash indicator (silent on
->   offline/transient).
+>   status; classifies read-only-PAT (403/401) errors, silent on network. Tested.
+> - **(3b) renderer** — interactive checkbox in `MarkdownRenderer` via a per-`li`
+>   context (`edit/checkboxContext.js`) carrying the mdast source line; the
+>   `input` override (`TaskCheckbox`) reads it + `onToggle(line, checked)`.
+>   `checkboxLine.test.js` pins the source-line mapping against the real remark
+>   pipeline.
+> - **(3c) wiring** — `FileView`→`App.handleCheckboxToggle`: derive op,
+>   `commitEdit`, re-render from `workingMap`, refresh `repoCache`/session
+>   (`updateCachedFile`, the §6.1 render half), stash/error toasts, lazy
+>   queue-init (covers reload-straight-into-a-file).
+> - **(3d) focus sync** — the Phase-2 carry-over, now done: `visibilitychange`/
+>   `focus` → `OpQueue.sync()` → refresh stash indicator + re-render the open file
+>   from `workingMap`. Concurrency-guarded; silent on offline/transient/auth.
+>
+> **Documented limitation (remaining §6.1 slice).** A focus-sync updates the open
+> file + the queue's content authority, but the **FileBrowser tree cache**
+> (`repoCache` items/session) is not refreshed from `workingMap` on focus, so the
+> *tree* can show stale structure (added/renamed/deleted files) until the next
+> full load / navigation to main remounts FileBrowser. Modified open-file content
+> is fresh; only the tree listing lags. The clean fix is the full render-
+> authority flip — make `workingMap` the single source the tree renders from too
+> — which is larger than the MVP needs. Tracked for a Phase 5 follow-up.
 
 **Phase 4 — /jade auto-sync + stash**
 - [ ] pull-before / push-after every interaction

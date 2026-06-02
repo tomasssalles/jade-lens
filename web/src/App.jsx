@@ -6,14 +6,13 @@ import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile } from './repoCache'
-import { commitEdit } from './sync/syncController'
 import { buildCheckboxToggle } from './edit/checkbox'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 import StashView from './StashView'
-import { getStashEntries } from './sync/syncController'
+import { getStashEntries, getQueue, commitEdit } from './sync/syncController'
 
 function jadeConfigFromRepo(repo) {
   if (!repo) return null
@@ -31,6 +30,8 @@ function App() {
   const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
   const [stashCount, setStashCount] = useState(0)
   const toastTimer = useRef(null)
+  const fileViewRef = useRef(null) // latest fileView, for the focus-sync closure
+  const syncingRef = useRef(false) // guards against overlapping focus syncs
 
   // Recompute the conflict-indicator count from the sync queue's stash state.
   // Called after content (re)loads and after a stash entry is resolved.
@@ -184,6 +185,46 @@ function App() {
     history.pushState({ page: newPage }, '', '#' + newPage)
     setPage(newPage)
   }, [])
+
+  useEffect(() => { fileViewRef.current = fileView }, [fileView])
+
+  // Sync-on-focus (docs/sync-and-conflicts.md §2): pull remote on foreground,
+  // routing any same-file conflicts into the stash, and push pending local work.
+  // Best-effort and silent on offline/transient/auth failures — the explicit
+  // edit path surfaces those; a background pull should not nag.
+  const syncOnFocus = useCallback(async () => {
+    if (syncingRef.current) return
+    syncingRef.current = true
+    try {
+      const q = getQueue()
+      const state = await q.getState()
+      if (!state) return // queue not initialised yet — nothing to sync
+      let cfg
+      try { cfg = await getConfig() } catch { return }
+      if (state.repoUrl !== cfg.githubRepoUrl) return
+      try { await q.sync({ pat: cfg.githubPat }) } catch { return }
+      await refreshStash()
+      const after = await q.getState()
+      const fv = fileViewRef.current
+      const nc = after?.workingMap?.get(fv?.path)
+      if (fv && nc !== undefined && nc !== fv.content) {
+        setFileView({ path: fv.path, content: nc })
+        updateCachedFile(cfg.githubRepoUrl, fv.path, nc)
+      }
+    } finally {
+      syncingRef.current = false
+    }
+  }, [refreshStash])
+
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden) syncOnFocus() }
+    window.addEventListener('focus', syncOnFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', syncOnFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [syncOnFocus])
 
   useEffect(() => {
     applySettingsCssVars(viewerSettings)

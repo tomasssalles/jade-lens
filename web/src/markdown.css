@@ -41,6 +41,10 @@
   cursor: default;
 }
 
+.jl-checkbox-editable {
+  cursor: pointer;
+}
+
 /* Inline markdown inside card viewer — render on same line as key label */
 .jl-inline-markdown {
   display: inline;

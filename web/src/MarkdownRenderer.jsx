@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useContext, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { visit, SKIP } from 'unist-util-visit'
@@ -18,7 +18,37 @@ import remarkWikilinks from './plugins/remarkWikilinks'
 import remarkDates from './plugins/remarkDates'
 import WikilinkNode from './nodes/WikilinkNode'
 import DateNode from './nodes/DateNode'
+import { CheckboxToggleContext, ListItemLineContext } from './edit/checkboxContext'
 import './markdown.css'
+
+// A task-list checkbox. Interactive when a toggle handler is in context and the
+// enclosing list item's source line is known; otherwise read-only (as before).
+function TaskCheckbox({ checked }) {
+  const onToggle = useContext(CheckboxToggleContext)
+  const line = useContext(ListItemLineContext)
+  if (onToggle && line != null) {
+    return (
+      <input
+        type="checkbox"
+        checked={!!checked}
+        className="jl-checkbox jl-checkbox-editable"
+        onChange={() => onToggle(line, !!checked)}
+      />
+    )
+  }
+  return <input type="checkbox" checked={!!checked} readOnly disabled className="jl-checkbox" />
+}
+
+// A markdown list item that publishes its source line to descendants, so a task
+// checkbox inside it can map back to the source for an in-place toggle.
+function ListItem({ node, children, ...props }) {
+  const line = node?.position?.start?.line ?? null
+  return (
+    <ListItemLineContext.Provider value={line}>
+      <li {...props}>{children}</li>
+    </ListItemLineContext.Provider>
+  )
+}
 
 // Strip raw HTML nodes (<!-- comments -->, inline tags) before remark-rehype
 // sees them — react-markdown leaks their source text without rehype-raw.
@@ -39,8 +69,9 @@ const rehypeHighlightOptions = {
 }
 const rehypePlugins = [[rehypeHighlight, rehypeHighlightOptions]]
 
-// inline=true: suppresses paragraph margins for card viewer string values
-export default function MarkdownRenderer({ content, onWikilinkClick, inline = false }) {
+// inline=true: suppresses paragraph margins for card viewer string values.
+// onCheckboxToggle(line, checked): enables in-place task-checkbox toggling.
+export default function MarkdownRenderer({ content, onWikilinkClick, onCheckboxToggle = null, inline = false }) {
   const components = useMemo(() => ({
     wikilink: ({ path }) => (
       <WikilinkNode path={path} onWikilinkClick={onWikilinkClick} />
@@ -51,19 +82,20 @@ export default function MarkdownRenderer({ content, onWikilinkClick, inline = fa
         {children}
       </a>
     ),
+    li: ListItem,
     input: ({ type, checked }) => {
-      if (type === 'checkbox') {
-        return <input type="checkbox" checked={checked} readOnly disabled className="jl-checkbox" />
-      }
+      if (type === 'checkbox') return <TaskCheckbox checked={checked} />
       return <input type={type} />
     },
   }), [onWikilinkClick])
 
   return (
-    <div className={`jl-markdown${inline ? ' jl-inline-markdown' : ''}`}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
-        {content}
-      </ReactMarkdown>
-    </div>
+    <CheckboxToggleContext.Provider value={onCheckboxToggle}>
+      <div className={`jl-markdown${inline ? ' jl-inline-markdown' : ''}`}>
+        <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    </CheckboxToggleContext.Provider>
   )
 }

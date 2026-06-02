@@ -137,12 +137,17 @@ button[type='submit']:disabled {
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.75);
+  max-width: min(92vw, 34rem);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.82);
   color: white;
   padding: 0.7rem 1.2rem;
   border-radius: 6px;
   font-size: 0.9rem;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
 

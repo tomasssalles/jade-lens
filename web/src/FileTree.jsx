@@ -85,7 +85,7 @@ export default function FileTree({ items, onFileClick, openDirs, onToggle }) {
             style={{ paddingLeft: '0.75rem' }}
             onClick={() => onFileClick(indexNode.fullPath)}
           >
-            <span className="tree-index-icon" aria-hidden="true">★</span>
+            <span className="tree-index-icon" aria-hidden="true">🔍</span>
             {stripExt(indexNode.name)}
           </div>
           <div className="tree-index-separator" />

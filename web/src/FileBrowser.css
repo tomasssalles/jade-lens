@@ -33,16 +33,16 @@
   font-weight: 500;
 }
 
-/* Pinned index entry: emphasized, with a separating gap below it. */
+/* Pinned index entry: emphasized, with a separating gap below it. Uses the
+   shallow card colour so it reads against the dark tree background. */
 .tree-index {
   font-weight: 600;
-  color: var(--jl-title-color, #006644);
+  color: var(--jl-card-color, #9db4d6);
 }
 
 .tree-index-icon {
-  font-size: 0.8rem;
+  font-size: 1rem;
   flex-shrink: 0;
-  opacity: 0.85;
 }
 
 .tree-index-separator {

@@ -99,6 +99,9 @@ export function applySettingsCssVars(settings) {
   root.style.setProperty('--jl-url-color-faded', settings.urlColor + '66')
   root.style.setProperty('--jl-title-color', getTitleColor(settings))
   root.style.setProperty('--jl-border-color', getBorderColor(settings))
+  // The shallow card colour, reused for the pinned index row in the file tree —
+  // light enough to read against the (dark) tree background.
+  root.style.setProperty('--jl-card-color', getCardColor(0, settings))
 }
 
 export async function getViewerSettings() {

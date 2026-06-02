@@ -21,7 +21,7 @@ function filterItems(items) {
   return Array.isArray(items) ? items.filter(item => !isExcluded(item)) : []
 }
 
-export default function FileBrowser({ onFileOpen, onJadeConfig }) {
+export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded }) {
   // Initialise synchronously from whatever is already in memory: the session
   // cache (in-app navigation) or the module-load IDB preload (page reload).
   const initData = getSessionCache() ?? getPreloadedRepo()
@@ -47,13 +47,15 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
     // (§6.1 read-path → init). Best-effort: it fetches the head SHAs and is
     // guarded against truncated trees, but must never block or break the read.
     function ensureQueueInit(cfg, branch, contentMap, truncated) {
-      initQueueFromRead(getQueue(), {
+      return initQueueFromRead(getQueue(), {
         repoUrl: cfg.githubRepoUrl,
         branch,
         pat: cfg.githubPat,
         contentMap,
         truncated,
-      }).catch(() => {})
+      })
+        .then(() => { if (!cancelled) onContentLoaded?.() })
+        .catch(() => {})
     }
 
     // Publish a fetched/cached repo record to component state, the session
@@ -141,6 +143,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
           setStatus('ready')
           const jadeCfg = parseJadeConfig(session.contentMap)
           if (jadeCfg) onJadeConfig?.(jadeCfg)
+          onContentLoaded?.() // queue was initialised on a prior load this session
           return
         }
 

@@ -480,7 +480,7 @@ implement when wiring:
 > (render authority, refresh-on-edit, the truncation guard) is the deferred §6.1
 > contract — implement it when wiring, not before.**
 
-**Phase 2 — Web sync + conflict + stash** 🚧 IN PROGRESS
+**Phase 2 — Web sync + conflict + stash** ✅ DONE (one carry-over to Phase 3)
 - [x] file-level conflict detection incl. rename/delete semantics  ← (2a) `conflicts.js` done
 - [x] stash write (full batch + pristine ancestors) + reset + commit; "first-conflict-onward" rule
       ← (2b) entry construction + (2c) `OpQueue.sync()` stash bookkeeping commit
@@ -494,13 +494,19 @@ implement when wiring:
       `workingMap` makes the queue the content authority — wiring a focus
       listener now (read-only app, nothing to push) would create the dual-
       authority drift §6.1 warns against.
-- [ ] conflict indicator + stashed-changes view (Done / Won't-do)  ← (2e)
+- [x] conflict indicator + stashed-changes view (Done / Won't-do)  ← (2e):
+      `StashView.jsx` (lists entries: timestamp + per-op `describeOperation`
+      lines + Done/Won't-do → `resolveStashEntry`), `⚠️` indicator in `Main`
+      shown while the queue's stash is non-empty, `stash` page wired in `App`.
+      `FileBrowser` fires `onContentLoaded` → `App.refreshStash` to recompute the
+      count. Underlying logic unit-tested (2e-i); React wiring verified via build
+      (repo has no component-test infra — not adding it unprompted).
 - [x] conflict state-machine tests green  ← `conflicts.test.js` + `sync.test.js`
       (fast-forward rebase, first-conflict-onward stash, pristine ancestor,
       stash-commit race / no-data-loss, truncated remote)
 
-> **In-progress notes (resume pointer).** Building Phase 2 in sub-batches, pure
-> logic first then UI, each committed+pushed:
+> **Phase 2 notes (complete — kept as a map of the sync layer).** Built in
+> sub-batches, pure logic first then UI, each committed+pushed:
 > - **(2a) conflict detection** — `web/src/sync/conflicts.js`: `changedPaths`
 >   (base↔remote diff), `batchTouchedPaths` (per-batch concrete paths incl.
 >   rename from/to + recursive directory delete/rename), `firstConflictIndex`
@@ -521,9 +527,19 @@ implement when wiring:
 >   best-effort/non-blocking). The focus-event listener + render-from-`workingMap`
 >   are intentionally folded into Phase 3 (avoids dual-authority drift while
 >   read-only).
-> - **(2e) UI** — conflict indicator (warning glyph while `.jade/stash/`
->   non-empty) + stashed-changes view (Done / Won't-do → delete entry = normal
->   commit).
+> - **(2e) UI** — ✅ conflict indicator (`⚠️` in `Main` while the queue's stash
+>   is non-empty) + `StashView` page (Done / Won't-do → `resolveStash` = a normal
+>   bookkeeping commit). 2e-i = logic (`describeOperation`, `OpQueue.resolveStash`,
+>   controller `getStashEntries`/`resolveStashEntry`); 2e-ii = React components +
+>   `App`/`Main`/`FileBrowser` wiring.
+>
+> **Carry-over into Phase 3** (intentional, not a gap): the window **focus-event**
+> hookup that calls `OpQueue.sync()` is deferred to Phase 3, where rendering flips
+> to the queue's `workingMap` (§6.1) — doing it in Phase 2, while the app is
+> read-only with nothing to push and renders from `repoCache`, would create the
+> dual-authority drift §6.1 warns against. `OpQueue.sync()` itself is built and
+> tested; Phase 3 just attaches it to `visibilitychange`/`focus` and refreshes the
+> view from `workingMap` after each sync/edit.
 
 **Phase 3 — Web checkbox toggle (MVP)**
 - [ ] toggle → source-line mapping → unified_diff → commit

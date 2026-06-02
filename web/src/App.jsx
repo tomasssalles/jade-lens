@@ -10,6 +10,8 @@ import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
+import StashView from './StashView'
+import { getStashEntries } from './sync/syncController'
 
 function jadeConfigFromRepo(repo) {
   if (!repo) return null
@@ -25,7 +27,14 @@ function App() {
   // Initialise synchronously from the module-load preload so the H1 is present
   // on the first render (no flash) when IDB resolved before mount.
   const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
+  const [stashCount, setStashCount] = useState(0)
   const toastTimer = useRef(null)
+
+  // Recompute the conflict-indicator count from the sync queue's stash state.
+  // Called after content (re)loads and after a stash entry is resolved.
+  const refreshStash = useCallback(async () => {
+    try { setStashCount((await getStashEntries()).length) } catch { /* ignore */ }
+  }, [])
 
   const showToast = useCallback((message, ms = 2000) => {
     setToastMessage(message)
@@ -146,6 +155,7 @@ function App() {
   }, [])
 
   const handleSettings = useCallback(() => goTo('settings'), [goTo])
+  const handleStash = useCallback(() => goTo('stash'), [goTo])
 
   return (
     <TimeFormatContext.Provider value={viewerSettings.timeFormat ?? 'auto'}>
@@ -173,6 +183,9 @@ function App() {
           onFileOpen={page === 'main' ? openFile : undefined}
           jadeConfig={jadeConfig}
           onJadeConfig={setJadeConfig}
+          onContentLoaded={refreshStash}
+          stashCount={stashCount}
+          onStash={page === 'main' ? handleStash : undefined}
         />
       )}
       {page === 'settings' && (
@@ -182,6 +195,13 @@ function App() {
           jadeConfig={jadeConfig}
           viewerSettings={viewerSettings}
           onViewerSettingsChange={updateViewerSettings}
+        />
+      )}
+      {page === 'stash' && (
+        <StashView
+          onClose={() => history.back()}
+          onChange={setStashCount}
+          showToast={showToast}
         />
       )}
       {page === 'file' && fileView && (

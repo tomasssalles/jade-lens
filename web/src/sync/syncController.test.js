@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpQueue } from './opQueue.js';
 import { createMemoryQueueStore } from './queueStore.js';
-import { initQueueFromRead } from './syncController.js';
+import { initQueueFromRead, commitEdit } from './syncController.js';
+import { PushConflictError, GitHubWriteError } from './githubWrite.js';
+import { buildCheckboxToggle } from '../edit/checkbox.js';
 
 const VERSION = 'v0.1.0';
 const baseMap = (extra = {}) => new Map([['.jade/version', VERSION], ...Object.entries(extra)]);
@@ -84,5 +86,85 @@ describe('initQueueFromRead', () => {
     expect(ok).toBe(true);
     expect(getHead).toHaveBeenCalled();
     expect((await q.getState()).baseCommitSha).toBe('otherC');
+  });
+});
+
+describe('commitEdit', () => {
+  const TODO = 'todo.md';
+  const repoUrl = 'https://github.com/o/r';
+
+  function editArgs(content = '- [ ] a\n', line = 1) {
+    const { operations, commitMessage } = buildCheckboxToggle(content, line, TODO);
+    return {
+      repoUrl,
+      branch: 'main',
+      pat: 'tok',
+      operations,
+      commitMessage,
+      contentMap: baseMap({ [TODO]: content }),
+    };
+  }
+
+  it('initialises, applies the toggle, and pushes (synced)', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    const commit = vi.fn(async () => ({ commitSha: 'c1', treeSha: 't1', changed: true }));
+
+    const res = await commitEdit(editArgs(), { queue: q, commit, getHead: fakeHead() });
+
+    expect(res.outcome).toBe('synced');
+    expect(res.error).toBeNull();
+    expect(res.workingMap.get(TODO)).toBe('- [x] a\n');
+    expect((await q.getState()).queue).toHaveLength(0); // pushed
+  });
+
+  it('surfaces a read-only-PAT error but keeps the optimistic local change', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    const commit = vi.fn(async () => {
+      throw new GitHubWriteError('forbidden', 403);
+    });
+
+    const res = await commitEdit(editArgs(), { queue: q, commit, getHead: fakeHead() });
+
+    expect(res.outcome).toBe('pending');
+    expect(res.error).toMatch(/read-only|write/i);
+    expect(res.workingMap.get(TODO)).toBe('- [x] a\n'); // applied locally
+    expect((await q.getState()).queue).toHaveLength(1); // still queued to retry
+  });
+
+  it('stays silent on a network error (no message), leaving the change queued', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    const commit = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const res = await commitEdit(editArgs(), { queue: q, commit, getHead: fakeHead() });
+
+    expect(res.outcome).toBe('pending');
+    expect(res.error).toBeNull();
+    expect((await q.getState()).queue).toHaveLength(1);
+  });
+
+  it('falls back to sync on a push conflict and rebases when there is no real clash', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    let n = 0;
+    const commit = vi.fn(async () => {
+      n += 1;
+      if (n === 1) throw new PushConflictError(); // optimistic push rejected
+      return { commitSha: `c${n}`, treeSha: `t${n}`, changed: true };
+    });
+    // Remote advanced but to identical content → sync rebases, no stash.
+    const fetchRemote = async () => ({
+      branch: 'main',
+      commitSha: 'remoteC',
+      treeSha: 'remoteT',
+      contentMap: baseMap({ [TODO]: '- [ ] a\n' }),
+      truncated: false,
+    });
+
+    const res = await commitEdit(editArgs(), { queue: q, commit, fetchRemote, getHead: fakeHead() });
+
+    expect(res.outcome).toBe('synced');
+    expect(res.stashed).toBe(0);
+    expect(res.workingMap.get(TODO)).toBe('- [x] a\n');
   });
 });

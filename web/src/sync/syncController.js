@@ -11,7 +11,7 @@
 
 import { OpQueue } from './opQueue.js';
 import { createIdbQueueStore } from './idbQueueStore.js';
-import { getBranchHead } from './githubWrite.js';
+import { getBranchHead, GitHubWriteError } from './githubWrite.js';
 import { listStashPaths } from './stash.js';
 
 let _queue = null;
@@ -85,4 +85,72 @@ export async function getStashEntries(queue = getQueue()) {
 /** Resolve (delete) a stash entry — both "Done" and "Won't do" route here. */
 export async function resolveStashEntry(path, { pat }, queue = getQueue()) {
   return queue.resolveStash(path, { pat });
+}
+
+// Classify a write failure into a user-facing message. Auth problems are
+// surfaced (the change is queued locally meanwhile); a plain network failure is
+// silent (the app works offline and sync resumes — docs/sync-and-conflicts.md §2).
+function classifyEditError(err) {
+  if (err instanceof GitHubWriteError && err.status === 403) {
+    return 'Your GitHub token can’t write to this repo (read-only, or missing “Contents: write”). The change is saved locally — update the PAT in Settings to sync.';
+  }
+  if (err instanceof GitHubWriteError && err.status === 401) {
+    return 'GitHub rejected your token (expired or invalid). The change is saved locally — update the PAT in Settings to sync.';
+  }
+  if (err instanceof GitHubWriteError) {
+    return `Could not sync the change (GitHub returned ${err.status}). It is saved locally and will retry.`;
+  }
+  return null; // network / unknown → silent; the queued change retries later.
+}
+
+/**
+ * Commit a UI edit (docs/web/editing.md): apply + enqueue the batch, push
+ * optimistically, and on a non-fast-forward fall back to a full sync (which
+ * stashes the conflict). The local change applies regardless (local-first); a
+ * failed push leaves it queued to retry.
+ *
+ * Ensures the queue is initialised for `repoUrl` first — `contentMap` seeds it
+ * when needed (e.g. a reload straight into a file view, where FileBrowser never
+ * mounted to init the queue).
+ *
+ * @returns {Promise<{workingMap, outcome: 'synced'|'stashed'|'pending', stashed: number, error: string|null}>}
+ */
+export async function commitEdit(
+  { repoUrl, branch, pat, operations, commitMessage, contentMap },
+  { queue = getQueue(), commit, fetchRemote, getHead } = {},
+) {
+  const state = await queue.getState();
+  if (!state || state.repoUrl !== repoUrl) {
+    if (!contentMap) throw new Error('Edit queue is not initialised for this repo');
+    await initQueueFromRead(
+      queue,
+      { repoUrl, branch, pat, contentMap },
+      getHead ? { getHead } : undefined,
+    );
+  }
+
+  await queue.enqueue({ operations, commitMessage });
+
+  const pushOpts = { pat, ...(commit ? { commit } : {}) };
+  const syncOpts = { ...pushOpts, ...(fetchRemote ? { fetchRemote } : {}) };
+
+  try {
+    let result = await queue.push(pushOpts);
+    if (result.conflicted) result = await queue.sync(syncOpts);
+    const after = await queue.getState();
+    return {
+      workingMap: after?.workingMap ?? null,
+      outcome: result.stashed ? 'stashed' : 'synced',
+      stashed: result.stashed ?? 0,
+      error: null,
+    };
+  } catch (err) {
+    const after = await queue.getState();
+    return {
+      workingMap: after?.workingMap ?? null,
+      outcome: 'pending',
+      stashed: 0,
+      error: classifyEditError(err),
+    };
+  }
 }

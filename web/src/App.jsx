@@ -219,16 +219,30 @@ function App() {
     }
   }, [refreshStatus])
 
-  // Fired by FileBrowser once content has loaded (and the queue is initialised).
-  // Refreshes the indicators and, once per app load, retries any pending pushes —
-  // so a reload / pull-to-refresh re-attempts a previously failed sync.
-  const handleContentLoaded = useCallback(() => {
-    refreshStatus()
-    if (!initialSyncDone.current) {
-      initialSyncDone.current = true
-      syncOnFocus()
+  // Retry pending (previously-failed) pushes once per app load. Driven from App
+  // — NOT from FileBrowser — so it runs no matter which page the app reopened on
+  // (FileBrowser only mounts on the main screen; you can reload straight into a
+  // file view). Unlike the silent focus retry, a deliberate (re)load reports the
+  // outcome, since reloading is the documented way to retry.
+  const retryPendingOnLoad = useCallback(async () => {
+    if ((await getPendingCount()) === 0) return // nothing pending → stay silent
+    await syncOnFocus()
+    if ((await getPendingCount()) === 0) {
+      showToast('Local changes synced.', 3000)
+    } else {
+      showToast(
+        'Some local changes still haven’t synced. Check that your token in ' +
+        'Settings has write access, then reload again.',
+        7000,
+      )
     }
-  }, [refreshStatus, syncOnFocus])
+  }, [syncOnFocus, showToast])
+
+  useEffect(() => {
+    if (initialSyncDone.current) return
+    initialSyncDone.current = true
+    retryPendingOnLoad()
+  }, [retryPendingOnLoad])
 
   // Clicking the pending-sync indicator explains the state (no separate sheet).
   const handlePendingClick = useCallback(() => {
@@ -287,7 +301,7 @@ function App() {
           onFileOpen={page === 'main' ? openFile : undefined}
           jadeConfig={jadeConfig}
           onJadeConfig={setJadeConfig}
-          onContentLoaded={handleContentLoaded}
+          onContentLoaded={refreshStatus}
           stashCount={stashCount}
           onStash={page === 'main' ? handleStash : undefined}
           pendingCount={pendingCount}

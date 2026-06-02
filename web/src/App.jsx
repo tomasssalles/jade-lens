@@ -5,7 +5,9 @@ import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
-import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig } from './repoCache'
+import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile } from './repoCache'
+import { commitEdit } from './sync/syncController'
+import { buildCheckboxToggle } from './edit/checkbox'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
@@ -110,6 +112,44 @@ function App() {
     openFile(path, content)
   }, [openFile, showToast])
 
+  // Micro-edit: toggle a task-list checkbox in the open markdown file. Derives a
+  // unified_diff, commits it through the shared pipeline (commitEdit), then
+  // re-renders from the queue's working content and refreshes the read caches.
+  const handleCheckboxToggle = useCallback(async (line) => {
+    if (!fileView) return
+    const { path, content } = fileView
+    const batch = buildCheckboxToggle(content, line, path)
+    if (!batch) return
+
+    let cfg
+    try { cfg = await getConfig() } catch { return }
+    const cached = await getCachedRepo().catch(() => null)
+
+    try {
+      const res = await commitEdit({
+        repoUrl: cfg.githubRepoUrl,
+        branch: cached?.branch,
+        pat: cfg.githubPat,
+        operations: batch.operations,
+        commitMessage: batch.commitMessage,
+        contentMap: cached?.repoUrl === cfg.githubRepoUrl ? cached.contentMap : undefined,
+      })
+      const newContent = res.workingMap?.get(path)
+      if (newContent !== undefined) {
+        setFileView({ path, content: newContent })
+        await updateCachedFile(cfg.githubRepoUrl, path, newContent)
+      }
+      await refreshStash()
+      if (res.outcome === 'stashed') {
+        showToast('Change conflicted with a remote edit — stashed for review.', 5000)
+      } else if (res.error) {
+        showToast(res.error, 6000)
+      }
+    } catch (err) {
+      showToast(`Couldn't apply edit: ${err.message}`)
+    }
+  }, [fileView, refreshStash, showToast])
+
   useEffect(() => {
     async function onPopState(e) {
       const newPage = e.state?.page ?? 'main'
@@ -211,6 +251,7 @@ function App() {
           onBack={() => history.back()}
           viewerSettings={viewerSettings}
           onWikilinkClick={handleWikilinkClick}
+          onCheckboxToggle={handleCheckboxToggle}
         />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}

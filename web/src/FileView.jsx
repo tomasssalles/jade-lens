@@ -18,7 +18,7 @@ const scrollPositions = (() => {
   return map
 })()
 
-export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick }) {
+export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick, onCheckboxToggle }) {
   const scrollerRef = useRef(null)
 
   useEffect(() => {
@@ -79,7 +79,11 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
           }}>
             <FileBreadcrumb filePath={path} s={s} onBack={onBack} />
             <div className="jl-file-content">
-              <MarkdownRenderer content={content} onWikilinkClick={onWikilinkClick} />
+              <MarkdownRenderer
+                content={content}
+                onWikilinkClick={onWikilinkClick}
+                onCheckboxToggle={onCheckboxToggle}
+              />
             </div>
           </div>
         </div>

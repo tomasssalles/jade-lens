@@ -67,3 +67,22 @@ export function setSessionCache(data) {
 export function getContentFromCache(path) {
   return _session?.contentMap?.get(path)
 }
+
+// Reflect an edited file's new content back into the read caches (§6.1 render
+// half), so an in-app navigation or a reload shows the post-edit content rather
+// than the pre-edit cached copy. Updates the in-memory session cache and the
+// persisted IndexedDB cache; the tree-item SHAs go briefly stale but self-heal
+// on the next background refresh.
+export async function updateCachedFile(repoUrl, path, content) {
+  const sess = _session
+  if (sess?.repoUrl === repoUrl && sess.contentMap) {
+    sess.contentMap.set(path, content)
+  }
+  try {
+    const cached = await getCachedRepo()
+    if (cached?.repoUrl === repoUrl && cached.contentMap) {
+      cached.contentMap.set(path, content)
+      await setCachedRepo(cached)
+    }
+  } catch { /* cache update is best-effort */ }
+}

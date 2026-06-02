@@ -1,0 +1,31 @@
+{
+  "name": "rename captures the source ancestor only",
+  "description": "rename_path: the source exists at the base (ancestor); the destination does not.",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "old.md": "content\n"
+  },
+  "operations": [
+    {
+      "op": "rename_path",
+      "from": "old.md",
+      "to": "new.md"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {
+        "old.md": "content\n"
+      },
+      "operations": [
+        {
+          "op": "rename_path",
+          "from": "old.md",
+          "to": "new.md"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {\n    \"old.md\": \"content\\n\"\n  },\n  \"operations\": [\n    {\n      \"op\": \"rename_path\",\n      \"from\": \"old.md\",\n      \"to\": \"new.md\"\n    }\n  ]\n}\n"
+  }
+}

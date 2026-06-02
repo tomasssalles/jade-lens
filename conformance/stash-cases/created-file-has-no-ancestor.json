@@ -1,0 +1,29 @@
+{
+  "name": "created file has no ancestor",
+  "description": "create_file: the file did not exist at the base, so it is omitted from ancestors.",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "existing.md": "x\n"
+  },
+  "operations": [
+    {
+      "op": "create_file",
+      "path": "new.md",
+      "content": "y\n"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {},
+      "operations": [
+        {
+          "op": "create_file",
+          "path": "new.md",
+          "content": "y\n"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {},\n  \"operations\": [\n    {\n      \"op\": \"create_file\",\n      \"path\": \"new.md\",\n      \"content\": \"y\\n\"\n    }\n  ]\n}\n"
+  }
+}

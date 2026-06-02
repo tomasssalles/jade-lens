@@ -1,0 +1,32 @@
+{
+  "name": "directory delete captures the whole subtree ancestor",
+  "description": "delete_path on a directory expands to every file beneath it.",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "dir/a.md": "A\n",
+    "dir/b.md": "B\n",
+    "other.md": "O\n"
+  },
+  "operations": [
+    {
+      "op": "delete_path",
+      "path": "dir"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {
+        "dir/a.md": "A\n",
+        "dir/b.md": "B\n"
+      },
+      "operations": [
+        {
+          "op": "delete_path",
+          "path": "dir"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {\n    \"dir/a.md\": \"A\\n\",\n    \"dir/b.md\": \"B\\n\"\n  },\n  \"operations\": [\n    {\n      \"op\": \"delete_path\",\n      \"path\": \"dir\"\n    }\n  ]\n}\n"
+  }
+}

@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run && npm run test:conformance",
-    "test:conformance": "node ../conformance/runners/js/run.mjs",
+    "test:conformance": "node ../conformance/runners/js/run.mjs && node ../conformance/runners/js/run-stash.mjs",
     "test:watch": "vitest",
     "preview": "vite preview"
   },

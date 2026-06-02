@@ -1,0 +1,43 @@
+{
+  "name": "ancestors are sorted and non-ASCII is emitted raw",
+  "description": "Two edits; ancestor keys sort a<z and UTF-8 stays raw (ensure_ascii=False parity).",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "z.md": "Z\n",
+    "a.md": "café ☕\n"
+  },
+  "operations": [
+    {
+      "op": "unified_diff",
+      "path": "z.md",
+      "diff": "@@ -1,1 +1,1 @@\n-Z\n+ZZ\n"
+    },
+    {
+      "op": "unified_diff",
+      "path": "a.md",
+      "diff": "@@ -1,1 +1,1 @@\n-café ☕\n+done\n"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {
+        "a.md": "café ☕\n",
+        "z.md": "Z\n"
+      },
+      "operations": [
+        {
+          "op": "unified_diff",
+          "path": "z.md",
+          "diff": "@@ -1,1 +1,1 @@\n-Z\n+ZZ\n"
+        },
+        {
+          "op": "unified_diff",
+          "path": "a.md",
+          "diff": "@@ -1,1 +1,1 @@\n-café ☕\n+done\n"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {\n    \"a.md\": \"café ☕\\n\",\n    \"z.md\": \"Z\\n\"\n  },\n  \"operations\": [\n    {\n      \"op\": \"unified_diff\",\n      \"path\": \"z.md\",\n      \"diff\": \"@@ -1,1 +1,1 @@\\n-Z\\n+ZZ\\n\"\n    },\n    {\n      \"op\": \"unified_diff\",\n      \"path\": \"a.md\",\n      \"diff\": \"@@ -1,1 +1,1 @@\\n-café ☕\\n+done\\n\"\n    }\n  ]\n}\n"
+  }
+}

@@ -10,6 +10,15 @@ they encode. Each client ships a thin *runner* that feeds the fixtures through
 its own pipeline and asserts the outcome. The fixtures are the single source of
 truth; the runners are small and language-local.
 
+There are two scopes:
+
+- **Mutation** (`cases/`) — op application: the pipeline behaviour. 62 cases.
+- **Stash** (`stash-cases/`) — conflict-stash entry construction: given
+  `operations` + `timestamp` + `base_content`, both clients must build the same
+  `entry` and serialise the same exact bytes (so a stash created on one device
+  reads identically on another). Runners: `runners/python/test_stash_conformance.py`
+  and `runners/js/run-stash.mjs`. See §7.
+
 ---
 
 ## 1. Why this exists
@@ -287,10 +296,11 @@ Notes:
 ```
 conformance/
 ├── README.md          # this file — the contract
-├── cases/             # *.json fixtures, one case per file
+├── cases/             # *.json mutation fixtures, one case per file
+├── stash-cases/       # *.json stash-entry fixtures (the stash scope, §9)
 └── runners/
-    ├── python/       # the Python runner (pytest, parametrised over cases/)
-    └── js/           # the JS runner (run.mjs; drives web/src/mutation)
+    ├── python/       # test_conformance.py (mutation) + test_stash_conformance.py
+    └── js/           # run.mjs (mutation) + run-stash.mjs (stash)
 ```
 
 Cases are grouped by filename prefix for readability, not by any loaded
@@ -309,6 +319,42 @@ manifest — runners glob `cases/*.json`. Suggested prefixes: `parse_`,
 
 A case should pin **one** behaviour. Prefer many small focused cases over few
 broad ones: when a runner fails, the case name should tell you what broke.
+
+---
+
+## 9. The stash scope (`stash-cases/`)
+
+The conflict stash (docs/sync-and-conflicts.md §4) is the other cross-client
+artifact: a stash created by one client must be read identically by another. The
+stash scope pins **stash-entry construction** the same way the mutation scope
+pins op application.
+
+**Fixture shape:**
+
+```json
+{
+  "name": "...",
+  "description": "...",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": { "<path>": "<pristine content>", ... },
+  "operations": [ { "op": "...", ... } ],
+  "expect": {
+    "entry": { "timestamp": "...", "ancestors": { ... }, "operations": [ ... ] },
+    "serialized": "<exact JS-canonical bytes: JSON.stringify(entry, null, 2) + \"\\n\">"
+  }
+}
+```
+
+A runner builds the entry from `operations` + `timestamp` + `base_content` (its
+own `build_stash_entry` / `buildStashEntry`) and asserts it equals `expect.entry`
+**and** that serialising it yields `expect.serialized` byte-for-byte. `ancestors`
+are the pristine pre-change content of every touched file present at the base
+(created files omitted), keys sorted; `operations` are verbatim. The byte
+contract is the same JS-canonical form as re-serialised `.json` data files
+(ensure_ascii=False, integer-valued floats normalised) — see §3–§4.
+
+Runners: `runners/python/test_stash_conformance.py` (in `uv run pytest`) and
+`runners/js/run-stash.mjs` (in `npm test` after the mutation runner).
 
 ---
 

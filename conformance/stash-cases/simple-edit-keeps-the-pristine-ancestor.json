@@ -1,0 +1,31 @@
+{
+  "name": "simple edit keeps the pristine ancestor",
+  "description": "A unified_diff on an existing file: the ancestor is the pre-edit content.",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "notes.md": "base\n"
+  },
+  "operations": [
+    {
+      "op": "unified_diff",
+      "path": "notes.md",
+      "diff": "@@ -1,1 +1,1 @@\n-base\n+edit\n"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {
+        "notes.md": "base\n"
+      },
+      "operations": [
+        {
+          "op": "unified_diff",
+          "path": "notes.md",
+          "diff": "@@ -1,1 +1,1 @@\n-base\n+edit\n"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {\n    \"notes.md\": \"base\\n\"\n  },\n  \"operations\": [\n    {\n      \"op\": \"unified_diff\",\n      \"path\": \"notes.md\",\n      \"diff\": \"@@ -1,1 +1,1 @@\\n-base\\n+edit\\n\"\n    }\n  ]\n}\n"
+  }
+}

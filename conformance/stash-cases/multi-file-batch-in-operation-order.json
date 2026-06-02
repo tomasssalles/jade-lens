@@ -1,0 +1,55 @@
+{
+  "name": "multi-file batch in operation order",
+  "description": "A two-file batch: operations are preserved verbatim and in order; ancestors cover both.",
+  "timestamp": "2026-06-01T14:30:22.123Z",
+  "base_content": {
+    "a.json": "{\n  \"x\": 1\n}\n",
+    "b.md": "hello\n"
+  },
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "a.json",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/x",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "op": "unified_diff",
+      "path": "b.md",
+      "diff": "@@ -1,1 +1,1 @@\n-hello\n+bye\n"
+    }
+  ],
+  "expect": {
+    "entry": {
+      "timestamp": "2026-06-01T14:30:22.123Z",
+      "ancestors": {
+        "a.json": "{\n  \"x\": 1\n}\n",
+        "b.md": "hello\n"
+      },
+      "operations": [
+        {
+          "op": "json_patch",
+          "path": "a.json",
+          "patch": [
+            {
+              "op": "replace",
+              "path": "/x",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "op": "unified_diff",
+          "path": "b.md",
+          "diff": "@@ -1,1 +1,1 @@\n-hello\n+bye\n"
+        }
+      ]
+    },
+    "serialized": "{\n  \"timestamp\": \"2026-06-01T14:30:22.123Z\",\n  \"ancestors\": {\n    \"a.json\": \"{\\n  \\\"x\\\": 1\\n}\\n\",\n    \"b.md\": \"hello\\n\"\n  },\n  \"operations\": [\n    {\n      \"op\": \"json_patch\",\n      \"path\": \"a.json\",\n      \"patch\": [\n        {\n          \"op\": \"replace\",\n          \"path\": \"/x\",\n          \"value\": 2\n        }\n      ]\n    },\n    {\n      \"op\": \"unified_diff\",\n      \"path\": \"b.md\",\n      \"diff\": \"@@ -1,1 +1,1 @@\\n-hello\\n+bye\\n\"\n    }\n  ]\n}\n"
+  }
+}

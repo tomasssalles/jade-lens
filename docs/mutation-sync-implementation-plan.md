@@ -617,5 +617,16 @@ implement when wiring:
 - [ ] draft persistence + startup draft-vs-remote → stash
 - [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
 
-**Phase 6 — Cross-client conformance (future)**
-- [ ] stash/sync parity scope (web ↔ /jade)
+**Phase 6 — Cross-client conformance** ✅ DONE
+- [x] stash/sync parity scope (web ↔ /jade)  ← `conformance/stash-cases/` (6
+      fixtures) + `runners/python/test_stash_conformance.py` +
+      `runners/js/run-stash.mjs` (wired into `npm test`). Both clients build the
+      same entry and serialise the same exact bytes (edit/created-omitted/dir-
+      delete-subtree/rename/sorted+non-ASCII/multi-file). README §9 documents it.
+
+> **Phase 6 notes.** Scoped to **stash-entry** parity (the cross-client artifact
+> that `jadelens/stash.py` ↔ `web/src/sync/stash.js` must agree on byte-for-byte).
+> Full sync/resolution-*commit* parity (the git-vs-GitHub-API plumbing) is not
+> conformance-pinned — it's inherently substrate-specific and covered by each
+> client's own integration tests (`test_sync.py`, `sync.test.js`); the portable,
+> comparable artifact is the stash file, which this scope nails down.

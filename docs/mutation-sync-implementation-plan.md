@@ -576,12 +576,41 @@ implement when wiring:
 > authority flip — make `workingMap` the single source the tree renders from too
 > — which is larger than the MVP needs. Tracked for a Phase 5 follow-up.
 
-**Phase 4 — /jade auto-sync + stash**
-- [ ] pull-before / push-after every interaction
-- [ ] real-git conflict/stash flow (discard local commit + log line first)
-- [ ] `jadelens stash list` / `resolve` commands (no `.jade/` carve-out)
-- [ ] SKILL.md template updated (sync is automatic)
-- [ ] Python tests green; stash schema matches web
+**Phase 4 — /jade auto-sync + stash** ✅ DONE
+- [x] pull-before / push-after every interaction  ← (4c) wired into `jadelens-apply`
+- [x] real-git conflict/stash flow (discard local commit + log line first)  ← (4b)
+      `jadelens/sync.py` (`push`: rebase-if-disjoint / stash-on-conflict; ops-log
+      union-merged; conflict detection ignores `.jade/`)
+- [x] `jadelens stash list` / `resolve` commands (no `.jade/` carve-out)  ← (4c)
+      `cli.py` + `sync.list_stash`/`resolve_stash`
+- [x] SKILL.md template updated (sync is automatic)  ← (4d) "Syncing is automatic
+      — never do it yourself" section + the `jadelens stash` commands
+- [x] Python tests green; stash schema matches web  ← (4a) `jadelens/stash.py`
+      byte-identical to `stash.js` (serialization pinned); 319 Python tests green
+
+> **Phase 4 notes (complete).**
+> - **(4a)** `jadelens/stash.py` — ports `stash.js` for byte-identical entries.
+> - **(4b)** `jadelens/sync.py` — `pull`/`push` over real git. Push reconciles a
+>   non-fast-forward: disjoint data files → rebase (ops-log union-merged via local
+>   `.git/info/attributes`) → push; same-file conflict → stash all unpushed
+>   batches (recovered from their ops-log lines, pristine ancestors from the
+>   merge-base), reset to remote, commit the stash files (no ops-log line), push.
+>   **Documented simplification:** any conflict stashes the *whole* unpushed range
+>   (vs the web's first-conflict-onward partial-keep) — safe, exact for the common
+>   single-commit case; finer parity is Phase 6.
+> - **(4c)** `jadelens-apply` does pull-before + push-after (local-first: a push
+>   failure never loses the committed change; a stash prints a clear note).
+>   `jadelens stash list/resolve` are the bot's only stash access.
+> - **(4d)** SKILL.md template tells the bot syncing is automatic and to use the
+>   `jadelens stash` commands (never touch `.jade/`).
+>
+> ⚠️ **Open decision for the owner (not actioned — release/versioning):** Phases
+> 1–4 ship user-visible behaviour (web editing, sync, stash, /jade auto-sync) that
+> goes beyond what `changelogs/v0.1.0.md` scopes ("No web app", "Manual syncing").
+> Whether to (a) expand the v0.1.0 changelog, or (b) cut a new `changelogs/v0.2.0.md`
+> + bump the data version (which touches the deferred §14 migration story) is a
+> release decision left for you — I didn't bump versions or rewrite the v0.1.0
+> scope unilaterally. The plan checklist + KNOWN_ISSUES are the live record meanwhile.
 
 **Phase 5 — Web grow editing**
 - [ ] text editing (session/tiptap/save/cancel/nav-detection)

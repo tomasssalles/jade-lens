@@ -22,8 +22,10 @@ import sys
 from importlib.resources import files
 from pathlib import Path
 
+from jadelens import sync
 from jadelens.config import Config
 from jadelens.skill import parse_marker, render_skill
+from jadelens.stash import describe_operation
 
 CODE_REPO_PATH = Path(__file__).resolve().parent.parent
 SKILLS_DIR = Path.home() / ".claude" / "skills"
@@ -44,10 +46,32 @@ def main() -> None:
         help="Path to the data repo whose .jade/config.json drives the render.",
     )
 
+    stash = sub.add_parser(
+        "stash",
+        help="List or resolve conflict-stash entries in a data repo's .jade/stash/.",
+    )
+    stash_sub = stash.add_subparsers(dest="stash_command")
+    stash_list = stash_sub.add_parser("list", help="List stash entries.")
+    stash_list.add_argument("data_repo", type=Path)
+    stash_resolve = stash_sub.add_parser(
+        "resolve", help="Resolve (delete) a stash entry by id, then sync."
+    )
+    stash_resolve.add_argument("data_repo", type=Path)
+    stash_resolve.add_argument("id", help="The stash entry id (filename stem).")
+
     args = parser.parse_args()
 
     if args.command == "render-skill":
         do_render_skill(args.data_repo.expanduser().resolve())
+        return
+
+    if args.command == "stash":
+        if args.stash_command == "list":
+            do_stash_list(args.data_repo.expanduser().resolve())
+        elif args.stash_command == "resolve":
+            do_stash_resolve(args.data_repo.expanduser().resolve(), args.id)
+        else:
+            stash.print_help()
         return
 
     # No subcommand: legacy onboarding flow.
@@ -303,6 +327,45 @@ def do_render_skill(data_repo: Path) -> None:
     skill_path.parent.mkdir(parents=True, exist_ok=True)
     skill_path.write_text(rendered)
     print(f"✓ Rendered skill at {skill_path}")
+
+
+def do_stash_list(data_repo: Path) -> None:
+    """Print the data repo's conflict-stash entries. Best-effort pull first so
+    entries created on other devices are visible."""
+    if not (data_repo / ".jade").is_dir():
+        sys.exit(f"Not a jade data repo (no .jade/): {data_repo}")
+    try:
+        sync.pull(data_repo)
+    except sync.SyncError:
+        pass
+
+    entries = sync.list_stash(data_repo)
+    if not entries:
+        print("No stashed changes.")
+        return
+    for stash_id, entry in entries:
+        ts = entry.get("timestamp", "?") if entry else "?"
+        print(f"\n{stash_id}  ({ts})")
+        if not entry:
+            print("  (unreadable stash entry)")
+            continue
+        for op in entry.get("operations", []):
+            print(f"  - {describe_operation(op)}")
+    print(
+        "\nResolve with: jadelens stash resolve <data_repo> <id>  "
+        "(deletes the entry — both 'done' and 'won't do')."
+    )
+
+
+def do_stash_resolve(data_repo: Path, stash_id: str) -> None:
+    """Resolve (delete) a stash entry by id and sync the deletion."""
+    if not (data_repo / ".jade").is_dir():
+        sys.exit(f"Not a jade data repo (no .jade/): {data_repo}")
+    try:
+        sync.resolve_stash(data_repo, stash_id)
+    except sync.SyncError as e:
+        sys.exit(f"Could not resolve stash entry: {e}")
+    print(f"✓ Resolved stash entry {stash_id}")
 
 
 def latest_template_text() -> str:

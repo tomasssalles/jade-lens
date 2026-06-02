@@ -239,3 +239,36 @@ def _push_or_raise(repo: Path, branch: str) -> None:
     cp = _try_push(repo, branch)
     if cp.returncode != 0:
         raise SyncError(f"git push failed after reconcile: {cp.stderr.strip()}")
+
+
+# ---------- Stash management (the bot's only access to .jade/stash/) ----------
+
+
+def list_stash(repo: Path) -> list[tuple[str, dict | None]]:
+    """Every stash entry as ``(id, parsed_entry)``, chronologically sorted. The
+    id is the filename stem (``<compactISO>-<shortuuid>``); ``entry`` is None if
+    the file fails to parse."""
+    stash_dir = repo / ".jade" / "stash"
+    if not stash_dir.is_dir():
+        return []
+    out: list[tuple[str, dict | None]] = []
+    for f in sorted(stash_dir.glob("*.json")):
+        try:
+            entry = json.loads(f.read_text())
+        except json.JSONDecodeError:
+            entry = None
+        out.append((f.stem, entry))
+    return out
+
+
+def resolve_stash(repo: Path, stash_id: str) -> SyncResult:
+    """Resolve (delete) a stash entry and sync the deletion — both "Done" and
+    "Won't do" route here. A normal bookkeeping commit (no ops-log line);
+    deleting under `.jade/stash/` never registers as a data conflict, so the
+    sync rebases cleanly if the remote has advanced."""
+    rel = f".jade/stash/{stash_id}.json"
+    if not (repo / rel).exists():
+        raise SyncError(f"No such stash entry: {stash_id}")
+    _git(repo, ["rm", "-q", "--", rel])
+    _git(repo, ["commit", "-q", "-m", f"Resolve stash entry {stash_id}"])
+    return push(repo)

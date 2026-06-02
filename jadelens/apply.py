@@ -18,7 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from jadelens import workflow
+from jadelens import sync, workflow
 from jadelens.operations import ApplyError, ValidationError
 from jadelens.reflection import format_reflection
 
@@ -50,6 +50,14 @@ def main() -> None:
     if not raw_ops:
         sys.exit("Payload 'operations' must not be empty")
 
+    # Auto-sync, pull side: fetch + fast-forward before applying so the bot's
+    # change lands on the latest remote state (docs/sync-and-conflicts.md §2).
+    # Best-effort — offline / divergence is left for the push side to reconcile.
+    try:
+        sync.pull(data_repo)
+    except sync.SyncError:
+        pass
+
     try:
         commit_sha = workflow.run(data_repo, raw_ops, commit_message)
     except (
@@ -61,6 +69,24 @@ def main() -> None:
         sys.exit(f"{type(e).__name__}: {e}")
 
     print(format_reflection(commit_sha, commit_message, raw_ops), end="")
+
+    # Auto-sync, push side: push the new commit; reconcile a remote that advanced
+    # under us (rebase if disjoint, stash on a same-file conflict). The change is
+    # already committed locally, so a push failure never loses it.
+    try:
+        result = sync.push(data_repo)
+    except sync.SyncError as e:
+        print(
+            f"\n⚠ Committed locally but could not sync to the remote: {e}\n"
+            "  It will sync automatically on the next interaction.",
+        )
+        return
+    if result.action == "stashed":
+        print(
+            "\n⚠ This change conflicted with a remote edit and was stashed for "
+            "review (.jade/stash/). The remote version is now in place and the "
+            "working tree has been updated. Use `jadelens stash list` to see it.",
+        )
 
 
 if __name__ == "__main__":

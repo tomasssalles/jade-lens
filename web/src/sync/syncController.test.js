@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpQueue } from './opQueue.js';
 import { createMemoryQueueStore } from './queueStore.js';
-import { initQueueFromRead, commitEdit } from './syncController.js';
+import { initQueueFromRead, commitEdit, syncPending } from './syncController.js';
 import { PushConflictError, GitHubWriteError } from './githubWrite.js';
 import { buildCheckboxToggle } from '../edit/checkbox.js';
 
@@ -166,5 +166,48 @@ describe('commitEdit', () => {
     expect(res.outcome).toBe('synced');
     expect(res.stashed).toBe(0);
     expect(res.workingMap.get(TODO)).toBe('- [x] a\n');
+  });
+});
+
+describe('syncPending', () => {
+  const repoUrl = 'https://github.com/o/r';
+
+  async function queueWithPending() {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    await q.enqueue({
+      operations: [{ op: 'create_file', path: 'n.md', content: 'x\n' }],
+      commitMessage: 'add n',
+      timestamp: '2026-06-01T00:00:00.000Z',
+    });
+    return q;
+  }
+
+  it('reports hadPending=false when the queue is empty', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit: vi.fn() });
+    expect(res.hadPending).toBe(false);
+    expect(res.outcome).toBe('synced');
+  });
+
+  it('pushes pending work and reports synced', async () => {
+    const q = await queueWithPending();
+    const commit = vi.fn(async () => ({ commitSha: 'c1', treeSha: 't1', changed: true }));
+    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit });
+    expect(res).toMatchObject({ hadPending: true, outcome: 'synced', error: null });
+    expect((await q.getState()).queue).toHaveLength(0);
+  });
+
+  it('surfaces the classified error on a read-only token, keeping the queue', async () => {
+    const q = await queueWithPending();
+    const commit = vi.fn(async () => {
+      throw new GitHubWriteError('forbidden', 403);
+    });
+    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit });
+    expect(res.hadPending).toBe(true);
+    expect(res.outcome).toBe('pending');
+    expect(res.error).toMatch(/read-only|write/i);
+    expect((await q.getState()).queue).toHaveLength(1);
   });
 });

@@ -110,6 +110,33 @@ function classifyEditError(err) {
   return null; // network / unknown → silent; the queued change retries later.
 }
 
+// Push the queue (push → on non-fast-forward, full sync that stashes), then
+// classify the outcome. Shared by commitEdit and syncPending so both report the
+// same {outcome, error} for the same failure.
+async function flushQueue(queue, { pat, commit, fetchRemote }) {
+  const pushOpts = { pat, ...(commit ? { commit } : {}) };
+  const syncOpts = { ...pushOpts, ...(fetchRemote ? { fetchRemote } : {}) };
+  try {
+    let result = await queue.push(pushOpts);
+    if (result.conflicted) result = await queue.sync(syncOpts);
+    const after = await queue.getState();
+    return {
+      workingMap: after?.workingMap ?? null,
+      outcome: result.stashed ? 'stashed' : 'synced',
+      stashed: result.stashed ?? 0,
+      error: null,
+    };
+  } catch (err) {
+    const after = await queue.getState();
+    return {
+      workingMap: after?.workingMap ?? null,
+      outcome: 'pending',
+      stashed: 0,
+      error: classifyEditError(err),
+    };
+  }
+}
+
 /**
  * Commit a UI edit (docs/web/editing.md): apply + enqueue the batch, push
  * optimistically, and on a non-fast-forward fall back to a full sync (which
@@ -137,27 +164,18 @@ export async function commitEdit(
   }
 
   await queue.enqueue({ operations, commitMessage });
+  return flushQueue(queue, { pat, commit, fetchRemote });
+}
 
-  const pushOpts = { pat, ...(commit ? { commit } : {}) };
-  const syncOpts = { ...pushOpts, ...(fetchRemote ? { fetchRemote } : {}) };
-
-  try {
-    let result = await queue.push(pushOpts);
-    if (result.conflicted) result = await queue.sync(syncOpts);
-    const after = await queue.getState();
-    return {
-      workingMap: after?.workingMap ?? null,
-      outcome: result.stashed ? 'stashed' : 'synced',
-      stashed: result.stashed ?? 0,
-      error: null,
-    };
-  } catch (err) {
-    const after = await queue.getState();
-    return {
-      workingMap: after?.workingMap ?? null,
-      outcome: 'pending',
-      stashed: 0,
-      error: classifyEditError(err),
-    };
+/**
+ * Retry pushing already-queued work (no new edit) — the reload retry. Returns
+ * the same classified shape as commitEdit, plus `hadPending` (false when the
+ * queue was empty / for another repo, so the caller can stay silent).
+ */
+export async function syncPending({ repoUrl, pat }, { queue = getQueue(), commit, fetchRemote } = {}) {
+  const state = await queue.getState();
+  if (!state || state.repoUrl !== repoUrl || state.queue.length === 0) {
+    return { workingMap: state?.workingMap ?? null, outcome: 'synced', stashed: 0, error: null, hadPending: false };
   }
+  return { ...(await flushQueue(queue, { pat, commit, fetchRemote })), hadPending: true };
 }

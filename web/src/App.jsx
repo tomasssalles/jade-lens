@@ -12,7 +12,7 @@ import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 import StashView from './StashView'
-import { getStashEntries, getQueue, commitEdit, getPendingCount } from './sync/syncController'
+import { getStashEntries, getQueue, commitEdit, getPendingCount, syncPending } from './sync/syncController'
 
 function jadeConfigFromRepo(repo) {
   if (!repo) return null
@@ -225,18 +225,35 @@ function App() {
   // file view). Unlike the silent focus retry, a deliberate (re)load reports the
   // outcome, since reloading is the documented way to retry.
   const retryPendingOnLoad = useCallback(async () => {
-    if ((await getPendingCount()) === 0) return // nothing pending → stay silent
-    await syncOnFocus()
-    if ((await getPendingCount()) === 0) {
-      showToast('Local changes synced.', 3000)
-    } else {
-      showToast(
-        'Some local changes still haven’t synced. Check that your token in ' +
-        'Settings has write access, then reload again.',
-        7000,
-      )
+    let cfg
+    try { cfg = await getConfig() } catch { return }
+    let result
+    try {
+      result = await syncPending({ repoUrl: cfg.githubRepoUrl, pat: cfg.githubPat })
+    } catch { return }
+    if (!result.hadPending) return // nothing was pending → stay silent
+
+    await refreshStatus()
+    // Re-render the open file if the retry changed its content (e.g. a conflict
+    // was stashed and the remote version won).
+    const fv = fileViewRef.current
+    const nc = result.workingMap?.get(fv?.path)
+    if (fv && nc !== undefined && nc !== fv.content) {
+      setFileView({ path: fv.path, content: nc })
+      updateCachedFile(cfg.githubRepoUrl, fv.path, nc)
     }
-  }, [syncOnFocus, showToast])
+
+    if (result.outcome === 'synced') {
+      showToast('Local changes synced.', 3000)
+    } else if (result.outcome === 'stashed') {
+      showToast('A change conflicted with a remote edit — stashed for review.', 6000)
+    } else if (result.error) {
+      // Same classified message the edit path shows (e.g. read-only / rejected token).
+      showToast(result.error, 7000)
+    } else {
+      showToast('Couldn’t reach GitHub — your changes are still saved locally. Reload to retry.', 6000)
+    }
+  }, [refreshStatus, showToast])
 
   useEffect(() => {
     if (initialSyncDone.current) return

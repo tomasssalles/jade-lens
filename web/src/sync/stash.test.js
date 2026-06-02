@@ -6,6 +6,7 @@ import {
   serializeStashEntry,
   hasStashEntries,
   listStashPaths,
+  describeOperation,
 } from './stash.js';
 
 const mapOf = (obj) => new Map(Object.entries(obj));
@@ -114,5 +115,31 @@ describe('hasStashEntries / listStashPaths', () => {
     const map = mapOf({ '.jade/version': 'v0.1.0', 'notes.md': 'x' });
     expect(hasStashEntries(map)).toBe(false);
     expect(listStashPaths(map)).toEqual([]);
+  });
+});
+
+describe('describeOperation', () => {
+  it('describes each op kind', () => {
+    expect(describeOperation({ op: 'create_file', path: 'a.md' })).toBe('Created a.md');
+    expect(describeOperation({ op: 'delete_path', path: 'a.md' })).toBe('Deleted a.md');
+    expect(describeOperation({ op: 'rename_path', from: 'a.md', to: 'b.md' })).toBe(
+      'Renamed a.md → b.md',
+    );
+  });
+
+  it('counts JSON-patch ops and pluralises', () => {
+    expect(describeOperation({ op: 'json_patch', path: 'x.json', patch: [{}] })).toBe(
+      'Modified x.json (1 JSON change)',
+    );
+    expect(describeOperation({ op: 'json_patch', path: 'x.json', patch: [{}, {}] })).toBe(
+      'Modified x.json (2 JSON changes)',
+    );
+  });
+
+  it('counts changed lines in a unified diff, ignoring file headers', () => {
+    const diff = '--- a/x.md\n+++ b/x.md\n@@ -1,2 +1,2 @@\n-old\n+new\n contextual\n';
+    expect(describeOperation({ op: 'unified_diff', path: 'x.md', diff })).toBe(
+      'Modified 2 lines in x.md',
+    );
   });
 });

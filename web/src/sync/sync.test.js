@@ -218,6 +218,47 @@ describe('OpQueue.sync — conflict → stash', () => {
   });
 });
 
+describe('OpQueue.resolveStash', () => {
+  const STASH = '.jade/stash/20260601T140000Z-aaaa.json';
+
+  it('commits the stash-file deletion and drops it from base + working', async () => {
+    const q = await freshQueue(baseMap({ [STASH]: '{}\n', 'notes.md': 'x\n' }));
+    const { commit, calls } = recordingCommit();
+
+    const res = await q.resolveStash(STASH, { pat: 't', commit });
+
+    expect(res).toEqual({ removed: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args.newMap.has(STASH)).toBe(false);
+    expect(calls[0].args.newMap.has(LOG_PATH)).toBe(false); // resolution is not logged
+    const state = await q.getState();
+    expect(state.baseMap.has(STASH)).toBe(false);
+    expect(state.workingMap.has(STASH)).toBe(false);
+    expect(state.baseCommitSha).toBe('commit1');
+  });
+
+  it('is a no-op when the entry is already gone', async () => {
+    const q = await freshQueue();
+    const commit = vi.fn();
+    const res = await q.resolveStash('.jade/stash/missing.json', { pat: 't', commit });
+    expect(res).toEqual({ removed: false });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('re-parents pending queued batches on the resolution commit', async () => {
+    const q = await freshQueue(baseMap({ [STASH]: '{}\n' }));
+    await q.enqueue(createBatch('new.md', 'N\n', '2026-06-01T00:00:00.000Z'));
+    const { commit } = recordingCommit();
+
+    await q.resolveStash(STASH, { pat: 't', commit });
+
+    const state = await q.getState();
+    expect(state.queue).toHaveLength(1);
+    expect(state.workingMap.get('new.md')).toBe('N\n');
+    expect(state.workingMap.has(STASH)).toBe(false);
+  });
+});
+
 describe('OpQueue.sync — truncated remote', () => {
   it('skips conflict processing and only pushes', async () => {
     const q = await freshQueue();

@@ -69,6 +69,42 @@ export function serializeStashEntry(entry) {
   return JSON.stringify(entry, null, 2) + '\n';
 }
 
+/** Count the changed (+/-) lines in a unified diff, ignoring file headers. */
+function countDiffLines(diff) {
+  if (typeof diff !== 'string') return 0;
+  let n = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) n += 1;
+    else if (line.startsWith('-') && !line.startsWith('---')) n += 1;
+  }
+  return n;
+}
+
+/**
+ * A short human-readable description of a single operation, for the
+ * stashed-changes view (docs/sync-and-conflicts.md §4 "Resolution").
+ */
+export function describeOperation(op) {
+  switch (op.op) {
+    case 'create_file':
+      return `Created ${op.path}`;
+    case 'delete_path':
+      return `Deleted ${op.path}`;
+    case 'rename_path':
+      return `Renamed ${op.from} → ${op.to}`;
+    case 'json_patch': {
+      const n = Array.isArray(op.patch) ? op.patch.length : 0;
+      return `Modified ${op.path} (${n} JSON change${n === 1 ? '' : 's'})`;
+    }
+    case 'unified_diff': {
+      const n = countDiffLines(op.diff);
+      return `Modified ${n} line${n === 1 ? '' : 's'} in ${op.path}`;
+    }
+    default:
+      return `${op.op ?? 'unknown op'}${op.path ? ` ${op.path}` : ''}`;
+  }
+}
+
 /** Whether a content map currently holds any stash entries (drives the indicator). */
 export function hasStashEntries(contentMap) {
   for (const path of contentMap.keys()) {

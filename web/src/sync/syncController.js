@@ -12,6 +12,7 @@
 import { OpQueue } from './opQueue.js';
 import { createIdbQueueStore } from './idbQueueStore.js';
 import { getBranchHead } from './githubWrite.js';
+import { listStashPaths } from './stash.js';
 
 let _queue = null;
 
@@ -60,4 +61,28 @@ export async function initQueueFromRead(
     baseMap: contentMap,
   });
   return true;
+}
+
+/**
+ * The current stash entries, parsed from the queue's synced base content.
+ * Returns `[{path, entry}]` (entry is null if the file fails to parse), or `[]`
+ * when the queue is uninitialised. Drives the indicator and the stash view.
+ */
+export async function getStashEntries(queue = getQueue()) {
+  const state = await queue.getState();
+  if (!state) return [];
+  return listStashPaths(state.baseMap).map((path) => {
+    let entry;
+    try {
+      entry = JSON.parse(state.baseMap.get(path));
+    } catch {
+      entry = null;
+    }
+    return { path, entry };
+  });
+}
+
+/** Resolve (delete) a stash entry — both "Done" and "Won't do" route here. */
+export async function resolveStashEntry(path, { pat }, queue = getQueue()) {
+  return queue.resolveStash(path, { pat });
 }

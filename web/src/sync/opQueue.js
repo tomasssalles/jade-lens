@@ -228,6 +228,44 @@ export class OpQueue {
   }
 
   /**
+   * Resolve (delete) a stash entry. Both "Done" and "Won't do" map here — they
+   * differ only in user intent (docs/sync-and-conflicts.md §4 "Resolution").
+   *
+   * Like the stash-creation commit, this is repo bookkeeping: it bypasses the
+   * mutation pipeline (the `.jade/` path is protected) and appends no ops-log
+   * line (§5 — stash machinery is not logged). The deletion commits directly on
+   * the current synced base; any pending queued batches re-parent on the result.
+   *
+   * @param {string} stashPath - the `.jade/stash/<…>.json` path to remove.
+   * @param {{pat: string, commit?: typeof commitFileMap}} opts
+   * @returns {Promise<{removed: boolean}>} false if the entry was already gone.
+   */
+  async resolveStash(stashPath, { pat, commit = commitFileMap }) {
+    const state = await this.#requireState();
+    if (!state.baseMap.has(stashPath)) return { removed: false };
+
+    const newMap = new Map(state.baseMap);
+    newMap.delete(stashPath);
+
+    const result = await commit(state.repoUrl, pat, {
+      branch: state.branch,
+      baseCommitSha: state.baseCommitSha,
+      baseTreeSha: state.baseTreeSha,
+      baseMap: state.baseMap,
+      newMap,
+      message: `Resolve stash entry ${stashPath.split('/').pop()}`,
+    });
+
+    const fresh = await this.#requireState();
+    fresh.baseCommitSha = result.commitSha;
+    fresh.baseTreeSha = result.treeSha ?? fresh.baseTreeSha;
+    fresh.baseMap = newMap;
+    fresh.workingMap = replayBatches(newMap, fresh.queue);
+    await this.store.save(fresh);
+    return { removed: true };
+  }
+
+  /**
    * Drop the front batch and move the base forward — in one store write, so the
    * SHA bump and queue removal land together (docs/sync-and-conflicts.md §6).
    */

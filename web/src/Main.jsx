@@ -9,10 +9,22 @@ export default function Main({
   onContentLoaded,
   stashCount = 0,
   onStash,
+  pendingCount = 0,
+  onPending,
 }) {
   const assistantName = jadeConfig?.assistant?.name
   return (
     <div className="main">
+      {onSettings && pendingCount > 0 && onPending && (
+        <button
+          className="pending-indicator"
+          onClick={onPending}
+          aria-label={`${pendingCount} change${pendingCount === 1 ? '' : 's'} not synced`}
+          title="Some local changes haven’t synced. Reload the app to retry."
+        >
+          📤<span className="pending-count">{pendingCount}</span>
+        </button>
+      )}
       {onSettings && stashCount > 0 && onStash && (
         <button
           className="stash-indicator"

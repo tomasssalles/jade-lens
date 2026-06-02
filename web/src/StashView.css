@@ -73,3 +73,25 @@
   display: flex;
   align-items: center;
 }
+
+/* The pending-sync indicator: unpushed local changes, left of the stash one. */
+.pending-indicator {
+  position: fixed;
+  top: 1rem;
+  right: 5.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1.05rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  color: inherit;
+}
+
+.pending-indicator .pending-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+}

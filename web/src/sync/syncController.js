@@ -82,6 +82,13 @@ export async function getStashEntries(queue = getQueue()) {
   });
 }
 
+/** The number of unpushed batches waiting in the queue (drives the
+ * pending-sync indicator). 0 when the queue is empty or uninitialised. */
+export async function getPendingCount(queue = getQueue()) {
+  const state = await queue.getState();
+  return state ? state.queue.length : 0;
+}
+
 /** Resolve (delete) a stash entry — both "Done" and "Won't do" route here. */
 export async function resolveStashEntry(path, { pat }, queue = getQueue()) {
   return queue.resolveStash(path, { pat });

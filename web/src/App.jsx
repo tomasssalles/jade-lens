@@ -12,7 +12,7 @@ import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 import StashView from './StashView'
-import { getStashEntries, getQueue, commitEdit } from './sync/syncController'
+import { getStashEntries, getQueue, commitEdit, getPendingCount } from './sync/syncController'
 
 function jadeConfigFromRepo(repo) {
   if (!repo) return null
@@ -29,14 +29,17 @@ function App() {
   // on the first render (no flash) when IDB resolved before mount.
   const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
   const [stashCount, setStashCount] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0) // unpushed local changes
   const toastTimer = useRef(null)
   const fileViewRef = useRef(null) // latest fileView, for the focus-sync closure
   const syncingRef = useRef(false) // guards against overlapping focus syncs
+  const initialSyncDone = useRef(false) // one-shot retry-on-load guard
 
-  // Recompute the conflict-indicator count from the sync queue's stash state.
-  // Called after content (re)loads and after a stash entry is resolved.
-  const refreshStash = useCallback(async () => {
+  // Recompute the top-bar indicators from the sync queue: the stash entry count
+  // (conflicts) and the unpushed-batch count (changes that failed to sync).
+  const refreshStatus = useCallback(async () => {
     try { setStashCount((await getStashEntries()).length) } catch { /* ignore */ }
+    try { setPendingCount(await getPendingCount()) } catch { /* ignore */ }
   }, [])
 
   const showToast = useCallback((message, ms = 2000) => {
@@ -140,7 +143,7 @@ function App() {
         setFileView({ path, content: newContent })
         await updateCachedFile(cfg.githubRepoUrl, path, newContent)
       }
-      await refreshStash()
+      await refreshStatus()
       if (res.outcome === 'stashed') {
         showToast('Change conflicted with a remote edit — stashed for review.', 5000)
       } else if (res.error) {
@@ -149,7 +152,7 @@ function App() {
     } catch (err) {
       showToast(`Couldn't apply edit: ${err.message}`)
     }
-  }, [fileView, refreshStash, showToast])
+  }, [fileView, refreshStatus, showToast])
 
   useEffect(() => {
     async function onPopState(e) {
@@ -203,7 +206,7 @@ function App() {
       try { cfg = await getConfig() } catch { return }
       if (state.repoUrl !== cfg.githubRepoUrl) return
       try { await q.sync({ pat: cfg.githubPat }) } catch { return }
-      await refreshStash()
+      await refreshStatus()
       const after = await q.getState()
       const fv = fileViewRef.current
       const nc = after?.workingMap?.get(fv?.path)
@@ -214,7 +217,27 @@ function App() {
     } finally {
       syncingRef.current = false
     }
-  }, [refreshStash])
+  }, [refreshStatus])
+
+  // Fired by FileBrowser once content has loaded (and the queue is initialised).
+  // Refreshes the indicators and, once per app load, retries any pending pushes —
+  // so a reload / pull-to-refresh re-attempts a previously failed sync.
+  const handleContentLoaded = useCallback(() => {
+    refreshStatus()
+    if (!initialSyncDone.current) {
+      initialSyncDone.current = true
+      syncOnFocus()
+    }
+  }, [refreshStatus, syncOnFocus])
+
+  // Clicking the pending-sync indicator explains the state (no separate sheet).
+  const handlePendingClick = useCallback(() => {
+    showToast(
+      'Some local changes haven’t synced yet. Reload the app to retry — ' +
+      'and check that your token in Settings has write access.',
+      7000,
+    )
+  }, [showToast])
 
   useEffect(() => {
     const onVisible = () => { if (!document.hidden) syncOnFocus() }
@@ -264,9 +287,11 @@ function App() {
           onFileOpen={page === 'main' ? openFile : undefined}
           jadeConfig={jadeConfig}
           onJadeConfig={setJadeConfig}
-          onContentLoaded={refreshStash}
+          onContentLoaded={handleContentLoaded}
           stashCount={stashCount}
           onStash={page === 'main' ? handleStash : undefined}
+          pendingCount={pendingCount}
+          onPending={page === 'main' ? handlePendingClick : undefined}
         />
       )}
       {page === 'settings' && (

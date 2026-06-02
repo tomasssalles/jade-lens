@@ -612,10 +612,40 @@ implement when wiring:
 > release decision left for you — I didn't bump versions or rewrite the v0.1.0
 > scope unilaterally. The plan checklist + KNOWN_ISSUES are the live record meanwhile.
 
-**Phase 5 — Web grow editing**
+**Phase 5 — Web grow editing** ⏸ NOT STARTED (paused for owner input — see below)
 - [ ] text editing (session/tiptap/save/cancel/nav-detection)
 - [ ] draft persistence + startup draft-vs-remote → stash
 - [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
+
+> **Why paused (a deliberate stop, not a blocker mid-build).** Phase 5 is the
+> one remaining phase and the riskiest to do unattended:
+> 1. **New heavyweight dependency** — tiptap (ProseMirror). MIT-licensed (fine
+>    under PolyForm), but a substantial bundle + integration. Adding a big dep
+>    and editor UX to the branch that **auto-deploys to GitHub Pages**
+>    (`claude-ai`) is outward-facing and wants a human in the loop.
+> 2. **Needs real-browser verification** — edit-mode state machine, tiptap
+>    swap-in, markdown round-trip, in-app-nav-vs-app-switch detection
+>    (`visibilitychange`/`pagehide` vs router), draft persistence. The repo has
+>    **no component-test infra**, so the parts that matter can't be validated by
+>    the automated suite alone — they need the running app, which I can't drive
+>    here with confidence.
+> 3. **A diff *generator* is needed** — deriving the session's `unified_diff`
+>    from before→after full texts requires a 0-context diff *generator* matching
+>    our format (the pipeline only *parses/applies* diffs today). That's a real
+>    sub-task (likely the `diff` npm dep, license-checked, or a hand-rolled LCS),
+>    and it should be conformance-pinned.
+>
+> Everything Phase 5 builds on is in place: the mutation pipeline, the op queue,
+> sync+conflict+stash, `commitEdit`, and the checkbox micro-edit as a worked
+> example of the commit→render-from-`workingMap`→cache-refresh path.
+>
+> **Suggested resumption order when picked up (with a browser available):**
+> (5a) a 0-context unified-diff **generator** (pure, conformance-pinned, reused
+> by the web editor); (5b) the **draft store** in IndexedDB + the startup
+> draft-vs-remote→stash reconciliation (mostly pure, testable); (5c) the tiptap
+> edit-mode UI + nav/visibility wiring (browser-verified); (5d) fold in the
+> deferred §6.1 tree render-authority flip (the KNOWN_ISSUES tree-staleness item)
+> while reworking the render path for editing.
 
 **Phase 6 — Cross-client conformance** ✅ DONE
 - [x] stash/sync parity scope (web ↔ /jade)  ← `conformance/stash-cases/` (6

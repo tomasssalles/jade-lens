@@ -487,8 +487,13 @@ implement when wiring:
 - [x] ops-log exclusion of stashed batches  ← (2c): stash commit bypasses the
       mutation pipeline (no ops-log line); stashed batches are dropped, never pushed
 - [~] sync-on-focus flow  ← (2c) `OpQueue.sync()` is the full fetch→rebase/
-      stash→push cycle (sync-on-focus + sync-on-save unified); wiring it to the
-      window focus event + real `fetchRemoteState` lands in (2d)
+      stash→push cycle (sync-on-focus + sync-on-save unified); (2d) wires the
+      read-path → `queue.init()` baseline (`syncController.initQueueFromRead`,
+      truncation-guarded, fetches the head SHAs). The window **focus event**
+      hookup + render refresh is deferred to Phase 3, where render-from-
+      `workingMap` makes the queue the content authority — wiring a focus
+      listener now (read-only app, nothing to push) would create the dual-
+      authority drift §6.1 warns against.
 - [ ] conflict indicator + stashed-changes view (Done / Won't-do)  ← (2e)
 - [x] conflict state-machine tests green  ← `conflicts.test.js` + `sync.test.js`
       (fast-forward rebase, first-conflict-onward stash, pristine ancestor,
@@ -510,8 +515,12 @@ implement when wiring:
 > - **(2c) sync orchestration** — `OpQueue.sync()` (fetch remote → plan →
 >   rebase/fast-forward or stash-from-first-conflict → push kept + stash
 >   bookkeeping commit). Pure `computeSyncPlan` factored out for tests.
-> - **(2d) app wiring** — read-path→`init` (with `getBranchHead` SHAs + the §6.1
->   truncation guard), sync-on-focus, render-from-`workingMap`.
+> - **(2d) app wiring** — ✅ read-path→`init` done (`syncController.js`:
+>   `getQueue()` singleton + `initQueueFromRead`, `getBranchHead` SHAs, §6.1
+>   truncation guard, skip-if-pending-work; wired into `FileBrowser` load,
+>   best-effort/non-blocking). The focus-event listener + render-from-`workingMap`
+>   are intentionally folded into Phase 3 (avoids dual-authority drift while
+>   read-only).
 > - **(2e) UI** — conflict indicator (warning glyph while `.jade/stash/`
 >   non-empty) + stashed-changes view (Done / Won't-do → delete entry = normal
 >   commit).

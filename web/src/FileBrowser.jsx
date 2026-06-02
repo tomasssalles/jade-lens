@@ -6,6 +6,7 @@ import {
   parseJadeConfig,
 } from './repoCache'
 import { getRepoTree, fetchBlobs, getFileContent } from './github'
+import { getQueue, initQueueFromRead } from './sync/syncController'
 import FileTree from './FileTree'
 import './FileBrowser.css'
 
@@ -41,6 +42,19 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
 
   useEffect(() => {
     let cancelled = false
+
+    // Establish the sync queue's baseline from the content we're displaying
+    // (§6.1 read-path → init). Best-effort: it fetches the head SHAs and is
+    // guarded against truncated trees, but must never block or break the read.
+    function ensureQueueInit(cfg, branch, contentMap, truncated) {
+      initQueueFromRead(getQueue(), {
+        repoUrl: cfg.githubRepoUrl,
+        branch,
+        pat: cfg.githubPat,
+        contentMap,
+        truncated,
+      }).catch(() => {})
+    }
 
     // Publish a fetched/cached repo record to component state, the session
     // cache, and the parent's jade config.
@@ -136,6 +150,12 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
         if (cached?.repoUrl === cfg.githubRepoUrl) {
           if (!cancelled) applyData(cached.items, cached.contentMap, cached.truncated, cfg.githubRepoUrl)
           await refreshInBackground(cfg, cached)
+          if (!cancelled) {
+            // Init from the freshest content the refresh left in the session cache.
+            const fresh = getSessionCache()
+            const current = fresh?.repoUrl === cfg.githubRepoUrl ? fresh : cached
+            ensureQueueInit(cfg, cached.branch, current.contentMap, current.truncated)
+          }
           return
         }
 
@@ -149,6 +169,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig }) {
           contentMap: map, truncated, jadeConfig: parseJadeConfig(map),
         })
         applyData(items, map, truncated, cfg.githubRepoUrl)
+        ensureQueueInit(cfg, branch, map, truncated)
       } catch (err) {
         if (!cancelled) { setError(err.message); setStatus('error') }
       }

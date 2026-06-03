@@ -122,6 +122,7 @@
   margin-right: 0.45em;
   margin-left: 0;
   vertical-align: middle;
+  top: -1px; /* middle sits a hair low; nudge up */
 }
 /* Completed items: gently dim text + box (no strikethrough) */
 .jl-markdown .task-list-item:has(.jl-checkbox:checked) {

@@ -121,11 +121,11 @@
 .jl-markdown .task-list-item .jl-checkbox {
   margin-right: 0.45em;
   margin-left: 0;
-  vertical-align: -0.2em;
+  vertical-align: middle;
 }
 /* Completed items: gently dim text + box (no strikethrough) */
 .jl-markdown .task-list-item:has(.jl-checkbox:checked) {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 /* Inline code */

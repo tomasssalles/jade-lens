@@ -13,13 +13,62 @@ import { OpQueue } from './opQueue.js';
 import { createIdbQueueStore } from './idbQueueStore.js';
 import { getBranchHead, GitHubWriteError } from './githubWrite.js';
 import { listStashPaths } from './stash.js';
+import { createIdbDraftStore } from '../edit/idbDraftStore.js';
+import { reconcileDraft } from '../edit/draftReconcile.js';
 
 let _queue = null;
+let _draftStore = null;
 
 /** The process-wide OpQueue, lazily bound to the IndexedDB store. */
 export function getQueue() {
   if (!_queue) _queue = new OpQueue(createIdbQueueStore());
   return _queue;
+}
+
+/** The process-wide draft store, lazily bound to the IndexedDB store. */
+export function getDraftStore() {
+  if (!_draftStore) _draftStore = createIdbDraftStore();
+  return _draftStore;
+}
+
+/**
+ * Reconcile persisted editing-session drafts against current content on startup
+ * (docs/web/editing.md "On app startup"). For each draft: restorable drafts are
+ * left in place (the editor reopens them — wired in 5c); no-op drafts are
+ * dropped; drafts whose file changed underneath are stashed (preserving the
+ * work) and then removed. Requires an initialised queue — without one there's no
+ * base to stash onto, so drafts are kept untouched for a later pass.
+ *
+ * @param {{getCurrentContent: (path: string) => Promise<string|undefined>, pat: string}} args
+ * @returns {Promise<{restorable: object[], stashed: Array<{id: string, stashPath: string}>, discarded: string[], unsupported: string[], skipped?: boolean}>}
+ */
+export async function reconcileDrafts(
+  { getCurrentContent, pat },
+  { queue = getQueue(), store = getDraftStore(), commit } = {},
+) {
+  const result = { restorable: [], stashed: [], discarded: [], unsupported: [] };
+  if (!(await queue.getState())) return { ...result, skipped: true };
+
+  const commitOpt = commit ? { commit } : {};
+  for (const draft of await store.getAll()) {
+    const decision = reconcileDraft(draft, await getCurrentContent(draft.filePath));
+    if (decision.action === 'restore') {
+      result.restorable.push(draft);
+    } else if (decision.action === 'discard') {
+      await store.delete(draft.id);
+      result.discarded.push(draft.id);
+    } else if (decision.action === 'stash') {
+      const { stashPath } = await queue.stashDraftBatch(decision.batch, decision.ancestorMap, {
+        pat,
+        ...commitOpt,
+      });
+      await store.delete(draft.id);
+      result.stashed.push({ id: draft.id, stashPath });
+    } else {
+      result.unsupported.push(draft.id);
+    }
+  }
+  return result;
 }
 
 /**

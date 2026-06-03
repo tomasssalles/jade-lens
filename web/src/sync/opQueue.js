@@ -266,6 +266,45 @@ export class OpQueue {
   }
 
   /**
+   * Stash a batch that did NOT come from the queue — a stale editing-session
+   * draft recovered on startup (Phase 5b). Unlike sync()'s stashing, the
+   * ancestor content comes from the caller (`ancestorMap` = the draft's pristine
+   * `beforeSnapshot`), not the queue base, because a draft was authored against
+   * an older view. Writes the `.jade/stash/` file as a bookkeeping commit on the
+   * current base (no ops-log line — §5) and advances; queued batches re-parent on
+   * the result. Leaves no local queue entry — the draft lived only in IndexedDB.
+   *
+   * @param {{operations: Array<object>, commitMessage?: string, timestamp: string}} batch
+   * @param {Map<string,string>} ancestorMap - pristine ancestor content for the
+   *   files the batch touches (the stash entry's self-contained "before").
+   * @param {{pat: string, commit?: typeof commitFileMap}} opts
+   * @returns {Promise<{stashPath: string}>}
+   */
+  async stashDraftBatch(batch, ancestorMap, { pat, commit = commitFileMap }) {
+    const state = await this.#requireState();
+    const stashPath = stashFilename(batch.timestamp);
+    const newMap = new Map(state.baseMap);
+    newMap.set(stashPath, serializeStashEntry(buildStashEntry(batch, ancestorMap)));
+
+    const result = await commit(state.repoUrl, pat, {
+      branch: state.branch,
+      baseCommitSha: state.baseCommitSha,
+      baseTreeSha: state.baseTreeSha,
+      baseMap: state.baseMap,
+      newMap,
+      message: stashCommitMessage(1),
+    });
+
+    const fresh = await this.#requireState();
+    fresh.baseCommitSha = result.commitSha;
+    fresh.baseTreeSha = result.treeSha ?? fresh.baseTreeSha;
+    fresh.baseMap = newMap;
+    fresh.workingMap = replayBatches(newMap, fresh.queue);
+    await this.store.save(fresh);
+    return { stashPath };
+  }
+
+  /**
    * Drop the front batch and move the base forward — in one store write, so the
    * SHA bump and queue removal land together (docs/sync-and-conflicts.md §6).
    */

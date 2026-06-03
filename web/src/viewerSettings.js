@@ -21,6 +21,7 @@ export const DEFAULT_VIEWER_SETTINGS = {
   wikilinkColor: '#00965a',
   urlColor: '#2563eb',
   timeFormat: 'auto',  // 'auto' | '12h' | '24h'
+  decimalSeparator: 'auto',  // 'auto' | '.' | ','
 }
 
 export const BASE_COLORS = [

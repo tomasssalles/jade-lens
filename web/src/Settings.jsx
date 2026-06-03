@@ -128,6 +128,18 @@ function AdvancedSettings({ settings: s, onChange }) {
         onChange={v => set('timeFormat', v)}
       />
 
+      <div className="adv-section-label" style={{ marginTop: '1rem' }}>Numbers</div>
+      <ChoiceRow
+        label="Decimal separator"
+        value={s.decimalSeparator ?? 'auto'}
+        options={[
+          { value: 'auto', label: 'Auto' },
+          { value: '.', label: '1.5' },
+          { value: ',', label: '1,5' },
+        ]}
+        onChange={v => set('decimalSeparator', v)}
+      />
+
       <button type="button" className="adv-reset-btn" onClick={() => onChange({ ...DEFAULT_VIEWER_SETTINGS })}>
         Reset to defaults
       </button>

@@ -6,12 +6,12 @@ How user-driven data changes happen in the web app UI. The companion doc
 
 > **Status: partly implemented; growing.** Shipped: **checkbox toggling**, and the
 > **edit-mode lock** gating card-view value edits with a per-field **pencil →
-> picker** (booleans only so far), on top of the full sync + conflict + stash
-> machinery. Groundwork landed (no UI yet): the unified-diff generator, the draft
-> store + startup reconciliation, and the render-authority flip. Designed-but-unbuilt
-> below: the remaining JSON value micro-edits (date / wikilink / number / string,
-> each lighting up its pencil under the lock), raw markdown editing, file
-> move/delete, and raw JSON editing. See
+> picker/editor** (**booleans and numbers** so far), on top of the full sync +
+> conflict + stash machinery. Groundwork landed (no UI yet): the unified-diff
+> generator, the draft store + startup reconciliation, and the render-authority
+> flip. Designed-but-unbuilt below: the remaining JSON value micro-edits (date /
+> wikilink / string, each lighting up its pencil under the lock), raw markdown
+> editing, file move/delete, and raw JSON editing. See
 > `docs/mutation-sync-implementation-plan.md` Phase 5 for the build order and
 > what's pure-groundwork vs browser-verified UI.
 
@@ -66,7 +66,9 @@ field's **pencil** to open the editor.*
   in-place flip. *(Implemented — see "Edit-mode lock" below.)*
 - **Date / time:** native picker → ISO string.
 - **Wikilink (data-repo file link):** a file picker → the chosen `[[path]]`.
-- **Number:** a numeric-only input field.
+- **Number:** the pencil opens a **type-in field** (no spinners/wheels);
+  negatives allowed, integers and floats both just "numbers." *(Implemented — see
+  "Number editing & decimal separators" below.)*
 - **Plain string** (not a recognized date / wikilink): opens the raw markdown
   editor (Tier 2) on that field.
 
@@ -85,7 +87,7 @@ support this set of editable types:
 | Effective type | Underlying JSON | Micro-edit affordance |
 |---|---|---|
 | null | `null` | — (type change only) |
-| number | number | numeric input |
+| number | number | type-in field (pencil, in edit mode) |
 | boolean | boolean | picker (pencil, in edit mode) |
 | date / date+time / time | string (date-formatted) | native picker |
 | data-repo file link | string `[[path]]` | file picker |
@@ -131,8 +133,8 @@ be a mode you opt into deliberately.
   back up.
 - **Gradual rollout via pencils.** Because editing is reachable only through a
   per-field pencil, support can ship one effective-type at a time: a field whose
-  type has no editor yet simply gets no pencil. **v1 gives pencils to boolean
-  fields only**; date, wikilink, number, and string editors light up their pencils
+  type has no editor yet simply gets no pencil. So far **boolean and number
+  fields** get pencils; date, wikilink, and string editors light up their pencils
   as they land.
 
 This **supersedes the earlier "uniform deliberate-gesture" model** for card-view
@@ -151,6 +153,56 @@ we'd have to decide **whether the checkbox may still toggle while the view is
 locked**: convenient (flipping a task mid-read is the common case) but arguably
 unintuitive to allow an edit under a visibly *closed* lock. Flagged here for that
 future session; not decided now.
+
+#### Number editing & decimal separators
+
+A number field's pencil opens a small **type-in editor** — a plain text input
+(`inputmode="decimal"` for the mobile numeric keypad), **no spinners, no ± steps,
+no wheel pickers**. You type the value; Enter or a ✓ button commits, Escape /
+outside-click cancels. Negatives are allowed. **Integers and floats are one
+"number" type** — JS has a single number type and the pipeline's canonical
+serialization already collapses integer-valued floats (`5.0` → `5`), so there's
+nothing to preserve.
+
+**Decimal separator (locale).** Governed by an advanced setting
+`decimalSeparator: 'auto' | '.' | ','` (default `auto`, derived from the browser
+locale via `Intl.NumberFormat` — mirroring the `timeFormat` row). It controls
+**display only** (read-mode rendering *and* the edit field's shown value); JSON
+always stores `.`. The setting is non-breaking: `auto` resolves to `.` for most
+locales, so only comma-locale users see `3,14`.
+
+The separator is handled in the input by the insight that **users never type
+grouping (thousands) separators** — those are UI-applied. So grouping is
+forbidden in the input, which makes a *single* separator unambiguously the
+decimal point. Concretely (`src/edit/numberFormat.js`):
+
+- **Map, don't reject.** Whichever decimal key is pressed or pasted (`.` or `,`)
+  is mapped to the configured separator (calculator-style), so the field only
+  ever shows that one separator and a stray numpad `.` is never a dead key.
+- **Reject a second separator.** After mapping, two separators (i.e. a grouped
+  number like `1.000,5` → `1,000,5`) fail the single-separator check and are
+  dropped — grouping stays out.
+- **Normalize on commit.** The configured separator is swapped back to `.` and
+  `Number(...)` produces the stored value.
+
+**No grouping in display** (`1234.5`, not `1,234.5`). JSON gives no signal for
+whether a number is a quantity (where grouping helps) or an identifier/year
+(where `2024` → `2,024` is just wrong), and the misfire zone — 4-digit integers —
+overlaps almost exactly with years and short IDs. The decimal-separator swap is
+safe for *every* number; grouping is not. Grouping belongs to a future
+**typed/registered numeric field** (DESIGN §4.9 / §9.4) that can opt in once the
+bot can mark a field as a quantity.
+
+**Future nice-to-have — unambiguous paste parsing.** Today a *grouped* paste is
+rejected (two separators). A friendlier future version could accept any pasted
+number whose grouping/decimal layout is unambiguously parseable and reformat it
+to the configured separator: pasting `1.500,70` → `1500,70` when the setting is
+comma, or `1500.70` when it's period. Deferred; the current map-and-reject rule
+is the safe baseline.
+
+**Edge:** numbers that stringify in exponential notation (very large/small
+magnitudes, e.g. `1e21`) display as-is and aren't round-trip editable in the
+type-in field — an accepted edge case.
 
 *Examples — markdown:*
 - **Checkbox in rendered markdown:** determine the source line → derive a

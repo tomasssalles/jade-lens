@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getCardColor, getTextColor, getBorderColor, getTitleColor, getUnlockedLockColor } from './viewerSettings'
 import { appendPointer } from './edit/jsonPointer'
+import { resolveDecimalSeparator, formatNumberForDisplay, parseNumberInput, isPartialNumberInput, mapToSeparator } from './edit/numberFormat'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
 import LockClosedIcon from './assets/lock-closed.svg?react'
@@ -145,10 +146,64 @@ function PencilButton({ onClick, s }) {
   )
 }
 
+// Shared popover chrome for leaf-value editors (boolean picker, number editor).
+function popoverStyle(s) {
+  return {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 4,
+    zIndex: 10,
+    background: getCardColor(0, s),
+    color: getTextColor(0, s),
+    border: `1px solid ${getBorderColor(s)}`,
+    borderRadius: 5,
+    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+    overflow: 'hidden',
+  }
+}
+
+// Open/close state for a leaf editor's popover, with outside-click / Escape
+// dismissal. The handler checks the whole wrapper (pencil + popover), so clicking
+// the pencil itself counts as "inside" and toggles cleanly rather than closing
+// then reopening.
+function useLeafPicker() {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return { open, setOpen, wrapRef }
+}
+
+// A leaf card's content: the read display on the left, and — in edit mode — a
+// framed pencil at the right edge that opens a type-specific popover.
+// `renderPopover(close)` supplies the popover body.
+function EditableLeaf({ display, editing, s, renderPopover }) {
+  const { open, setOpen, wrapRef } = useLeafPicker()
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ minWidth: 0 }}>{display}</span>
+      {editing && (
+        <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex', marginLeft: 'auto', flexShrink: 0 }}>
+          <PencilButton s={s} onClick={() => setOpen(o => !o)} />
+          {open && renderPopover(() => setOpen(false))}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // Boolean picker popover: the two choices, the current one highlighted. Picking
 // commits (the upstream no-op guard ignores re-picking the same value).
-// Presentational only — open/close (incl. outside-click) is owned by BoolRow so
-// that clicking the pencil itself counts as "inside".
 function BoolPicker({ value, onPick, s }) {
   const option = (v, label) => (
     <button
@@ -170,23 +225,69 @@ function BoolPicker({ value, onPick, s }) {
     </button>
   )
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: '100%',
-        right: 0,
-        marginTop: 4,
-        zIndex: 10,
-        background: getCardColor(0, s),
-        color: getTextColor(0, s),
-        border: `1px solid ${getBorderColor(s)}`,
-        borderRadius: 5,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-        overflow: 'hidden',
-      }}
-    >
+    <div style={popoverStyle(s)}>
       {option(true, '✓ true')}
       {option(false, '✗ false')}
+    </div>
+  )
+}
+
+// Number editor popover: a type-in field — no spinners or wheels. `inputMode`
+// "decimal" brings up the numeric keypad on mobile; keystrokes and paste are
+// filtered to a valid partial number, with whichever decimal key is pressed
+// mapped to the configured separator. Enter or the ✓ button commits; Escape /
+// outside-click cancels (handled by the wrapper).
+function NumberEditor({ value, sep, onCommit, s }) {
+  const [text, setText] = useState(() => formatNumberForDisplay(value, sep))
+  const inputRef = useRef(null)
+  useEffect(() => {
+    const el = inputRef.current
+    if (el) { el.focus(); el.select() }
+  }, [])
+  const parsed = parseNumberInput(text, sep)
+  const valid = parsed !== null
+  return (
+    <div style={{ ...popoverStyle(s), padding: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        aria-label="New value"
+        value={text}
+        onChange={(e) => {
+          const mapped = mapToSeparator(e.target.value, sep)
+          if (isPartialNumberInput(mapped, sep)) setText(mapped)
+        }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && valid) { e.preventDefault(); onCommit(parsed) } }}
+        style={{
+          width: '7rem',
+          font: 'inherit',
+          color: 'inherit',
+          padding: '3px 6px',
+          borderRadius: 4,
+          border: `1px solid ${getBorderColor(s)}`,
+          background: getCardColor(1, s),
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => { if (valid) onCommit(parsed) }}
+        disabled={!valid}
+        aria-label="Set value"
+        style={{
+          flexShrink: 0,
+          cursor: valid ? 'pointer' : 'default',
+          opacity: valid ? 1 : 0.4,
+          color: getTitleColor(s),
+          background: 'rgba(0,0,0,0.04)',
+          border: `1px solid ${getBorderColor(s)}`,
+          borderRadius: 4,
+          padding: '3px 8px',
+          font: 'inherit',
+        }}
+      >
+        ✓
+      </button>
     </div>
   )
 }
@@ -194,48 +295,48 @@ function BoolPicker({ value, onPick, s }) {
 // ─── Recursive value renderer ─────────────────────────────────────────────────
 
 // A boolean leaf. Read-only it's a plain ✓/✗. In edit mode (view unlocked and
-// the file editable) a framed pencil sits at the card's right edge and opens a
-// picker — there's no in-place flip; every type is edited through its picker.
+// the file editable) a framed pencil at the card's right edge opens a picker —
+// there's no in-place flip; every type is edited through its picker.
 function BoolRow({ value, pointer, keyLabel, s }) {
   const { editing, onValueEdit } = useContext(EditModeContext)
-  const [open, setOpen] = useState(false)
-  const wrapRef = useRef(null)
-  const showEditor = editing && !!onValueEdit
-
-  // Close the picker on outside-click / Escape. The handler checks the wrapper
-  // (pencil + popover), so clicking the pencil itself is "inside" and lets its
-  // own onClick toggle cleanly rather than closing then reopening.
-  useEffect(() => {
-    if (!open) return
-    function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
-    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
+  const display = (
+    <>
+      {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
+      <span style={{ opacity: value ? 1 : 0.5 }}>{value ? '✓' : '✗'}</span>
+    </>
+  )
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ minWidth: 0 }}>
-        {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        <span style={{ opacity: value ? 1 : 0.5 }}>{value ? '✓' : '✗'}</span>
-      </span>
-      {showEditor && (
-        <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex', marginLeft: 'auto', flexShrink: 0 }}>
-          <PencilButton s={s} onClick={() => setOpen(o => !o)} />
-          {open && (
-            <BoolPicker
-              value={value}
-              s={s}
-              onPick={(v) => { setOpen(false); onValueEdit(pointer, v) }}
-            />
-          )}
-        </span>
+    <EditableLeaf
+      display={display}
+      editing={editing && !!onValueEdit}
+      s={s}
+      renderPopover={(close) => (
+        <BoolPicker value={value} s={s} onPick={(v) => { close(); onValueEdit(pointer, v) }} />
       )}
-    </div>
+    />
+  )
+}
+
+// A number leaf — integers and floats alike. Shown with the configured decimal
+// separator; in edit mode the pencil opens the type-in NumberEditor.
+function NumRow({ value, pointer, keyLabel, s }) {
+  const { editing, onValueEdit } = useContext(EditModeContext)
+  const sep = resolveDecimalSeparator(s.decimalSeparator)
+  const display = (
+    <>
+      {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
+      {formatNumberForDisplay(value, sep)}
+    </>
+  )
+  return (
+    <EditableLeaf
+      display={display}
+      editing={editing && !!onValueEdit}
+      s={s}
+      renderPopover={(close) => (
+        <NumberEditor value={value} sep={sep} s={s} onCommit={(n) => { close(); onValueEdit(pointer, n) }} />
+      )}
+    />
   )
 }
 
@@ -260,8 +361,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkCli
   if (typeof value === 'number') {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
-        {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        {value}
+        <NumRow value={value} pointer={pointer} keyLabel={keyLabel} s={s} />
       </Card>
     )
   }

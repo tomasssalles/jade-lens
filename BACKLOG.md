@@ -18,6 +18,7 @@ This is a to-do list, not JIRA. Keep it light.
 
 - [Inline-vs-sidecar promotion](#inline-vs-sidecar-promotion)
 - [Release version decision](#release-version-decision)
+- [Re-organize all docs](#re-organize-all-docs)
 - [Versioning and version comparison](#versioning-and-version-comparison)
 - [Self-update of code and skill](#self-update-of-code-and-skill)
 - [Data migration framework](#data-migration-framework)
@@ -81,6 +82,32 @@ whether to expand the v0.1.0 changelog or cut `changelogs/v0.2.0.md` and bump
 **Open questions:**
 - Expand v0.1.0 vs. new v0.2.0? A version bump touches the (still unbuilt)
   migration story, so coordinate with the versioning items.
+
+---
+
+## Re-organize all docs
+
+**Scope:** cross-cutting / housekeeping.
+
+Take stock of all the project documentation, decide how it should be organized, and
+improve it. The docs have grown organically — `CLAUDE.md`, `DESIGN.md` (large, and
+explicitly vision-not-current-state), the changelog, `KNOWN_ISSUES.md`, this
+`BACKLOG.md`, `docs/mutation-sync-implementation-plan.md`, the per-feature docs
+under `docs/` and `docs/web/`, the conformance READMEs, and the two app READMEs —
+and some now overlap or drift.
+
+**Blockers:** none.
+
+**Open questions:**
+- BACKLOG vs. `docs/mutation-sync-implementation-plan.md`: forward-looking work now
+  lives in both. Does BACKLOG own "what's next" while the plan becomes a historical
+  record of the mutation/sync build (kept or archived)?
+- The plan's §8 checklist is partly stale (the lock/pencil work superseded the 5g
+  boolean-gesture notes; number editing isn't recorded) — reconcile or retire it.
+- `DESIGN.md` is large and vision-not-reality. Split (vision vs. reference)?
+  Annotate what's built vs. planned? Leave as-is?
+- Does `docs/` need an index/README so the docs are discoverable?
+- Naming and placement conventions for future per-feature docs.
 
 ---
 

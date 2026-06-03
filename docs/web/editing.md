@@ -4,14 +4,14 @@ How user-driven data changes happen in the web app UI. The companion doc
 `docs/sync-and-conflicts.md` covers what happens *after* a change is committed
 (sync, conflicts, the stash); this doc is about producing the change.
 
-> **Status: partly implemented; growing.** Shipped: **checkbox toggling** and a
-> first **boolean field flip** in the JSON card view, on top of the full sync +
-> conflict + stash machinery. Groundwork landed (no UI yet): the unified-diff
-> generator, the draft store + startup reconciliation, and the render-authority
-> flip. Designed-but-unbuilt below: the **edit-mode lock** that gates card-view
-> value edits (replacing the flip-on-gesture boolean with pencil + picker), the
-> remaining JSON value micro-edits (date / wikilink / number / string), raw
-> markdown editing, file move/delete, and raw JSON editing. See
+> **Status: partly implemented; growing.** Shipped: **checkbox toggling**, and the
+> **edit-mode lock** gating card-view value edits with a per-field **pencil →
+> picker** (booleans only so far), on top of the full sync + conflict + stash
+> machinery. Groundwork landed (no UI yet): the unified-diff generator, the draft
+> store + startup reconciliation, and the render-authority flip. Designed-but-unbuilt
+> below: the remaining JSON value micro-edits (date / wikilink / number / string,
+> each lighting up its pencil under the lock), raw markdown editing, file
+> move/delete, and raw JSON editing. See
 > `docs/mutation-sync-implementation-plan.md` Phase 5 for the build order and
 > what's pure-groundwork vs browser-verified UI.
 
@@ -63,8 +63,7 @@ mutation. (Same principle the draft reconciler already applies.)
 card view each is reached the same way: enter edit mode (unlock), then tap the
 field's **pencil** to open the editor.*
 - **Boolean:** the pencil opens a **picker** with the two choices — never a silent
-  in-place flip. *(A first flip-on-gesture boolean is currently shipped; it's
-  being reworked into this pencil + picker model — see "Edit-mode lock" below.)*
+  in-place flip. *(Implemented — see "Edit-mode lock" below.)*
 - **Date / time:** native picker → ISO string.
 - **Wikilink (data-repo file link):** a file picker → the chosen `[[path]]`.
 - **Number:** a numeric-only input field.
@@ -137,11 +136,11 @@ be a mode you opt into deliberately.
   as they land.
 
 This **supersedes the earlier "uniform deliberate-gesture" model** for card-view
-values (long-press / double-click to edit any field). The currently-shipped
-boolean *flip-on-gesture* is therefore transitional: under this design a boolean
-is edited by tapping its pencil to open a **picker** showing the two choices —
-never a direct in-place flip — consistent with every other type, and making the
-change visible and deliberate.
+values (long-press / double-click to edit any field, which the boolean briefly
+shipped with and which has been removed). A boolean is now edited by tapping its
+pencil to open a **picker** showing the two choices — never a direct in-place
+flip — consistent with how every other type will work, and making the change
+visible and deliberate.
 
 **Future: a lock for markdown too (deferred — not decided).** Today markdown's
 only in-place edit is the checkbox, which stays on its always-on long-press / 

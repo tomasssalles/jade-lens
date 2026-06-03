@@ -1,13 +1,17 @@
-import { createContext, useCallback, useContext, useState, useSyncExternalStore } from 'react'
-import { getCardColor, getTextColor, getBorderColor } from './viewerSettings'
-import { useEditGesture } from './edit/useEditGesture'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { getCardColor, getTextColor, getBorderColor, getTitleColor, getUnlockedLockColor } from './viewerSettings'
 import { appendPointer } from './edit/jsonPointer'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
+import LockClosedIcon from './assets/lock-closed.svg?react'
+import LockOpenIcon from './assets/lock-open.svg?react'
+import PencilIcon from './assets/pencil.svg?react'
 
-// onValueEdit(pointer, newValue): commit a single JSON value micro-edit. Provided
-// at the top so the recursive RenderValue can reach it without prop-threading.
-const JsonValueEditContext = createContext(null)
+// Edit-mode context: `{ editing, onValueEdit }`. `editing` is true only when the
+// view is unlocked (docs/web/editing.md "Edit-mode lock"); `onValueEdit(pointer,
+// newValue)` commits one JSON value micro-edit. Both are read by the recursive
+// RenderValue without prop-threading.
+const EditModeContext = createContext({ editing: false, onValueEdit: null })
 
 // Subscribe to a media query and return whether it currently matches.
 // Re-renders only when the match flips, not on every resize pixel.
@@ -79,34 +83,159 @@ function Collapsible({ label, depth, s, isWide, children, count }) {
   )
 }
 
+// ─── Edit-mode controls ───────────────────────────────────────────────────────
+
+// The lock that gates editing. Locked = read-only, drawn in the theme colour;
+// unlocked = edit mode, drawn in a blazing red (or a contrasting fallback when
+// the theme is itself red). A single tap toggles it (docs/web/editing.md).
+function LockButton({ unlocked, onToggle, s }) {
+  const color = unlocked ? getUnlockedLockColor(s) : getTitleColor(s)
+  const Icon = unlocked ? LockOpenIcon : LockClosedIcon
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={unlocked ? 'Lock (leave edit mode)' : 'Unlock to edit'}
+      aria-pressed={unlocked}
+      title={unlocked ? 'Editing — tap to lock' : 'Tap to edit'}
+      style={{
+        marginLeft: 'auto',
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: s.fontSize + 16,
+        height: s.fontSize + 16,
+        padding: 0,
+        cursor: 'pointer',
+        color,
+        background: unlocked ? `${color}22` : 'transparent',
+        border: `2px solid ${color}`,
+        borderRadius: 6,
+        transition: 'color 0.12s, border-color 0.12s, background 0.12s',
+      }}
+    >
+      <Icon style={{ width: s.fontSize + 2, height: s.fontSize + 2 }} />
+    </button>
+  )
+}
+
+// A little framed pencil — the per-field edit trigger shown on editable leaf
+// cards while the view is unlocked.
+function PencilButton({ onClick, s }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Edit value"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: s.fontSize + 10,
+        height: s.fontSize + 10,
+        padding: 0,
+        cursor: 'pointer',
+        color: getTitleColor(s),
+        background: 'rgba(0,0,0,0.04)',
+        border: `1px solid ${getBorderColor(s)}`,
+        borderRadius: 4,
+      }}
+    >
+      <PencilIcon style={{ width: s.fontSize - 2, height: s.fontSize - 2 }} />
+    </button>
+  )
+}
+
+// Boolean picker popover: the two choices, the current one highlighted. Picking
+// commits (the upstream no-op guard ignores re-picking the same value).
+// Presentational only — open/close (incl. outside-click) is owned by BoolRow so
+// that clicking the pencil itself counts as "inside".
+function BoolPicker({ value, onPick, s }) {
+  const option = (v, label) => (
+    <button
+      onClick={() => onPick(v)}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '5px 12px',
+        cursor: 'pointer',
+        font: 'inherit',
+        whiteSpace: 'nowrap',
+        border: 'none',
+        background: v === value ? getTitleColor(s) : 'transparent',
+        color: v === value ? '#fff' : 'inherit',
+      }}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '100%',
+        right: 0,
+        marginTop: 4,
+        zIndex: 10,
+        background: getCardColor(0, s),
+        color: getTextColor(0, s),
+        border: `1px solid ${getBorderColor(s)}`,
+        borderRadius: 5,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+      }}
+    >
+      {option(true, '✓ true')}
+      {option(false, '✗ false')}
+    </div>
+  )
+}
+
 // ─── Recursive value renderer ─────────────────────────────────────────────────
 
-// An editable boolean value. The edit gesture (long-press / double-click) flips
-// it; non-editable (no onValueEdit in context) it's a plain ✓/✗ as before.
-function BoolValue({ value, pointer }) {
-  const onValueEdit = useContext(JsonValueEditContext)
-  const editable = !!onValueEdit
-  const gesture = useEditGesture(() => onValueEdit?.(pointer, !value))
-  const editStyle = editable
-    ? {
-        cursor: 'pointer',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        WebkitTouchCallout: 'none',
-        touchAction: 'manipulation',
-        padding: '0 6px',
-        borderRadius: 3,
-        background: 'rgba(0,0,0,0.05)',
-      }
-    : null
+// A boolean leaf. Read-only it's a plain ✓/✗. In edit mode (view unlocked and
+// the file editable) a framed pencil sits at the card's right edge and opens a
+// picker — there's no in-place flip; every type is edited through its picker.
+function BoolRow({ value, pointer, keyLabel, s }) {
+  const { editing, onValueEdit } = useContext(EditModeContext)
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  const showEditor = editing && !!onValueEdit
+
+  // Close the picker on outside-click / Escape. The handler checks the wrapper
+  // (pencil + popover), so clicking the pencil itself is "inside" and lets its
+  // own onClick toggle cleanly rather than closing then reopening.
+  useEffect(() => {
+    if (!open) return
+    function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <span
-      {...(editable ? gesture : {})}
-      style={{ opacity: value ? 1 : 0.5, ...editStyle }}
-      title={editable ? 'Long-press or double-click to toggle' : undefined}
-    >
-      {value ? '✓' : '✗'}
-    </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ minWidth: 0 }}>
+        {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
+        <span style={{ opacity: value ? 1 : 0.5 }}>{value ? '✓' : '✗'}</span>
+      </span>
+      {showEditor && (
+        <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex', marginLeft: 'auto', flexShrink: 0 }}>
+          <PencilButton s={s} onClick={() => setOpen(o => !o)} />
+          {open && (
+            <BoolPicker
+              value={value}
+              s={s}
+              onPick={(v) => { setOpen(false); onValueEdit(pointer, v) }}
+            />
+          )}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -123,8 +252,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkCli
   if (typeof value === 'boolean') {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
-        {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        <BoolValue value={value} pointer={pointer} />
+        <BoolRow value={value} pointer={pointer} keyLabel={keyLabel} s={s} />
       </Card>
     )
   }
@@ -204,6 +332,22 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
   // the breakpoint crossing rather than on every resize pixel.
   const isWide = useMediaQuery(`(min-width: ${settings.wideBreakpoint}px)`)
 
+  // The edit-mode lock. Locked (read-only) by default; opening a different file
+  // re-locks (auto-relock on leaving the view — docs/web/editing.md). The lock
+  // only appears when the file is actually editable (onValueEdit provided).
+  const canEdit = !!onValueEdit
+  const [unlocked, setUnlocked] = useState(false)
+  // Re-lock when the viewer switches to a different file (auto-relock on leaving
+  // the view) — done during render via a previous-value sentinel rather than an
+  // effect, the React-recommended way to reset state on a prop change.
+  const [prevPath, setPrevPath] = useState(filePath)
+  if (prevPath !== filePath) {
+    setPrevPath(filePath)
+    setUnlocked(false)
+  }
+
+  const editMode = useMemo(() => ({ editing: unlocked, onValueEdit }), [unlocked, onValueEdit])
+
   // Each top item carries its JSON Pointer so value edits map back to the source.
   let topItems
   if (Array.isArray(data)) {
@@ -222,16 +366,34 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
   }
 
   return (
-    <JsonValueEditContext.Provider value={onValueEdit}>
+    <EditModeContext.Provider value={editMode}>
+      {/* No `overflow` on this wrapper: an intermediate scroll container here
+          would trap the breadcrumb's `position: sticky`. Horizontal scrolling for
+          wide cards lives on the inner wrapper below instead. */}
       <div style={{
         background: getCardColor(0, settings),
         minHeight: '100%',
         padding: `${settings.cardPaddingY * 2}px ${settings.cardPaddingX * 2}px`,
         boxSizing: 'border-box',
-        overflowX: isWide ? 'auto' : 'hidden',
       }}>
-        <FileBreadcrumb filePath={filePath} s={settings} onBack={onBack} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: settings.siblingGap + 4 }}>
+        <FileBreadcrumb
+          filePath={filePath}
+          s={settings}
+          onBack={onBack}
+          sticky={canEdit}
+          right={canEdit && (
+            <LockButton unlocked={unlocked} onToggle={() => setUnlocked(v => !v)} s={settings} />
+          )}
+        />
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: settings.siblingGap + 4,
+          overflowX: isWide ? 'auto' : 'hidden',
+          // Slack below the last card so a picker opening under it isn't clipped
+          // by this wrapper's overflow.
+          paddingBottom: settings.fontSize * 4,
+        }}>
           {topItems.map(({ key, value, label, pointer }) => (
             <RenderValue
               key={key}
@@ -246,6 +408,6 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
           ))}
         </div>
       </div>
-    </JsonValueEditContext.Provider>
+    </EditModeContext.Provider>
   )
 }

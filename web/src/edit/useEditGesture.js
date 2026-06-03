@@ -1,10 +1,11 @@
 import { useRef } from 'react';
 
-// The deliberate "enter edit" gesture shared by every in-place edit
-// (docs/web/editing.md "Entering an edit"): long-press on touch, double-click on
-// desktop. A single tap/click never edits — reading is the common case. The
-// long-press context menu is suppressed. Pass `preventClick: true` for elements
-// (like a checkbox) whose native single-click would otherwise act.
+// The deliberate "enter edit" gesture for the markdown checkbox — the one
+// in-place edit that lives directly in read mode, outside the JSON card view's
+// edit-mode lock (docs/web/editing.md "Entering an edit"): long-press on touch,
+// double-click on desktop. A single tap/click never edits — reading is the common
+// case. The long-press context menu is suppressed. Pass `preventClick: true` for
+// elements (like a checkbox) whose native single-click would otherwise act.
 
 export const LONG_PRESS_MS = 500;
 

@@ -91,6 +91,19 @@ export function getTitleColor(s) {
   return `hsl(${hue}, ${Math.min(sat + 10, 50)}%, ${Math.max(s.baseLightnessStart - 35, 20)}%)`
 }
 
+// Colour of the edit-mode lock when *unlocked* (docs/web/editing.md "Edit-mode
+// lock"). It must scream "you're editing" — a blazing red — but if the theme
+// itself is red-ish the red wouldn't stand out against the (themed) locked
+// colour, so we fall back to a vivid violet that contrasts any red theme.
+export const UNLOCKED_LOCK_RED = '#ff1f00'
+export const UNLOCKED_LOCK_RED_ALT = '#9b1fff'
+
+export function getUnlockedLockColor(s) {
+  const { hue } = resolveHueSat(s)
+  const themeIsRedish = hue >= 335 || hue <= 20
+  return themeIsRedish ? UNLOCKED_LOCK_RED_ALT : UNLOCKED_LOCK_RED
+}
+
 export function applySettingsCssVars(settings) {
   const root = document.documentElement
   root.style.setProperty('--jl-wikilink-color', settings.wikilinkColor)

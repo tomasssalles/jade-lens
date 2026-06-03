@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hexToHsl, getCardColor, DEFAULT_VIEWER_SETTINGS } from './viewerSettings'
+import { hexToHsl, getCardColor, getUnlockedLockColor, UNLOCKED_LOCK_RED, UNLOCKED_LOCK_RED_ALT, DEFAULT_VIEWER_SETTINGS } from './viewerSettings'
 
 describe('hexToHsl', () => {
   it('converts white', () => {
@@ -36,6 +36,20 @@ describe('getCardColor', () => {
   it('derives hue/sat from the custom color when enabled', () => {
     const custom = { ...s, useCustomColor: true, customColorHex: '#ff0000' }
     expect(getCardColor(0, custom)).toBe(`hsl(0, 100%, ${s.baseLightnessStart}%)`)
+  })
+})
+
+describe('getUnlockedLockColor', () => {
+  it('is blazing red for a non-red theme (default slate blue)', () => {
+    expect(getUnlockedLockColor(DEFAULT_VIEWER_SETTINGS)).toBe(UNLOCKED_LOCK_RED)
+  })
+  it('falls back to the alt colour when the theme hue is red', () => {
+    const dustyRose = { ...DEFAULT_VIEWER_SETTINGS, baseHue: 350 }
+    expect(getUnlockedLockColor(dustyRose)).toBe(UNLOCKED_LOCK_RED_ALT)
+  })
+  it('treats a red custom colour as red-ish', () => {
+    const customRed = { ...DEFAULT_VIEWER_SETTINGS, useCustomColor: true, customColorHex: '#ff0000' }
+    expect(getUnlockedLockColor(customRed)).toBe(UNLOCKED_LOCK_RED_ALT)
   })
 })
 

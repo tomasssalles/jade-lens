@@ -51,15 +51,43 @@ picker and choosing the same date, or an editor and changing nothing, is not a
 mutation. (Same principle the draft reconciler already applies.)
 
 *Examples — JSON values (one `json_patch` `replace` at the field's path):*
+- **Boolean:** the edit gesture toggles `true`↔`false`. *(Implemented.)*
 - **Date / time:** native picker → ISO string.
-- **Boolean:** a toggle/switch control → `true`/`false`.
-- **Wikilink:** a file picker → the chosen `[[path]]`.
+- **Wikilink (data-repo file link):** a file picker → the chosen `[[path]]`.
 - **Number:** a numeric-only input field.
-- **String:** opens the raw markdown editor (Tier 2) on that field — short strings
-  commit immediately on the same gesture model.
+- **Plain string** (not a recognized date / wikilink): opens the raw markdown
+  editor (Tier 2) on that field.
 
 Type changes (e.g. `null` → integer) and array/object edits have no simple
 value-UI; they go through **raw JSON editing** (below).
+
+#### The UI's effective type system
+
+JSON has four primitive value types (string, number, boolean, null), but the card
+viewer **detects richer *effective* types from a value's content** and gives each
+its own micro-edit affordance. A string is routed by what it looks like — an
+ISO date opens a **date picker**, a `[[path]]` opens a **file picker**, anything
+else opens the **raw markdown editor**. So the UI effectively makes the format
+support this set of editable types:
+
+| Effective type | Underlying JSON | Micro-edit affordance |
+|---|---|---|
+| null | `null` | — (type change only) |
+| number | number | numeric input |
+| boolean | boolean | toggle (the edit gesture) |
+| date / date+time / time | string (date-formatted) | native picker |
+| data-repo file link | string `[[path]]` | file picker |
+| markdown | any other string | raw markdown editor |
+
+Two consequences worth stating plainly:
+
+- **A value is edited into another value of the *same* effective type.** You can't
+  edit a date-formatted string *as raw text* — the date picker always opens for
+  it.
+- **Changing a value's type is not a micro-edit** — it requires **raw JSON
+  editing**. For example, to turn a `[[projects/x.md]]` link into a historical,
+  non-clickable reference (say, before deleting the file), raw-edit the JSON value
+  to remove the square brackets. Likewise `null` → number, string → array, etc.
 
 *Examples — markdown:*
 - **Checkbox in rendered markdown:** determine the source line → derive a

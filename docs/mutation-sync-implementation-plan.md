@@ -644,13 +644,19 @@ implement when wiring:
             show the referrers when the delete is rejected.
 - [ ] (5g) **JSON value micro-edits** + the **edit gesture** + **no-op guard**:
       date/time picker, boolean toggle, wikilink file-picker, number input, string
-      → raw editor; each is a one-op `json_patch` `replace`.
-      - [x] **edit gesture + checkbox retrofit**: the checkbox now toggles on
-            long-press (touch) / double-click (desktop) instead of single-tap, with
-            native single-click toggle, the long-press context menu, and text
-            selection all suppressed (`MarkdownRenderer.jsx` + `markdown.css`).
-      - [ ] JSON value-edit UIs (browser, JsonCardViewer) + the no-op guard wired
-            into the commit path (commit only if the value changed).
+      → raw editor; each is a one-op `json_patch` `replace`. The UI projects an
+      *effective type system* onto JSON (see `docs/web/editing.md`).
+      - [x] **shared edit gesture** (`web/src/edit/useEditGesture.js`): long-press
+            (touch) / double-click (desktop), context-menu/selection suppressed.
+            **Checkbox retrofitted** to it (single-tap no longer toggles).
+      - [x] **boolean** value micro-edit: interactive ✓/✗ in JsonCardViewer →
+            `buildJsonValueEdit` (one `json_patch` `replace` at the value's JSON
+            pointer) → `commitBatch`; optimistic canonical re-render; **no-op
+            guard** in the commit path (skip if content unchanged). Pure helpers:
+            `jsonValueEdit.js`, `jsonPointer.js` (pointer tracking in the viewer),
+            unit-tested.
+      - [ ] remaining value-edit UIs (browser): date/time picker, wikilink
+            file-picker, number input, plain-string → raw editor.
 - [ ] (5h) **Raw JSON structural editing** (the escape hatch for arrays / type
       changes / key add-remove-move — see `docs/web/editing.md` "Raw JSON editing"):
       - [x] groundwork: `generateJsonPatch(before, after)` — structural diff →

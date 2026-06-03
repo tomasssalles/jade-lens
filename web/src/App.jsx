@@ -7,7 +7,9 @@ import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySe
 import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile } from './repoCache'
 import { buildCheckboxToggle } from './edit/checkbox'
+import { buildJsonValueEdit } from './edit/jsonValueEdit'
 import { applyUnifiedDiff } from './mutation/unifiedDiff'
+import { applyJsonPatch } from './mutation/jsonPatch'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
@@ -134,12 +136,12 @@ function App() {
     openFile(path, content)
   }, [openFile, showToast])
 
-  // The background half of a checkbox toggle: persist + sync the already-applied
+  // The background half of an in-place edit: persist + sync the already-applied
   // change through the shared pipeline. Serialised via editChainRef so rapid
-  // toggles don't race the queue. Does NOT touch the view on success — the
+  // edits don't race the queue. Does NOT touch the view on success — the
   // optimistic update already shows the right thing; it only reconciles when a
   // conflict was stashed (the local change was rolled back to the remote).
-  const commitToggle = useCallback(async (path, batch) => {
+  const commitBatch = useCallback(async (path, batch) => {
     let cfg
     try { cfg = await getConfig() } catch { return }
     const cached = await getCachedRepo().catch(() => null)
@@ -182,8 +184,28 @@ function App() {
     let optimistic
     try { optimistic = applyUnifiedDiff(content, batch.operations[0].diff) } catch { return }
     setFileView({ path, content: optimistic })
-    editChainRef.current = editChainRef.current.then(() => commitToggle(path, batch)).catch(() => {})
-  }, [commitToggle])
+    editChainRef.current = editChainRef.current.then(() => commitBatch(path, batch)).catch(() => {})
+  }, [commitBatch])
+
+  // Micro-edit: change a JSON value in place (booleans first — toggling
+  // true/false). Applies the json_patch optimistically (canonical re-serialize,
+  // matching the pipeline) then persists + syncs in the background, like the
+  // checkbox. The no-op guard skips a change that leaves the content untouched.
+  const handleJsonValueEdit = useCallback((pointer, newValue) => {
+    const fv = fileViewRef.current
+    if (!fv || !fv.path.endsWith('.json')) return
+    let before
+    try { before = JSON.parse(fv.content) } catch { return }
+    const patch = [{ op: 'replace', path: pointer, value: newValue }]
+    let after
+    try { after = applyJsonPatch(before, patch) } catch { return }
+    if (JSON.stringify(after) === JSON.stringify(before)) return // no-op guard
+    const { path } = fv
+    const optimistic = JSON.stringify(after, null, 2) + '\n'
+    setFileView({ path, content: optimistic })
+    const batch = buildJsonValueEdit(path, pointer, newValue)
+    editChainRef.current = editChainRef.current.then(() => commitBatch(path, batch)).catch(() => {})
+  }, [commitBatch])
 
   useEffect(() => {
     async function onPopState(e) {
@@ -383,6 +405,7 @@ function App() {
           viewerSettings={viewerSettings}
           onWikilinkClick={handleWikilinkClick}
           onCheckboxToggle={handleCheckboxToggle}
+          onJsonValueEdit={handleJsonValueEdit}
         />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}

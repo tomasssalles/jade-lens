@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef } from 'react'
+import { useContext, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { visit, SKIP } from 'unist-util-visit'
@@ -19,52 +19,32 @@ import remarkDates from './plugins/remarkDates'
 import WikilinkNode from './nodes/WikilinkNode'
 import DateNode from './nodes/DateNode'
 import { CheckboxToggleContext, ListItemLineContext } from './edit/checkboxContext'
+import { useEditGesture } from './edit/useEditGesture'
 import './markdown.css'
-
-// How long a touch must be held to count as a long-press (ms).
-const LONG_PRESS_MS = 500
 
 // A task-list checkbox. Interactive when a toggle handler is in context and the
 // enclosing list item's source line is known; otherwise read-only (as before).
 //
-// Reading is the common case, so a single tap/click must NOT toggle — only a
-// deliberate gesture commits: double-click on desktop, long-press on touch
-// (docs/web/editing.md "Entering an edit"). Native single-click toggling, the
-// long-press context menu, and text selection are all suppressed.
+// Reading is the common case, so a single tap/click must NOT toggle — only the
+// shared edit gesture commits (long-press on touch / double-click on desktop;
+// docs/web/editing.md "Entering an edit"). `preventClick` blocks the native
+// single-click toggle; the CSS class suppresses the long-press menu + selection.
 function TaskCheckbox({ checked }) {
   const onToggle = useContext(CheckboxToggleContext)
   const line = useContext(ListItemLineContext)
-  const timerRef = useRef(null)
+  const editable = !!(onToggle && line != null)
+  const gesture = useEditGesture(() => onToggle(line, !!checked), { preventClick: true })
 
-  if (!(onToggle && line != null)) {
+  if (!editable) {
     return <input type="checkbox" checked={!!checked} readOnly disabled className="jl-checkbox" />
   }
-
-  const fire = () => onToggle(line, !!checked)
-  const clearTimer = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }
-  const onTouchStart = () => {
-    clearTimer()
-    timerRef.current = setTimeout(() => { timerRef.current = null; fire() }, LONG_PRESS_MS)
-  }
-
   return (
     <input
       type="checkbox"
       checked={!!checked}
       readOnly
       className="jl-checkbox jl-checkbox-editable"
-      onClick={(e) => e.preventDefault()}      // a single click never toggles
-      onDoubleClick={fire}                     // desktop gesture
-      onContextMenu={(e) => e.preventDefault()} // suppress the long-press menu
-      onTouchStart={onTouchStart}              // start the long-press timer
-      onTouchEnd={clearTimer}
-      onTouchMove={clearTimer}                 // a scroll/drag cancels it
-      onTouchCancel={clearTimer}
+      {...gesture}
     />
   )
 }

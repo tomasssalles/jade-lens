@@ -1,7 +1,13 @@
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useState, useSyncExternalStore } from 'react'
 import { getCardColor, getTextColor, getBorderColor } from './viewerSettings'
+import { useEditGesture } from './edit/useEditGesture'
+import { appendPointer } from './edit/jsonPointer'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
+
+// onValueEdit(pointer, newValue): commit a single JSON value micro-edit. Provided
+// at the top so the recursive RenderValue can reach it without prop-threading.
+const JsonValueEditContext = createContext(null)
 
 // Subscribe to a media query and return whether it currently matches.
 // Re-renders only when the match flips, not on every resize pixel.
@@ -75,7 +81,36 @@ function Collapsible({ label, depth, s, isWide, children, count }) {
 
 // ─── Recursive value renderer ─────────────────────────────────────────────────
 
-function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
+// An editable boolean value. The edit gesture (long-press / double-click) flips
+// it; non-editable (no onValueEdit in context) it's a plain ✓/✗ as before.
+function BoolValue({ value, pointer }) {
+  const onValueEdit = useContext(JsonValueEditContext)
+  const editable = !!onValueEdit
+  const gesture = useEditGesture(() => onValueEdit?.(pointer, !value))
+  const editStyle = editable
+    ? {
+        cursor: 'pointer',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        touchAction: 'manipulation',
+        padding: '0 6px',
+        borderRadius: 3,
+        background: 'rgba(0,0,0,0.05)',
+      }
+    : null
+  return (
+    <span
+      {...(editable ? gesture : {})}
+      style={{ opacity: value ? 1 : 0.5, ...editStyle }}
+      title={editable ? 'Long-press or double-click to toggle' : undefined}
+    >
+      {value ? '✓' : '✗'}
+    </span>
+  )
+}
+
+function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkClick }) {
   if (value === null) {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
@@ -89,7 +124,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
         {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        <span style={{ opacity: value ? 1 : 0.5 }}>{value ? '✓' : '✗'}</span>
+        <BoolValue value={value} pointer={pointer} />
       </Card>
     )
   }
@@ -131,7 +166,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
     return (
       <Collapsible label={keyLabel || 'Items'} depth={depth} s={s} isWide={isWide} count={value.length}>
         {value.map((item, i) => (
-          <RenderValue key={i} value={item} depth={depth + 1} s={s} isWide={isWide} onWikilinkClick={onWikilinkClick} />
+          <RenderValue key={i} value={item} depth={depth + 1} s={s} isWide={isWide} pointer={`${pointer}/${i}`} onWikilinkClick={onWikilinkClick} />
         ))}
       </Collapsible>
     )
@@ -143,7 +178,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
       return (
         <Collapsible label={keyLabel} depth={depth} s={s} isWide={isWide}>
           {entries.map(([k, v]) => (
-            <RenderValue key={k} value={v} depth={depth + 1} s={s} isWide={isWide} keyLabel={k} onWikilinkClick={onWikilinkClick} />
+            <RenderValue key={k} value={v} depth={depth + 1} s={s} isWide={isWide} keyLabel={k} pointer={appendPointer(pointer, k)} onWikilinkClick={onWikilinkClick} />
           ))}
         </Collapsible>
       )
@@ -152,7 +187,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
       <Card depth={depth} s={s} isWide={isWide}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: s.siblingGap }}>
           {entries.map(([k, v]) => (
-            <RenderValue key={k} value={v} depth={depth + 1} s={s} isWide={isWide} keyLabel={k} onWikilinkClick={onWikilinkClick} />
+            <RenderValue key={k} value={v} depth={depth + 1} s={s} isWide={isWide} keyLabel={k} pointer={appendPointer(pointer, k)} onWikilinkClick={onWikilinkClick} />
           ))}
         </div>
       </Card>
@@ -164,47 +199,53 @@ function RenderValue({ value, depth, s, isWide, keyLabel, onWikilinkClick }) {
 
 // ─── Top-level export ─────────────────────────────────────────────────────────
 
-export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onBack }) {
+export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onValueEdit = null, onBack }) {
   // Track only the wide/narrow boolean, not the raw width, so we re-render on
   // the breakpoint crossing rather than on every resize pixel.
   const isWide = useMediaQuery(`(min-width: ${settings.wideBreakpoint}px)`)
 
+  // Each top item carries its JSON Pointer so value edits map back to the source.
   let topItems
   if (Array.isArray(data)) {
-    topItems = data.map((item, i) => ({ key: String(i), value: item, label: null }))
+    topItems = data.map((item, i) => ({ key: String(i), value: item, label: null, pointer: `/${i}` }))
   } else if (data && typeof data === 'object') {
     const keys = Object.keys(data)
     if (keys.length === 1 && Array.isArray(data[keys[0]])) {
-      topItems = data[keys[0]].map((item, i) => ({ key: String(i), value: item, label: null }))
+      // The viewer unwraps a single `{ key: [...] }` — the items live under /key.
+      const base = appendPointer('', keys[0])
+      topItems = data[keys[0]].map((item, i) => ({ key: String(i), value: item, label: null, pointer: `${base}/${i}` }))
     } else {
-      topItems = Object.entries(data).map(([k, v]) => ({ key: k, value: v, label: k }))
+      topItems = Object.entries(data).map(([k, v]) => ({ key: k, value: v, label: k, pointer: appendPointer('', k) }))
     }
   } else {
-    topItems = [{ key: '0', value: data, label: null }]
+    topItems = [{ key: '0', value: data, label: null, pointer: '' }]
   }
 
   return (
-    <div style={{
-      background: getCardColor(0, settings),
-      minHeight: '100%',
-      padding: `${settings.cardPaddingY * 2}px ${settings.cardPaddingX * 2}px`,
-      boxSizing: 'border-box',
-      overflowX: isWide ? 'auto' : 'hidden',
-    }}>
-      <FileBreadcrumb filePath={filePath} s={settings} onBack={onBack} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: settings.siblingGap + 4 }}>
-        {topItems.map(({ key, value, label }) => (
-          <RenderValue
-            key={key}
-            value={value}
-            depth={1}
-            s={settings}
-            isWide={isWide}
-            keyLabel={label}
-            onWikilinkClick={onWikilinkClick}
-          />
-        ))}
+    <JsonValueEditContext.Provider value={onValueEdit}>
+      <div style={{
+        background: getCardColor(0, settings),
+        minHeight: '100%',
+        padding: `${settings.cardPaddingY * 2}px ${settings.cardPaddingX * 2}px`,
+        boxSizing: 'border-box',
+        overflowX: isWide ? 'auto' : 'hidden',
+      }}>
+        <FileBreadcrumb filePath={filePath} s={settings} onBack={onBack} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: settings.siblingGap + 4 }}>
+          {topItems.map(({ key, value, label, pointer }) => (
+            <RenderValue
+              key={key}
+              value={value}
+              depth={1}
+              s={settings}
+              isWide={isWide}
+              keyLabel={label}
+              pointer={pointer}
+              onWikilinkClick={onWikilinkClick}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </JsonValueEditContext.Provider>
   )
 }

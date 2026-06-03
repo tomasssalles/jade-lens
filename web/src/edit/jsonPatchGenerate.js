@@ -10,6 +10,8 @@
 // remove, added key → add, recurse into common keys/indices. No `move`/`copy`
 // detection. Round-trip is conformance-pinned against the applier in the tests.
 
+import { appendPointer } from './jsonPointer.js';
+
 /** Structural equality (objects key-order-independent, arrays order-sensitive). */
 function deepEqual(a, b) {
   if (a === b) return true;
@@ -34,11 +36,6 @@ function kind(v) {
   return 'primitive'; // string | number | boolean | null
 }
 
-/** RFC 6901 token escaping for a single path segment. */
-function esc(key) {
-  return String(key).replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
 function diff(before, after, path, patch) {
   if (deepEqual(before, after)) return;
 
@@ -52,10 +49,10 @@ function diff(before, after, path, patch) {
 
   if (bk === 'array') {
     const common = Math.min(before.length, after.length);
-    for (let i = 0; i < common; i++) diff(before[i], after[i], `${path}/${i}`, patch);
+    for (let i = 0; i < common; i++) diff(before[i], after[i], appendPointer(path, i), patch);
     // Removals high→low so earlier indices stay valid during sequential apply.
     for (let i = before.length - 1; i >= after.length; i--) {
-      patch.push({ op: 'remove', path: `${path}/${i}` });
+      patch.push({ op: 'remove', path: appendPointer(path, i) });
     }
     // Appends in order (each lands at the end of the growing array).
     for (let i = before.length; i < after.length; i++) {
@@ -66,13 +63,13 @@ function diff(before, after, path, patch) {
 
   // Both plain objects.
   for (const k of Object.keys(before)) {
-    if (!Object.hasOwn(after, k)) patch.push({ op: 'remove', path: `${path}/${esc(k)}` });
+    if (!Object.hasOwn(after, k)) patch.push({ op: 'remove', path: appendPointer(path, k) });
   }
   for (const k of Object.keys(after)) {
     if (!Object.hasOwn(before, k)) {
-      patch.push({ op: 'add', path: `${path}/${esc(k)}`, value: after[k] });
+      patch.push({ op: 'add', path: appendPointer(path, k), value: after[k] });
     } else {
-      diff(before[k], after[k], `${path}/${esc(k)}`, patch);
+      diff(before[k], after[k], appendPointer(path, k), patch);
     }
   }
 }

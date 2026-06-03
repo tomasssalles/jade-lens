@@ -28,6 +28,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [File move, rename, and delete](#file-move-rename-and-delete)
 - [JSON value editors](#json-value-editors)
 - [Raw JSON structural editor](#raw-json-structural-editor)
+- [Create file](#create-file)
 
 ---
 
@@ -248,3 +249,25 @@ fuzz-pinned).
 
 **Blockers:** none. (Needs a browser; shares CodeMirror with the Text and markdown
 editor.)
+
+---
+
+## Create file
+
+**Scope:** web.
+
+UI to create a new `.md` or `.json` file via the `create_file` op (path must end in
+an editable suffix; missing parent dirs are `mkdir -p`'d; `.json` content is
+parse-validated at create time). Pick a path/name and type, open the matching
+editor for initial content (the markdown editor for `.md`, the raw-JSON editor for
+`.json`), save → one `create_file` batch. Likely a "+" affordance in the
+FileBrowser.
+
+**Blockers:** Text and markdown editor; Raw JSON structural editor — a new file is
+created by opening an editor on it.
+
+**Open questions:**
+- Where the "new file" affordance lives (FileBrowser "+", or from a folder); how
+  the path/name and type get chosen.
+- Whether a new `.json` opens in the raw editor or as an empty card; whether to
+  offer adding an index entry (primary file) vs. leaving it unindexed.

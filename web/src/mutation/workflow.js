@@ -135,11 +135,15 @@ function postApplyWikilinkPass(tree, operations) {
       const refs = findReferences(tree, op.path);
       if (refs.length) {
         const detail = refs.map(([f, p]) => `${f}: [[${p}]]`).join('; ');
-        throw new ApplyError(
+        const err = new ApplyError(
           `delete_path: ${JSON.stringify(op.path)} is still referenced by wikilinks after the batch completed — ` +
             `clean these up in the same batch:\n  ${detail}`,
           'DELETE_DANGLING_WIKILINK',
         );
+        // Structured referrer list for UI surfacing ([file, linkPath] pairs).
+        // Doesn't affect the conformance-checked `code`.
+        err.references = refs;
+        throw err;
       }
     }
   }

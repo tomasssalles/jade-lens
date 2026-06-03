@@ -1,4 +1,4 @@
-import { useContext, useMemo } from 'react'
+import { useContext, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { visit, SKIP } from 'unist-util-visit'
@@ -21,22 +21,52 @@ import DateNode from './nodes/DateNode'
 import { CheckboxToggleContext, ListItemLineContext } from './edit/checkboxContext'
 import './markdown.css'
 
+// How long a touch must be held to count as a long-press (ms).
+const LONG_PRESS_MS = 500
+
 // A task-list checkbox. Interactive when a toggle handler is in context and the
 // enclosing list item's source line is known; otherwise read-only (as before).
+//
+// Reading is the common case, so a single tap/click must NOT toggle — only a
+// deliberate gesture commits: double-click on desktop, long-press on touch
+// (docs/web/editing.md "Entering an edit"). Native single-click toggling, the
+// long-press context menu, and text selection are all suppressed.
 function TaskCheckbox({ checked }) {
   const onToggle = useContext(CheckboxToggleContext)
   const line = useContext(ListItemLineContext)
-  if (onToggle && line != null) {
-    return (
-      <input
-        type="checkbox"
-        checked={!!checked}
-        className="jl-checkbox jl-checkbox-editable"
-        onChange={() => onToggle(line, !!checked)}
-      />
-    )
+  const timerRef = useRef(null)
+
+  if (!(onToggle && line != null)) {
+    return <input type="checkbox" checked={!!checked} readOnly disabled className="jl-checkbox" />
   }
-  return <input type="checkbox" checked={!!checked} readOnly disabled className="jl-checkbox" />
+
+  const fire = () => onToggle(line, !!checked)
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+  const onTouchStart = () => {
+    clearTimer()
+    timerRef.current = setTimeout(() => { timerRef.current = null; fire() }, LONG_PRESS_MS)
+  }
+
+  return (
+    <input
+      type="checkbox"
+      checked={!!checked}
+      readOnly
+      className="jl-checkbox jl-checkbox-editable"
+      onClick={(e) => e.preventDefault()}      // a single click never toggles
+      onDoubleClick={fire}                     // desktop gesture
+      onContextMenu={(e) => e.preventDefault()} // suppress the long-press menu
+      onTouchStart={onTouchStart}              // start the long-press timer
+      onTouchEnd={clearTimer}
+      onTouchMove={clearTimer}                 // a scroll/drag cancels it
+      onTouchCancel={clearTimer}
+    />
+  )
 }
 
 // A markdown list item that publishes its source line to descendants, so a task

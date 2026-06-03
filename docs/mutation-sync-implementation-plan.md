@@ -632,37 +632,41 @@ implement when wiring:
       a browser** (owner has a desktop coming) — adds a dep + needs real-browser
       verification on the auto-deploy branch.
 - [ ] (5e) **Move / rename file or dir** (`rename_path`; wikilinks auto-rewrite):
-      - [ ] groundwork (pure, doable now): `buildRename(from, to)` batch + commit
-            message (`Manual edit: moved X → Y`) in `web/src/edit/`, unit-tested.
+      - [x] groundwork: `buildRename(from, to)` batch + commit message — `web/src/edit/fileOps.js`, unit-tested (incl. the wikilink auto-rewrite through the pipeline).
       - [ ] UI wiring (browser): FileBrowser affordance (the edit gesture) → confirm
             → `commitEdit`.
 - [ ] (5f) **Delete file or dir** (`delete_path`; dangling-wikilink check):
-      - [ ] groundwork (pure, doable now): `buildDelete(path)` batch + commit
-            message + surface the `DELETE_DANGLING_WIKILINK` referrer list from the
-            pipeline error, unit-tested. (No auto-removal of references — the error
-            just names the referencing files.)
+      - [x] groundwork: `buildDelete(path)` batch + commit message +
+            `describeDeleteRejection` (`fileOps.js`); the pipeline now attaches a
+            structured `references` list to the `DELETE_DANGLING_WIKILINK` error.
+            Unit-tested (no auto-removal — the message names the referrers).
       - [ ] UI wiring (browser): FileBrowser affordance → confirm → `commitEdit`;
             show the referrers when the delete is rejected.
 - [ ] (5g) **JSON value micro-edits** + the **edit gesture** + **no-op guard**:
       date/time picker, boolean toggle, wikilink file-picker, number input, string
-      → raw editor; each is a one-op `json_patch` `replace`. Universal gesture
-      (long-press / double-click) gates *all* in-place edits — **retrofit the
-      checkbox** from single-tap to the gesture. Mostly browser (JsonCardViewer);
-      small pure patch-builder helpers can be prepped. The no-op guard (commit only
-      if the value changed) applies here and everywhere.
+      → raw editor; each is a one-op `json_patch` `replace`.
+      - [x] **edit gesture + checkbox retrofit**: the checkbox now toggles on
+            long-press (touch) / double-click (desktop) instead of single-tap, with
+            native single-click toggle, the long-press context menu, and text
+            selection all suppressed (`MarkdownRenderer.jsx` + `markdown.css`).
+      - [ ] JSON value-edit UIs (browser, JsonCardViewer) + the no-op guard wired
+            into the commit path (commit only if the value changed).
 - [ ] (5h) **Raw JSON structural editing** (the escape hatch for arrays / type
       changes / key add-remove-move — see `docs/web/editing.md` "Raw JSON editing"):
-      - [ ] groundwork (pure, doable now): a **`json_patch` generator** — structural
-            diff of before/after parsed objects → RFC-6902 ops — conformance-pinned
-            via round-trip against the existing `jsonPatch.js` applier. (Required
-            because `unified_diff` is forbidden on `.json`.)
+      - [x] groundwork: `generateJsonPatch(before, after)` — structural diff →
+            RFC-6902 ops — `web/src/edit/jsonPatchGenerate.js`, round-trip pinned
+            against `jsonPatch.js` + an 800-case fuzz corpus. (Required because
+            `unified_diff` is forbidden on `.json`; key order/whitespace-only
+            changes don't survive — documented.)
       - [ ] UI wiring (browser): syntax-highlighted raw editor, parse/validate on
             save (keep open + helpful error on failure), derive + commit the patch.
 - [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
 
-> **Pure groundwork doable in a cloud session (no browser):** 5e `buildRename`,
-> 5f `buildDelete` + dangling-ref error surfacing, 5h the `json_patch` generator.
-> The UI wiring for 5c/5e/5f/5g/5h is browser-verified on the desktop session.
+> **Pure groundwork (5e/5f/5h builders + the json_patch generator) is done and
+> unit-tested; the checkbox is retrofitted to the edit gesture.** What remains for
+> the desktop session is the browser UI: the editor (5c), the FileBrowser
+> move/delete affordances (5e/5f), the JSON value-edit UIs + no-op-guard wiring
+> (5g), and the raw-JSON editor (5h).
 
 > **Status: groundwork done, editor UI deferred to a desktop session.** The
 > pure/testable parts that don't need a browser landed first:

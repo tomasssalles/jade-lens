@@ -4,11 +4,13 @@ How user-driven data changes happen in the web app UI. The companion doc
 `docs/sync-and-conflicts.md` covers what happens *after* a change is committed
 (sync, conflicts, the stash); this doc is about producing the change.
 
-> **Status: design (not yet implemented).** The web app is read-only today.
-> This records the agreed design so it survives until build time. First
-> increment in scope: **checkbox toggling only**, shipped together with the full
-> sync + conflict + stash machinery, then editing capabilities grow on top of
-> that foundation.
+> **Status: partly implemented; growing.** Shipped: **checkbox toggling** on top
+> of the full sync + conflict + stash machinery. Groundwork landed (no UI yet):
+> the unified-diff generator, the draft store + startup reconciliation, and the
+> render-authority flip. Designed-but-unbuilt below: raw markdown editing, the
+> JSON value micro-edits + edit gesture, file move/delete, and raw JSON editing.
+> See `docs/mutation-sync-implementation-plan.md` Phase 5 for the build order and
+> what's pure-groundwork vs browser-verified UI.
 
 ## The unifying rule
 
@@ -26,17 +28,53 @@ hidden behind UX modes that map naturally onto commit boundaries.
 ### 1. Micro-edits — immediate commit
 
 Small, self-contained interactions: toggling a checkbox, picking a date, changing
-a single metadata field. One tap → one change → one commit → one operations-log
-entry. No mode change, no save button, no pending state for the user to manage.
+a single metadata field, moving or deleting a file. One gesture → one change →
+one commit → one operations-log entry. No mode change, no save button, no pending
+state for the user to manage.
 
-This is the default for anything that modifies a single value in place. The JSON
-Patch / unified diff is trivial to derive because exactly one thing changed.
+This is the default for anything that modifies a single value in place (or makes
+a single file-level change). The JSON Patch / unified diff / structural op is
+trivial to derive because exactly one thing changed.
 
-*Examples:*
-- **Checkbox in rendered markdown:** determine the source line number → derive a
+**Entering an edit — the deliberate gesture.** Reading is the common case and a
+stray tap must never start an edit. So every in-place edit is opened by a
+**deliberate gesture: long-press on touch, double-click on desktop** — not a
+single tap/click. This is uniform across *all* micro-edits, **including the
+checkbox** (whose toggle therefore moves from single-tap to the same gesture, for
+consistency and to avoid accidental toggles). Implementation note: long-press
+natively triggers selection / the context menu on mobile, and double-click
+selects a word on desktop — both must be suppressed on editable targets.
+
+**No-op guard.** Every edit compares the resulting value against the original and
+**does nothing if they're equal** — no commit, no operations-log entry. Opening a
+picker and choosing the same date, or an editor and changing nothing, is not a
+mutation. (Same principle the draft reconciler already applies.)
+
+*Examples — JSON values (one `json_patch` `replace` at the field's path):*
+- **Date / time:** native picker → ISO string.
+- **Boolean:** a toggle/switch control → `true`/`false`.
+- **Wikilink:** a file picker → the chosen `[[path]]`.
+- **Number:** a numeric-only input field.
+- **String:** opens the raw markdown editor (Tier 2) on that field — short strings
+  commit immediately on the same gesture model.
+
+Type changes (e.g. `null` → integer) and array/object edits have no simple
+value-UI; they go through **raw JSON editing** (below).
+
+*Examples — markdown:*
+- **Checkbox in rendered markdown:** determine the source line → derive a
   `unified_diff` flipping `[ ]`↔`[x]` at that line → one-op batch.
-- **Date field in the card viewer:** native picker returns an ISO string → derive
-  a JSON Patch `replace` at the field's path → one-op batch.
+
+*Examples — file-level structural edits (whole-file ops, immediate commit):*
+- **Move / rename a file or directory:** one `rename_path` op. The pipeline's
+  post-apply pass **auto-rewrites every `[[wikilink]]`** pointing at the moved
+  path (and anything under it), so references heal automatically — nothing else
+  to do.
+- **Delete a file or directory:** one `delete_path` op. The pipeline **rejects**
+  the delete if the path is still referenced by any wikilink
+  (`DELETE_DANGLING_WIKILINK`); the UI surfaces that error and **names the
+  referencing files** so the user can clear the links first. (The workflow does
+  *not* auto-remove references — that's deliberately out of scope.)
 
 ### 2. Text editing — batched by session
 
@@ -66,6 +104,31 @@ Exit paths:
 **Critical distinction:** switching to another app on the phone (e.g. to check a
 date) is **not** navigation and does **not** save. Only navigating *within* the
 app saves.
+
+#### Raw JSON editing — the structural escape hatch
+
+Complex or structural JSON changes (adding/removing/moving keys, editing arrays,
+type changes) that the leaf-value micro-edits can't express are done by editing
+the **whole JSON file as raw text**, in a syntax-highlighted editor (bracket
+matching, etc.). This is the general-purpose fallback that covers everything;
+friendly per-type UIs are layered on top over time for the common cases.
+
+- **On save:** parse + validate the text. On a parse error, **keep the editor
+  open** and show a helpful message (line/column) rather than discarding work.
+- **Deriving the op:** the op model forbids `unified_diff` on `.json` files, so a
+  raw JSON edit must become a **`json_patch`**. We derive it by a *structural*
+  diff of the parsed before/after objects (recurse: changed leaf → `replace`,
+  removed key → `remove`, added key → `add`; arrays element-wise or whole-array
+  replace). The existing applier conformance-pins the generator via round-trip
+  (generate → apply → compare to the canonically re-serialized target).
+- **Caveats:** structure-only — pure key-reordering or whitespace-only changes
+  don't survive the canonical re-serialize (acceptable; key order isn't
+  semantic). Generated patches are correct but not necessarily minimal (no
+  `move`-detection cleverness).
+
+This keeps the door open to gradually replacing raw JSON editing with
+user-friendly structured UI (a future view-registry feature) without ever leaving
+a structural change unexpressible in the meantime.
 
 ### 3. Structured creation — batched by form
 

@@ -631,10 +631,38 @@ implement when wiring:
       draft writes on backgrounding/interval/unload. **Deferred to a session with
       a browser** (owner has a desktop coming) — adds a dep + needs real-browser
       verification on the auto-deploy branch.
-- [ ] JSON micro-edit UI (boolean/date/wikilink) — `json_patch` already applies;
-      construction is trivial; the cost is JsonCardViewer UI (needs a browser).
-      Designed (tier 1) but never phase-scheduled; group with 5c on desktop.
+- [ ] (5e) **Move / rename file or dir** (`rename_path`; wikilinks auto-rewrite):
+      - [ ] groundwork (pure, doable now): `buildRename(from, to)` batch + commit
+            message (`Manual edit: moved X → Y`) in `web/src/edit/`, unit-tested.
+      - [ ] UI wiring (browser): FileBrowser affordance (the edit gesture) → confirm
+            → `commitEdit`.
+- [ ] (5f) **Delete file or dir** (`delete_path`; dangling-wikilink check):
+      - [ ] groundwork (pure, doable now): `buildDelete(path)` batch + commit
+            message + surface the `DELETE_DANGLING_WIKILINK` referrer list from the
+            pipeline error, unit-tested. (No auto-removal of references — the error
+            just names the referencing files.)
+      - [ ] UI wiring (browser): FileBrowser affordance → confirm → `commitEdit`;
+            show the referrers when the delete is rejected.
+- [ ] (5g) **JSON value micro-edits** + the **edit gesture** + **no-op guard**:
+      date/time picker, boolean toggle, wikilink file-picker, number input, string
+      → raw editor; each is a one-op `json_patch` `replace`. Universal gesture
+      (long-press / double-click) gates *all* in-place edits — **retrofit the
+      checkbox** from single-tap to the gesture. Mostly browser (JsonCardViewer);
+      small pure patch-builder helpers can be prepped. The no-op guard (commit only
+      if the value changed) applies here and everywhere.
+- [ ] (5h) **Raw JSON structural editing** (the escape hatch for arrays / type
+      changes / key add-remove-move — see `docs/web/editing.md` "Raw JSON editing"):
+      - [ ] groundwork (pure, doable now): a **`json_patch` generator** — structural
+            diff of before/after parsed objects → RFC-6902 ops — conformance-pinned
+            via round-trip against the existing `jsonPatch.js` applier. (Required
+            because `unified_diff` is forbidden on `.json`.)
+      - [ ] UI wiring (browser): syntax-highlighted raw editor, parse/validate on
+            save (keep open + helpful error on failure), derive + commit the patch.
 - [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
+
+> **Pure groundwork doable in a cloud session (no browser):** 5e `buildRename`,
+> 5f `buildDelete` + dangling-ref error surfacing, 5h the `json_patch` generator.
+> The UI wiring for 5c/5e/5f/5g/5h is browser-verified on the desktop session.
 
 > **Status: groundwork done, editor UI deferred to a desktop session.** The
 > pure/testable parts that don't need a browser landed first:

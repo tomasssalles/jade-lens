@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpQueue } from './opQueue.js';
 import { createMemoryQueueStore } from './queueStore.js';
-import { initQueueFromRead, commitEdit, syncPending } from './syncController.js';
+import { initQueueFromRead, commitEdit, syncPending, getWorkingContent } from './syncController.js';
 import { PushConflictError, GitHubWriteError } from './githubWrite.js';
 import { buildCheckboxToggle } from '../edit/checkbox.js';
 
@@ -209,5 +209,52 @@ describe('syncPending', () => {
     expect(res.outcome).toBe('pending');
     expect(res.error).toMatch(/read-only|write/i);
     expect((await q.getState()).queue).toHaveLength(1);
+  });
+});
+
+describe('initQueueFromRead — already at head', () => {
+  it('skips re-init when the read reports the queue’s current head, preserving working content', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    await q.enqueue({
+      operations: [{ op: 'create_file', path: 'new.md', content: 'N\n' }],
+      commitMessage: 'add',
+      timestamp: 't',
+    });
+    const commit = vi.fn(async () => ({ commitSha: 'synced1', treeSha: 'tt', changed: true }));
+    await q.push({ pat: 'tok', commit }); // base advances to synced1; workingMap keeps new.md
+
+    // A re-read reports the same head with a (stale) content map — must be ignored.
+    const ok = await initQueueFromRead(
+      q,
+      read({ contentMap: baseMap() }),
+      { getHead: fakeHead({ commitSha: 'synced1' }) },
+    );
+
+    expect(ok).toBe(true);
+    const state = await q.getState();
+    expect(state.workingMap.get('new.md')).toBe('N\n'); // not wiped by a re-init
+    expect(state.baseCommitSha).toBe('synced1');
+  });
+});
+
+describe('getWorkingContent', () => {
+  it('returns the queue working content for a path', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    expect(await getWorkingContent('notes.md', { repoUrl: 'https://github.com/o/r' }, q)).toBe('x\n');
+  });
+
+  it('returns undefined when the queue is uninitialised', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    expect(await getWorkingContent('notes.md', {}, q)).toBeUndefined();
+  });
+
+  it('returns undefined for a different repo', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    expect(
+      await getWorkingContent('notes.md', { repoUrl: 'https://github.com/o/other' }, q),
+    ).toBeUndefined();
   });
 });

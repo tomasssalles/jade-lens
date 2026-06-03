@@ -7,12 +7,13 @@ import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySe
 import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile } from './repoCache'
 import { buildCheckboxToggle } from './edit/checkbox'
+import { applyUnifiedDiff } from './mutation/unifiedDiff'
 import SettingsForm from './SettingsForm'
 import Settings from './Settings'
 import Main from './Main'
 import FileView from './FileView'
 import StashView from './StashView'
-import { getStashEntries, getQueue, commitEdit, getPendingCount, syncPending } from './sync/syncController'
+import { getStashEntries, getQueue, commitEdit, getPendingCount, syncPending, getWorkingContent } from './sync/syncController'
 
 function jadeConfigFromRepo(repo) {
   if (!repo) return null
@@ -34,6 +35,7 @@ function App() {
   const fileViewRef = useRef(null) // latest fileView, for the focus-sync closure
   const syncingRef = useRef(false) // guards against overlapping focus syncs
   const initialSyncDone = useRef(false) // one-shot retry-on-load guard
+  const editChainRef = useRef(Promise.resolve()) // serialises background edit commits
 
   // Recompute the top-bar indicators from the sync queue: the stash entry count
   // (conflicts) and the unpushed-batch count (changes that failed to sync).
@@ -73,15 +75,18 @@ function App() {
         const prior = history.state?.page
         if (prior === 'file') {
           const filePath = history.state?.filePath
-          if (filePath && cacheValid) {
-            const content = cached.contentMap?.get(filePath)
+          if (filePath) {
+            // Prefer the queue's working content (persisted, carries the latest
+            // local edits) over the read cache, which may lag behind a reload.
+            const wc = await getWorkingContent(filePath, { repoUrl: cfg.githubRepoUrl }).catch(() => undefined)
+            const content = wc ?? (cacheValid ? cached.contentMap?.get(filePath) : undefined)
             if (content !== undefined) {
               setFileView({ path: filePath, content })
               setPage('file')
               return
             }
           }
-          // File not in cache — fall back to main
+          // No content available — fall back to main
           history.replaceState({ page: 'main' }, '', '#main')
           setPage('main')
           return
@@ -96,11 +101,23 @@ function App() {
       })
   }, [])
 
-  const openFile = useCallback((path, content) => {
-    history.pushState({ page: 'file', filePath: path }, '', '#main-file')
-    setFileView({ path, content })
-    setPage('file')
+  // The content to display for a path: the queue's working content if it has it
+  // (the authority — local edits, synced or pending, surviving reloads), else
+  // the supplied fallback (from a cache or the network).
+  const resolveContent = useCallback(async (path, fallback) => {
+    try {
+      const cfg = await getConfig()
+      const wc = await getWorkingContent(path, { repoUrl: cfg.githubRepoUrl })
+      if (wc !== undefined) return wc
+    } catch { /* fall through to the fallback */ }
+    return fallback
   }, [])
+
+  const openFile = useCallback(async (path, content) => {
+    history.pushState({ page: 'file', filePath: path }, '', '#main-file')
+    setFileView({ path, content: await resolveContent(path, content) })
+    setPage('file')
+  }, [resolveContent])
 
   const handleWikilinkClick = useCallback(async (path) => {
     let content = getContentFromCache(path)
@@ -116,21 +133,18 @@ function App() {
     openFile(path, content)
   }, [openFile, showToast])
 
-  // Micro-edit: toggle a task-list checkbox in the open markdown file. Derives a
-  // unified_diff, commits it through the shared pipeline (commitEdit), then
-  // re-renders from the queue's working content and refreshes the read caches.
-  const handleCheckboxToggle = useCallback(async (line) => {
-    if (!fileView) return
-    const { path, content } = fileView
-    const batch = buildCheckboxToggle(content, line, path)
-    if (!batch) return
-
+  // The background half of a checkbox toggle: persist + sync the already-applied
+  // change through the shared pipeline. Serialised via editChainRef so rapid
+  // toggles don't race the queue. Does NOT touch the view on success — the
+  // optimistic update already shows the right thing; it only reconciles when a
+  // conflict was stashed (the local change was rolled back to the remote).
+  const commitToggle = useCallback(async (path, batch) => {
     let cfg
     try { cfg = await getConfig() } catch { return }
     const cached = await getCachedRepo().catch(() => null)
-
+    let res
     try {
-      const res = await commitEdit({
+      res = await commitEdit({
         repoUrl: cfg.githubRepoUrl,
         branch: cached?.branch,
         pat: cfg.githubPat,
@@ -138,21 +152,37 @@ function App() {
         commitMessage: batch.commitMessage,
         contentMap: cached?.repoUrl === cfg.githubRepoUrl ? cached.contentMap : undefined,
       })
-      const newContent = res.workingMap?.get(path)
-      if (newContent !== undefined) {
-        setFileView({ path, content: newContent })
-        await updateCachedFile(cfg.githubRepoUrl, path, newContent)
-      }
-      await refreshStatus()
-      if (res.outcome === 'stashed') {
-        showToast('Change conflicted with a remote edit — stashed for review.', 5000)
-      } else if (res.error) {
-        showToast(res.error, 6000)
-      }
     } catch (err) {
       showToast(`Couldn't apply edit: ${err.message}`)
+      return
     }
-  }, [fileView, refreshStatus, showToast])
+    const wc = res.workingMap?.get(path)
+    if (wc !== undefined) updateCachedFile(cfg.githubRepoUrl, path, wc) // best-effort cache freshen
+    if (res.outcome === 'stashed') {
+      if (wc !== undefined) {
+        setFileView((prev) => (prev && prev.path === path ? { path, content: wc } : prev))
+      }
+      showToast('Change conflicted with a remote edit — stashed for review.', 5000)
+    } else if (res.error) {
+      showToast(res.error, 6000)
+    }
+    await refreshStatus()
+  }, [refreshStatus, showToast])
+
+  // Micro-edit: toggle a task-list checkbox in the open markdown file. Flips the
+  // checkbox in the UI immediately (optimistic), then persists + syncs in the
+  // background — the visual toggle never waits on the network.
+  const handleCheckboxToggle = useCallback((line) => {
+    const fv = fileViewRef.current
+    if (!fv) return
+    const { path, content } = fv
+    const batch = buildCheckboxToggle(content, line, path)
+    if (!batch) return
+    let optimistic
+    try { optimistic = applyUnifiedDiff(content, batch.operations[0].diff) } catch { return }
+    setFileView({ path, content: optimistic })
+    editChainRef.current = editChainRef.current.then(() => commitToggle(path, batch)).catch(() => {})
+  }, [commitToggle])
 
   useEffect(() => {
     async function onPopState(e) {
@@ -170,7 +200,7 @@ function App() {
           }
         }
         setPage('file')
-        setFileView({ path, content })
+        setFileView({ path, content: await resolveContent(path, content) })
       } else {
         setPage(newPage)
         setFileView(null)
@@ -182,7 +212,7 @@ function App() {
       window.removeEventListener('popstate', onPopState)
       clearTimeout(timer.current)
     }
-  }, [])
+  }, [resolveContent])
 
   const goTo = useCallback((newPage) => {
     history.pushState({ page: newPage }, '', '#' + newPage)

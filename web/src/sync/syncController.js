@@ -53,6 +53,12 @@ export async function initQueueFromRead(
   }
 
   const head = await getHead(repoUrl, pat, branch);
+  if (existing && existing.repoUrl === repoUrl && existing.baseCommitSha === head.commitSha) {
+    // The queue is already at the remote head — keep its working content (which
+    // reflects any just-synced edits) instead of resetting it from a re-read,
+    // which may be a staler view of the same commit (the read caches lag).
+    return true;
+  }
   await queue.init({
     repoUrl,
     branch: head.branch,
@@ -61,6 +67,21 @@ export async function initQueueFromRead(
     baseMap: contentMap,
   });
   return true;
+}
+
+/**
+ * The queue's current working content for a path, or undefined if the queue
+ * isn't initialised (for this repo) or doesn't hold the path. The working map
+ * is the single source of truth for what to display — it carries local edits
+ * (pending or synced) and survives reloads (persisted in IndexedDB), so the file
+ * view reads through it rather than the read caches, which a background refresh
+ * can transiently clobber.
+ */
+export async function getWorkingContent(path, { repoUrl } = {}, queue = getQueue()) {
+  const state = await queue.getState();
+  if (!state) return undefined;
+  if (repoUrl && state.repoUrl !== repoUrl) return undefined;
+  return state.workingMap?.get(path);
 }
 
 /**

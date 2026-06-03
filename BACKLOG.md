@@ -29,6 +29,11 @@ This is a to-do list, not JIRA. Keep it light.
 - [JSON value editors](#json-value-editors)
 - [Raw JSON structural editor](#raw-json-structural-editor)
 - [Create file](#create-file)
+- [Index-driven navigation](#index-driven-navigation)
+- [Search and filter](#search-and-filter)
+- [Data-repo bootstrap](#data-repo-bootstrap)
+- [Credential storage and trust](#credential-storage-and-trust)
+- [Bot in the web app](#bot-in-the-web-app)
 
 ---
 
@@ -145,9 +150,9 @@ The DESIGN §4.9 registry: a registered type carries both a data **schema**
 quietly blocks several downstream features. Large; the design needs fleshing out
 before building.
 
-Unlocks: structured-creation forms, the calendar grid + typed event records, and
-the "typed numeric field → thousands grouping" idea we parked during number
-editing.
+Unlocks: structured-creation forms, the promoted-view renderers (table / kanban /
+timeline / calendar grid), typed event records, and the "typed numeric field →
+thousands grouping" idea we parked during number editing.
 
 **Blockers:** none.
 
@@ -271,3 +276,107 @@ created by opening an editor on it.
   the path/name and type get chosen.
 - Whether a new `.json` opens in the raw editor or as an empty card; whether to
   offer adding an index entry (primary file) vs. leaving it unindexed.
+
+---
+
+## Index-driven navigation
+
+**Scope:** web.
+
+Use `Index.json` as the UI's table of contents (DESIGN §9.3): primary files grouped
+by the index's groupings, records expandable, sidecar wikilinks followable —
+instead of the current raw file tree, which won't scale as the data grows. The bot
+maintains the index; the UI just reads it.
+
+**Blockers:** none. (The index already exists as data; this is UI. Needs a browser
+to verify.)
+
+**Open questions:**
+- Replace the raw file tree, or offer both (index view + a "show all files"
+  fallback)?
+- How orphan files (present but not in the index) are surfaced.
+- Confirm how groupings/ordering are expressed in `Index.json` (§4.6) and how much
+  the UI should infer.
+
+---
+
+## Search and filter
+
+**Scope:** web.
+
+Find files and records without walking the tree (DESIGN §9.3, §9.5) — "covers the
+cases where navigation isn't fast enough." Client-side over `workingMap` (the
+content authority), likely spanning filenames, content, and index descriptions.
+
+**Blockers:** none. (Needs a browser to verify.)
+
+**Open questions:**
+- Search scope: filenames only, full content, index descriptions/tags?
+- Presentation: filter the navigation in place, or a separate results list?
+- Substring vs. fuzzy matching.
+
+---
+
+## Data-repo bootstrap
+
+**Scope:** /jade (CLI tooling).
+
+A `jadelens init <data-repo>` console command that scaffolds the bootstrap files
+that are manual today (`changelogs/v0.1.0.md` parks this; see
+`docs/data-repo-setup.md`): `.jade/config.json`, `Index.json`, `.gitignore`,
+`.claude/settings.json`, `.claude/hooks/session-start`. Removes hand-assembly so
+onboarding isn't error-prone — worth having before the app reaches more people (or
+the bot).
+
+**Blockers:** none.
+
+**Open questions:**
+- Interactive prompts (user names, assistant name, repo URL) vs. flags.
+- Whether it also `git init`s and makes the first commit.
+- Idempotency: refuse / merge when run on a dir that already has `.jade/`.
+
+---
+
+## Credential storage and trust
+
+**Scope:** cross-cutting (web).
+
+Current stance (DESIGN §16.2): plaintext PAT in browser storage + a visible
+warning, single-user assumption. The bot-in-web-app phase adds a *second* secret
+(the Anthropic API key), which raises the stakes. Track the hardening options:
+isolated-origin hosting (§16.3), PAT/key encryption once the origin is isolated
+(§16.4), re-auth for settings changes (§16.5), recovery via PAT rotation (§16.6).
+
+Mostly deferred — a visible stub so it can be pulled forward when the second secret
+actually lands.
+
+**Blockers:** none for the stub. Some options (encryption) are gated on
+isolated-origin hosting (§16.3), itself a decision.
+
+**Open questions:**
+- Which hardening to do *when* the bot key arrives.
+- Whether to move to an isolated origin / self-hosting escape hatch (§16.3, §16.7).
+
+---
+
+## Bot in the web app
+
+**Scope:** web (+ bot adapters, cost ledger). **Big — the final phase.**
+
+The chat UI in the web app driving the bot via the Claude API (or a Claude Code
+subprocess on desktop, §15.2), with the runtime assembling context (the discovery
+flow, §6), the cost ledger (§13), vendor/model/key settings (§11.3, §16), and bot
+mutations routed through the same pipeline as UI edits (§9.2, §12.1). This will
+spawn many smaller backlog items; break it down as we approach — no need to
+enumerate them now.
+
+**Blockers:** the web app should first be a complete standalone manual data manager
+(the editing / create / move-delete / navigation / search items) and the
+foundational tracks should land (Versioning and version comparison; Data migration
+framework; Schema and view registry). Many sub-tasks TBD.
+
+**Open questions:**
+- API transport vs. Claude-Code-subprocess transport (§15.2) — and whether they
+  coexist (mobile vs. desktop).
+- How much of the discovery flow to start with (eager-load-everything vs. the
+  structured data-request flow, §6.3).

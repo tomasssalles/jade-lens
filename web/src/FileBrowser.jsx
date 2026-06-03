@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getConfig } from './config'
 import {
   preloadPromise, getCachedRepo, setCachedRepo,
@@ -6,7 +6,7 @@ import {
   parseJadeConfig,
 } from './repoCache'
 import { getRepoTree, fetchBlobs, getFileContent } from './github'
-import { getQueue, initQueueFromRead } from './sync/syncController'
+import { getQueue, initQueueFromRead, getWorkingTree } from './sync/syncController'
 import FileTree from './FileTree'
 import './FileBrowser.css'
 
@@ -21,7 +21,7 @@ function filterItems(items) {
   return Array.isArray(items) ? items.filter(item => !isExcluded(item)) : []
 }
 
-export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded }) {
+export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded, syncTick = 0 }) {
   // Initialise synchronously from whatever is already in memory: the session
   // cache (in-app navigation) or the module-load IDB preload (page reload).
   const initData = getSessionCache() ?? getPreloadedRepo()
@@ -39,6 +39,47 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded 
     }
   })
   const contentMapRef = useRef(initData?.contentMap ?? new Map())
+  // The latest cache/network "read view" — kept current so refreshFromQueue can
+  // tell never-fetched files (structurally present, no content) apart from
+  // deletions when merging the working map in.
+  const cacheViewRef = useRef({
+    items: filterItems(initData?.items),
+    contentMap: initData?.contentMap ?? new Map(),
+  })
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
+
+  // Re-source the tree from the queue's workingMap — the render authority once
+  // the queue is initialised (§6.1, Phase 5d). Returns false (caller keeps the
+  // cache-driven tree) when the queue isn't initialised for this repo, e.g. a
+  // truncated tree that the init guard refused.
+  const refreshFromQueue = useCallback(async () => {
+    let cfg
+    try { cfg = await getConfig() } catch { return false }
+    const wt = await getWorkingTree({ repoUrl: cfg.githubRepoUrl }).catch(() => null)
+    if (!wt || !mountedRef.current) return false
+    // Tracked files follow the working map (adds/deletes/renames). Preserve only
+    // files the queue never tracked: in the read cache's item list but absent
+    // from both its content map and the working map (e.g. over the size cap).
+    const view = cacheViewRef.current
+    const untracked = view.items.filter(
+      it => it.type === 'blob' && !view.contentMap.has(it.path) && !wt.contentMap.has(it.path),
+    )
+    contentMapRef.current = wt.contentMap
+    setTreeItems(filterItems([...wt.items, ...untracked]))
+    setTruncated(false)
+    setStatus('ready')
+    const jadeCfg = parseJadeConfig(wt.contentMap)
+    if (jadeCfg) onJadeConfig?.(jadeCfg)
+    return true
+  }, [onJadeConfig])
+
+  // Re-source the tree after a sync-on-focus (App bumps syncTick once sync has
+  // updated the working map), so newly added/renamed/deleted files appear
+  // without waiting for a remount + network refresh.
+  useEffect(() => {
+    if (syncTick > 0) refreshFromQueue()
+  }, [syncTick, refreshFromQueue])
 
   useEffect(() => {
     let cancelled = false
@@ -54,7 +95,11 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded 
         contentMap,
         truncated,
       })
-        .then(() => { if (!cancelled) onContentLoaded?.() })
+        .then(async () => {
+          if (cancelled) return
+          onContentLoaded?.()
+          await refreshFromQueue() // flip the tree onto the working map (§6.1)
+        })
         .catch(() => {})
     }
 
@@ -64,6 +109,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded 
       const filtered = filterItems(rawItems)
       setSessionCache({ repoUrl, items: filtered, contentMap, truncated })
       contentMapRef.current = contentMap
+      cacheViewRef.current = { items: filtered, contentMap }
       setTreeItems(filtered)
       setTruncated(truncated)
       setStatus('ready')
@@ -116,6 +162,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded 
         const filtered = filterItems(newItems)
         setSessionCache({ repoUrl: cfg.githubRepoUrl, items: filtered, contentMap: map, truncated })
         contentMapRef.current = map
+        cacheViewRef.current = { items: filtered, contentMap: map }
 
         // Only update visible tree state if the structure actually changed
         if (treeStructureChanged) {
@@ -138,12 +185,14 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded 
         const session = getSessionCache()
         if (session?.repoUrl === cfg.githubRepoUrl) {
           contentMapRef.current = session.contentMap
+          cacheViewRef.current = { items: session.items, contentMap: session.contentMap }
           setTreeItems(session.items)
           setTruncated(session.truncated)
           setStatus('ready')
           const jadeCfg = parseJadeConfig(session.contentMap)
           if (jadeCfg) onJadeConfig?.(jadeCfg)
           onContentLoaded?.() // queue was initialised on a prior load this session
+          refreshFromQueue() // prefer the working map over the (possibly stale) session items
           return
         }
 

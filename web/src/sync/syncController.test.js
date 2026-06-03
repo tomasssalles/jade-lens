@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpQueue } from './opQueue.js';
 import { createMemoryQueueStore } from './queueStore.js';
-import { initQueueFromRead, commitEdit, syncPending, getWorkingContent } from './syncController.js';
+import { initQueueFromRead, commitEdit, syncPending, getWorkingContent, getWorkingTree } from './syncController.js';
 import { PushConflictError, GitHubWriteError } from './githubWrite.js';
 import { buildCheckboxToggle } from '../edit/checkbox.js';
 
@@ -256,5 +256,35 @@ describe('getWorkingContent', () => {
     expect(
       await getWorkingContent('notes.md', { repoUrl: 'https://github.com/o/other' }, q),
     ).toBeUndefined();
+  });
+});
+
+describe('getWorkingTree', () => {
+  it('returns one blob item per working-map path plus the content map', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(
+      q,
+      read({ contentMap: baseMap({ 'notes.md': 'x\n', 'a/b.md': 'y\n' }) }),
+      { getHead: fakeHead() },
+    );
+    const wt = await getWorkingTree({ repoUrl: 'https://github.com/o/r' }, q);
+    expect(wt.items.map((i) => i.path).sort()).toEqual(['.jade/version', 'a/b.md', 'notes.md']);
+    expect(wt.items.every((i) => i.type === 'blob')).toBe(true);
+    expect(wt.contentMap.get('a/b.md')).toBe('y\n');
+  });
+
+  it('reflects an enqueued create in the items', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    await q.enqueue({ operations: [{ op: 'create_file', path: 'new.md', content: 'z\n' }], commitMessage: 'add' });
+    const wt = await getWorkingTree({ repoUrl: 'https://github.com/o/r' }, q);
+    expect(wt.items.map((i) => i.path)).toContain('new.md');
+  });
+
+  it('returns null when uninitialised or for a different repo', async () => {
+    const q = new OpQueue(createMemoryQueueStore());
+    expect(await getWorkingTree({}, q)).toBeNull();
+    await initQueueFromRead(q, read(), { getHead: fakeHead() });
+    expect(await getWorkingTree({ repoUrl: 'https://github.com/o/other' }, q)).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ export default function Main({
   onStash,
   pendingCount = 0,
   onPending,
+  syncTick = 0,
 }) {
   const assistantName = jadeConfig?.assistant?.name
   return (
@@ -47,6 +48,7 @@ export default function Main({
           onFileOpen={onFileOpen}
           onJadeConfig={onJadeConfig}
           onContentLoaded={onContentLoaded}
+          syncTick={syncTick}
         />
       )}
     </div>

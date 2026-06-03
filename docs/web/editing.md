@@ -40,9 +40,18 @@ Patch / unified diff is trivial to derive because exactly one thing changed.
 
 ### 2. Text editing — batched by session
 
-The user enters edit mode on a markdown file or a JSON string field (tiptap swaps
-in for the reader). They make any number of changes and exit. Everything in the
-session commits together as **one batch** (one commit, one log entry).
+The user enters edit mode on a markdown file or a JSON string field (an editor
+swaps in for the reader). They make any number of changes and exit. Everything in
+the session commits together as **one batch** (one commit, one log entry).
+
+> **Editor choice (owner-confirmed): ship a raw markdown editor first, layer
+> WYSIWYG on later.** The first editor is a **raw-markdown-with-syntax-highlighting**
+> view (CodeMirror 6, MIT — permissive enough under PolyForm). Editing the source
+> bytes directly sidesteps the markdown round-trip fidelity risk of a WYSIWYG
+> editor and pairs cleanly with the 0-context diff *generator* (Phase 5a), which
+> diffs the exact before→after text. A WYSIWYG experience (tiptap/ProseMirror)
+> can be added afterwards, keeping the raw editor as the permanent "source mode"
+> alternative for technical edits.
 
 Exit paths:
 
@@ -98,14 +107,17 @@ VIEWING → [tap edit] → EDITING → [save / in-app nav] → VIEWING (commit)
 ```
 
 On **enter EDITING:** snapshot current content as the "before" state; swap the
-reader (`react-markdown` / `MarkdownRenderer`) for a tiptap instance.
+reader (`react-markdown` / `MarkdownRenderer`) for the editor (the raw CodeMirror
+source editor first; a WYSIWYG editor later).
 
-On **save:** serialize tiptap back to markdown (or extract the field value); diff
-against the "before" snapshot to derive the op(s) — one `unified_diff` for a
-markdown file/field, or one JSON Patch `replace` for a card-viewer field; run the
-mutation pipeline; swap the reader back.
+On **save:** get the editor's markdown (for the raw editor this is its content
+verbatim; for a future WYSIWYG editor, serialize back to markdown) or extract the
+field value; diff against the "before" snapshot to derive the op(s) — one
+`unified_diff` for a markdown file/field (via the Phase 5a generator), or one JSON
+Patch `replace` for a card-viewer field; run the mutation pipeline; swap the
+reader back.
 
-On **cancel:** discard tiptap content; swap back to the unchanged "before."
+On **cancel:** discard the editor content; swap back to the unchanged "before."
 
 ## In-app navigation vs. app switching
 
@@ -132,7 +144,7 @@ in-progress editing session. They are distinct from the stash (which is for
 {
   id: "draft_<filePath_hash>",
   filePath: "projects/kitchen-renovation.md",
-  editorContent: "<current tiptap/editor content>",
+  editorContent: "<current editor content (markdown source)>",
   beforeSnapshot: "<file content when editing started>",
   timestamp: "<ISO8601>",
   editContext: {

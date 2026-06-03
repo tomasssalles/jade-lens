@@ -3,11 +3,11 @@
 // that establishes the synced baseline (Phase 2 of
 // docs/mutation-sync-implementation-plan.md; the §6.1 queue↔repoCache contract).
 //
-// Phase 2 scope: initialise the queue from a completed full read so the baseline
-// (commit/tree SHAs + pristine content) is ready for editing. The render
-// authority stays with repoCache while the app is read-only; flipping rendering
-// to the queue's workingMap and hooking sync to the window focus event happen in
-// Phase 3, where editing goes live and the two content layers are reconciled.
+// Once the queue is initialised, its workingMap is the single render authority
+// (§6.1): the open file (Phase 3) AND the file-browser tree (Phase 5d) read
+// through it, so local edits and sync-on-focus pulls show immediately. repoCache
+// demotes to the cold-start / no-flicker preload and the structural source for
+// files the queue never tracks (e.g. blobs over the fetch-size cap).
 
 import { OpQueue } from './opQueue.js';
 import { createIdbQueueStore } from './idbQueueStore.js';
@@ -131,6 +131,27 @@ export async function getWorkingContent(path, { repoUrl } = {}, queue = getQueue
   if (!state) return undefined;
   if (repoUrl && state.repoUrl !== repoUrl) return undefined;
   return state.workingMap?.get(path);
+}
+
+/**
+ * The file-browser tree, sourced from the queue's workingMap — the render
+ * authority once the queue is initialised (§6.1, Phase 5d). Returns one
+ * `{path, type: 'blob'}` per working-map path (FileTree infers directories) plus
+ * the `contentMap` for opening files without a network round-trip, or `null`
+ * when the queue isn't initialised for `repoUrl` (the caller then falls back to
+ * the read cache — e.g. a truncated tree never inits the queue).
+ *
+ * Note: workingMap holds only the files the read path fetched, so blobs over the
+ * size cap (omitted by fetchBlobs) won't appear here; the caller preserves those
+ * from the structural read cache.
+ */
+export async function getWorkingTree({ repoUrl } = {}, queue = getQueue()) {
+  const state = await queue.getState();
+  if (!state) return null;
+  if (repoUrl && state.repoUrl !== repoUrl) return null;
+  const contentMap = state.workingMap;
+  const items = [...contentMap.keys()].map((path) => ({ path, type: 'blob' }));
+  return { items, contentMap };
 }
 
 /**

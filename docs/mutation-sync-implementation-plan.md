@@ -300,16 +300,17 @@ matches what the web app writes.
 
 ### Phase 5 — Web: grow editing capabilities
 
-**Goal / done:** text editing (session-batched, tiptap, drafts), per
-`docs/web/editing.md`.
+**Goal / done:** text editing (session-batched, raw markdown editor first then
+WYSIWYG, drafts), per `docs/web/editing.md`.
 
 **Dependencies:** Phases 0–3.
 
 **What to build (incrementally, smaller sub-steps):**
-- Text editing: edit-mode state machine, tiptap swap-in, save-on-(button | in-app
-  nav), cancel, **in-app-nav vs app-switch detection**, **draft persistence** in
-  IndexedDB incl. the startup draft-vs-remote → stash path
-  (`docs/web/editing.md` "Edit-mode lifecycle", "In-app navigation…", "Draft
+- Text editing: edit-mode state machine, editor swap-in (raw CodeMirror source
+  editor first; WYSIWYG later — see `docs/web/editing.md` "Editor choice"),
+  save-on-(button | in-app nav), cancel, **in-app-nav vs app-switch detection**,
+  **draft persistence** in IndexedDB incl. the startup draft-vs-remote → stash
+  path (`docs/web/editing.md` "Edit-mode lifecycle", "In-app navigation…", "Draft
   persistence").
 
 > **Not here: structured-creation forms.** The third mutation tier (forms) acts
@@ -567,14 +568,13 @@ implement when wiring:
 >   `focus` → `OpQueue.sync()` → refresh stash indicator + re-render the open file
 >   from `workingMap`. Concurrency-guarded; silent on offline/transient/auth.
 >
-> **Documented limitation (remaining §6.1 slice).** A focus-sync updates the open
-> file + the queue's content authority, but the **FileBrowser tree cache**
-> (`repoCache` items/session) is not refreshed from `workingMap` on focus, so the
-> *tree* can show stale structure (added/renamed/deleted files) until the next
-> full load / navigation to main remounts FileBrowser. Modified open-file content
-> is fresh; only the tree listing lags. The clean fix is the full render-
-> authority flip — make `workingMap` the single source the tree renders from too
-> — which is larger than the MVP needs. Tracked for a Phase 5 follow-up.
+> **~~Documented limitation (remaining §6.1 slice)~~ — RESOLVED in Phase 5d.**
+> A focus-sync used to update the open file + content authority but not the
+> **FileBrowser tree** (which rendered from `repoCache`), so added/renamed/deleted
+> files lagged until a remount. Phase 5d completed the render-authority flip: the
+> tree now sources from `workingMap` (`getWorkingTree`) and refreshes on focus via
+> an App `syncTick`. Only a narrow caveat remains (files over the blob-fetch size
+> cap), tracked in KNOWN_ISSUES.
 
 **Phase 4 — /jade auto-sync + stash** ✅ DONE
 - [x] pull-before / push-after every interaction  ← (4c) wired into `jadelens-apply`
@@ -612,40 +612,61 @@ implement when wiring:
 > release decision left for you — I didn't bump versions or rewrite the v0.1.0
 > scope unilaterally. The plan checklist + KNOWN_ISSUES are the live record meanwhile.
 
-**Phase 5 — Web grow editing** ⏸ NOT STARTED (paused for owner input — see below)
-- [ ] text editing (session/tiptap/save/cancel/nav-detection)
-- [ ] draft persistence + startup draft-vs-remote → stash
+**Phase 5 — Web grow editing** 🔨 IN PROGRESS (groundwork landed; editor UI deferred to a desktop session)
+- [x] (5a) 0-context unified-diff **generator** — `web/src/edit/diffGenerate.js`
+      (round-trip pinned against the conformance fixtures + a fuzz corpus;
+      throws on the unrepresentable non-newline-terminated-final-line edit)
+- [x] (5b) device-local **draft store** (`web/src/edit/draftStore.js` +
+      `idbDraftStore.js`, db v3→4 `drafts` store) + **startup reconciliation**
+      (`draftReconcile.js`: restore / discard / stash; `OpQueue.stashDraftBatch`
+      commits a self-contained stash from the draft's pristine ancestor;
+      `syncController.reconcileDrafts` orchestrates). json_field reconciliation
+      deferred (needs the whole-file ancestor — lands with the JSON editing UI).
+- [x] (5d) §6.1 render-authority flip for the **tree** — `getWorkingTree` +
+      FileBrowser sources the tree from `workingMap` (merging back never-fetched
+      large files), refreshed on focus via an App `syncTick`. Resolves the
+      KNOWN_ISSUES tree-staleness item (see its replacement caveat there).
+- [ ] (5c) editor UI: raw CodeMirror source editor + edit-mode state machine,
+      save-on-(button | in-app nav), cancel, in-app-nav-vs-app-switch detection,
+      draft writes on backgrounding/interval/unload. **Deferred to a session with
+      a browser** (owner has a desktop coming) — adds a dep + needs real-browser
+      verification on the auto-deploy branch.
+- [ ] JSON micro-edit UI (boolean/date/wikilink) — `json_patch` already applies;
+      construction is trivial; the cost is JsonCardViewer UI (needs a browser).
+      Designed (tier 1) but never phase-scheduled; group with 5c on desktop.
 - [ ] ~~structured-creation forms~~ — gated on schema/view registry (out of scope; see §5)
 
-> **Why paused (a deliberate stop, not a blocker mid-build).** Phase 5 is the
-> one remaining phase and the riskiest to do unattended:
-> 1. **New heavyweight dependency** — tiptap (ProseMirror). MIT-licensed (fine
->    under PolyForm), but a substantial bundle + integration. Adding a big dep
->    and editor UX to the branch that **auto-deploys to GitHub Pages**
->    (`claude-ai`) is outward-facing and wants a human in the loop.
-> 2. **Needs real-browser verification** — edit-mode state machine, tiptap
->    swap-in, markdown round-trip, in-app-nav-vs-app-switch detection
->    (`visibilitychange`/`pagehide` vs router), draft persistence. The repo has
->    **no component-test infra**, so the parts that matter can't be validated by
->    the automated suite alone — they need the running app, which I can't drive
->    here with confidence.
-> 3. **A diff *generator* is needed** — deriving the session's `unified_diff`
->    from before→after full texts requires a 0-context diff *generator* matching
->    our format (the pipeline only *parses/applies* diffs today). That's a real
->    sub-task (likely the `diff` npm dep, license-checked, or a hand-rolled LCS),
->    and it should be conformance-pinned.
+> **Status: groundwork done, editor UI deferred to a desktop session.** The
+> pure/testable parts that don't need a browser landed first:
+> - **5a** the 0-context unified-diff **generator** (`diffGenerate.js`) — a
+>   hand-rolled LCS (prefix/suffix-trimmed), zero new deps; round-trip-pinned on
+>   the conformance fixtures + a fuzz corpus; throws on the one unrepresentable
+>   case (an edit to a non-newline-terminated final line).
+> - **5b** the device-local **draft store** + **startup reconciliation**
+>   (`draftStore.js`/`idbDraftStore.js`/`draftReconcile.js`,
+>   `OpQueue.stashDraftBatch`, `syncController.reconcileDrafts`). Stashes a stale
+>   draft from its *own* pristine ancestor (the draft's `beforeSnapshot`), so the
+>   entry is self-contained. json_field reconciliation deferred with the JSON UI.
+> - **5d** the §6.1 tree render-authority flip (`getWorkingTree` + FileBrowser
+>   `syncTick` refresh), resolving the KNOWN_ISSUES tree-staleness item.
 >
-> Everything Phase 5 builds on is in place: the mutation pipeline, the op queue,
-> sync+conflict+stash, `commitEdit`, and the checkbox micro-edit as a worked
-> example of the commit→render-from-`workingMap`→cache-refresh path.
+> **What's left (needs a browser):**
+> 1. **5c editor UI** — edit-mode state machine, **raw CodeMirror source editor**
+>    first (owner decision: WYSIWYG/tiptap later, raw kept as the source-mode
+>    alternative — see `docs/web/editing.md` "Editor choice"), save-on-(button |
+>    in-app nav), cancel, in-app-nav-vs-app-switch detection
+>    (`visibilitychange`/`pagehide` vs router), draft writes on
+>    backgrounding/interval/unload. Adds a dep + lands on the **auto-deploying**
+>    `claude-ai` branch, and the repo has **no component-test infra**, so it wants
+>    a human + a running browser.
+> 2. **JSON micro-edit UI** (boolean/date/wikilink, tier 1) — `json_patch` already
+>    applies and patch construction is trivial; the cost is JsonCardViewer UI, so
+>    group it with 5c on desktop.
 >
-> **Suggested resumption order when picked up (with a browser available):**
-> (5a) a 0-context unified-diff **generator** (pure, conformance-pinned, reused
-> by the web editor); (5b) the **draft store** in IndexedDB + the startup
-> draft-vs-remote→stash reconciliation (mostly pure, testable); (5c) the tiptap
-> edit-mode UI + nav/visibility wiring (browser-verified); (5d) fold in the
-> deferred §6.1 tree render-authority flip (the KNOWN_ISSUES tree-staleness item)
-> while reworking the render path for editing.
+> Everything 5c builds on is in place: the mutation pipeline, the op queue,
+> sync+conflict+stash, `commitEdit`, the 5a generator, the 5b draft store, and the
+> checkbox micro-edit as a worked commit→render-from-`workingMap`→cache-refresh
+> example.
 
 **Phase 6 — Cross-client conformance** ✅ DONE
 - [x] stash/sync parity scope (web ↔ /jade)  ← `conformance/stash-cases/` (6

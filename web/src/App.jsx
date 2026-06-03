@@ -31,6 +31,7 @@ function App() {
   const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
   const [stashCount, setStashCount] = useState(0)
   const [pendingCount, setPendingCount] = useState(0) // unpushed local changes
+  const [syncTick, setSyncTick] = useState(0) // bumped after a sync updates the working map, to refresh the tree
   const toastTimer = useRef(null)
   const fileViewRef = useRef(null) // latest fileView, for the focus-sync closure
   const syncingRef = useRef(false) // guards against overlapping focus syncs
@@ -237,6 +238,7 @@ function App() {
       if (state.repoUrl !== cfg.githubRepoUrl) return
       try { await q.sync({ pat: cfg.githubPat }) } catch { return }
       await refreshStatus()
+      setSyncTick(t => t + 1) // working map may have gained/lost files — refresh the tree
       const after = await q.getState()
       const fv = fileViewRef.current
       const nc = after?.workingMap?.get(fv?.path)
@@ -264,6 +266,7 @@ function App() {
     if (!result.hadPending) return // nothing was pending → stay silent
 
     await refreshStatus()
+    setSyncTick(t => t + 1) // a stashed conflict can change the tracked file set
     // Re-render the open file if the retry changed its content (e.g. a conflict
     // was stashed and the remote version won).
     const fv = fileViewRef.current
@@ -353,6 +356,7 @@ function App() {
           onStash={page === 'main' ? handleStash : undefined}
           pendingCount={pendingCount}
           onPending={page === 'main' ? handlePendingClick : undefined}
+          syncTick={syncTick}
         />
       )}
       {page === 'settings' && (

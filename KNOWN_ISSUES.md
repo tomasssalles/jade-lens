@@ -18,17 +18,18 @@ tracks upcoming work.
   with `[]` runs once after mount and `status`/`initData` are set
   synchronously, so this is very low risk.
 
-- **FileBrowser tree can lag after a sync-on-focus.** When the app
-  foregrounds, sync pulls remote changes into the operation queue's
-  working content and re-renders the *open file*, but the FileBrowser
-  *tree* still renders from `repoCache` (items + session cache), which
-  isn't refreshed from the queue on focus. So newly added / renamed /
-  deleted files may not appear in the tree until the next navigation to
-  main remounts FileBrowser (which refreshes against the network). Open-
-  file content stays correct; only the tree listing lags. The clean fix
-  is the full §6.1 render-authority flip (tree renders from `workingMap`
-  too) — deferred (see `docs/mutation-sync-implementation-plan.md` Phase
-  3 notes / Phase 5).
+- **Tree omits files over the blob-fetch size cap once the queue drives
+  it.** Phase 5d flipped the FileBrowser tree onto the queue's
+  `workingMap` (the §6.1 render authority), so adds/renames/deletes now
+  appear immediately after a sync-on-focus. `workingMap` only holds files
+  the read path actually fetched, and `fetchBlobs` skips blobs over
+  `MAX_BLOB_BYTES` (200 KB). FileBrowser preserves such never-fetched
+  files by merging them back in from the structural read cache, **but
+  only while that cache entry is present** (it's refreshed on a network
+  tree load). For a markdown/JSON notes repo, files over 200 KB are
+  effectively nonexistent, so this is a corner case; a deleted file could
+  also linger in the tree until the next network refresh if it was
+  removed remotely between focus syncs.
 
 - **Module-level preload skips repo URL validation.** `_appPreload` (in
   `App.jsx`) and `_idbReady` (in `FileBrowser.jsx`) are populated at

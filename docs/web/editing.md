@@ -4,12 +4,15 @@ How user-driven data changes happen in the web app UI. The companion doc
 `docs/sync-and-conflicts.md` covers what happens *after* a change is committed
 (sync, conflicts, the stash); this doc is about producing the change.
 
-> **Status: partly implemented; growing.** Shipped: **checkbox toggling** on top
-> of the full sync + conflict + stash machinery. Groundwork landed (no UI yet):
-> the unified-diff generator, the draft store + startup reconciliation, and the
-> render-authority flip. Designed-but-unbuilt below: raw markdown editing, the
-> JSON value micro-edits + edit gesture, file move/delete, and raw JSON editing.
-> See `docs/mutation-sync-implementation-plan.md` Phase 5 for the build order and
+> **Status: partly implemented; growing.** Shipped: **checkbox toggling** and a
+> first **boolean field flip** in the JSON card view, on top of the full sync +
+> conflict + stash machinery. Groundwork landed (no UI yet): the unified-diff
+> generator, the draft store + startup reconciliation, and the render-authority
+> flip. Designed-but-unbuilt below: the **edit-mode lock** that gates card-view
+> value edits (replacing the flip-on-gesture boolean with pencil + picker), the
+> remaining JSON value micro-edits (date / wikilink / number / string), raw
+> markdown editing, file move/delete, and raw JSON editing. See
+> `docs/mutation-sync-implementation-plan.md` Phase 5 for the build order and
 > what's pure-groundwork vs browser-verified UI.
 
 ## The unifying rule
@@ -36,22 +39,32 @@ This is the default for anything that modifies a single value in place (or makes
 a single file-level change). The JSON Patch / unified diff / structural op is
 trivial to derive because exactly one thing changed.
 
-**Entering an edit — the deliberate gesture.** Reading is the common case and a
-stray tap must never start an edit. So every in-place edit is opened by a
-**deliberate gesture: long-press on touch, double-click on desktop** — not a
-single tap/click. This is uniform across *all* micro-edits, **including the
-checkbox** (whose toggle therefore moves from single-tap to the same gesture, for
-consistency and to avoid accidental toggles). Implementation note: long-press
-natively triggers selection / the context menu on mobile, and double-click
-selects a word on desktop — both must be suppressed on editable targets.
+**Entering an edit — two guards, by surface.** Reading is the common case and a
+stray tap must never start an edit. Two distinct mechanisms protect against that:
+
+- **JSON card view → an edit-mode lock** (see "Edit-mode lock (JSON card view)"
+  below). Card-view value edits are gated behind a per-view lock that starts
+  *locked* (read-only) every time you open a view; you tap it to enter edit mode,
+  and only then do per-field edit affordances (pencils) appear.
+- **Markdown checkbox → a deliberate gesture (the lock-free exception).** A
+  rendered-markdown checkbox toggles on a **long-press (touch) / double-click
+  (desktop)** — not a single tap — and is **not** gated by any lock. It's the one
+  editable affordance that lives directly in read mode, because flipping a task
+  inline while reading is the whole point. (Implementation note: long-press
+  natively triggers selection / the context menu on mobile and double-click
+  selects a word on desktop — both must be suppressed on the checkbox target.)
 
 **No-op guard.** Every edit compares the resulting value against the original and
 **does nothing if they're equal** — no commit, no operations-log entry. Opening a
 picker and choosing the same date, or an editor and changing nothing, is not a
 mutation. (Same principle the draft reconciler already applies.)
 
-*Examples — JSON values (one `json_patch` `replace` at the field's path):*
-- **Boolean:** the edit gesture toggles `true`↔`false`. *(Implemented.)*
+*Examples — JSON values (one `json_patch` `replace` at the field's path). In the
+card view each is reached the same way: enter edit mode (unlock), then tap the
+field's **pencil** to open the editor.*
+- **Boolean:** the pencil opens a **picker** with the two choices — never a silent
+  in-place flip. *(A first flip-on-gesture boolean is currently shipped; it's
+  being reworked into this pencil + picker model — see "Edit-mode lock" below.)*
 - **Date / time:** native picker → ISO string.
 - **Wikilink (data-repo file link):** a file picker → the chosen `[[path]]`.
 - **Number:** a numeric-only input field.
@@ -74,7 +87,7 @@ support this set of editable types:
 |---|---|---|
 | null | `null` | — (type change only) |
 | number | number | numeric input |
-| boolean | boolean | toggle (the edit gesture) |
+| boolean | boolean | picker (pencil, in edit mode) |
 | date / date+time / time | string (date-formatted) | native picker |
 | data-repo file link | string `[[path]]` | file picker |
 | markdown | any other string | raw markdown editor |
@@ -88,6 +101,57 @@ Two consequences worth stating plainly:
   editing**. For example, to turn a `[[projects/x.md]]` link into a historical,
   non-clickable reference (say, before deleting the file), raw-edit the JSON value
   to remove the square brackets. Likewise `null` → number, string → array, etc.
+
+#### Edit-mode lock (JSON card view)
+
+Value micro-edits in the card viewer are gated behind a **per-view edit-mode
+lock** — a single sticky control rather than a per-field gesture. The motivation:
+this is a read-mostly app, so reading should stay pristine and inert (no clutter,
+zero accidental-edit risk, rest-your-finger-anywhere targets) and editing should
+be a mode you opt into deliberately.
+
+- **Lock button.** A lock icon pinned **top-right of the view, sticky**, so it
+  never scrolls out of reach (lives in / beside the file-breadcrumb header).
+- **Default locked.** Every time you open a view it starts **locked = read-only**.
+  Nothing in the card view is editable and no edit affordances are on screen.
+- **Tap to unlock / re-lock.** A single **tap** toggles the lock — a tap, not a
+  long-press: the lock is a big, fixed, corner control you won't hit by accident
+  while scrolling, and long-pressing a button is undiscoverable. Tapping again
+  re-locks, and so does **leaving the view** — edit mode is per-view-visit state
+  and resets on navigate-away (**auto-relock**).
+- **Unmissable unlocked state.** Locked, the icon renders in the **theme color**
+  and reads as "closed / safe." Unlocked, it turns **blazing red** — with a
+  distinct fallback accent for the case where the theme color is itself red — so
+  you can't forget you're in edit mode. The loudness is intentional: it nudges you
+  to re-lock the moment you're done.
+- **Per-field pencils in edit mode.** While unlocked, every *editable* leaf card
+  grows a **pencil button at its right edge**. Tapping the pencil opens that
+  field's type-appropriate editor (the picker — see the type table above). The
+  pencil is the trigger, not merely an "editable" hint; a row of pencils looking
+  "busy" in edit mode is fine and even desirable — it's itself a reminder to lock
+  back up.
+- **Gradual rollout via pencils.** Because editing is reachable only through a
+  per-field pencil, support can ship one effective-type at a time: a field whose
+  type has no editor yet simply gets no pencil. **v1 gives pencils to boolean
+  fields only**; date, wikilink, number, and string editors light up their pencils
+  as they land.
+
+This **supersedes the earlier "uniform deliberate-gesture" model** for card-view
+values (long-press / double-click to edit any field). The currently-shipped
+boolean *flip-on-gesture* is therefore transitional: under this design a boolean
+is edited by tapping its pencil to open a **picker** showing the two choices —
+never a direct in-place flip — consistent with every other type, and making the
+change visible and deliberate.
+
+**Future: a lock for markdown too (deferred — not decided).** Today markdown's
+only in-place edit is the checkbox, which stays on its always-on long-press / 
+double-click (the lock-free exception above). If we later add markdown *value*
+micro-edits — e.g. wikilink editing inside rendered markdown — markdown files
+would likely get their own edit-mode lock for the same reasons. At that point
+we'd have to decide **whether the checkbox may still toggle while the view is
+locked**: convenient (flipping a task mid-read is the common case) but arguably
+unintuitive to allow an edit under a visibly *closed* lock. Flagged here for that
+future session; not decided now.
 
 *Examples — markdown:*
 - **Checkbox in rendered markdown:** determine the source line → derive a

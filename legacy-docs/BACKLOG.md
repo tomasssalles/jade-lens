@@ -33,6 +33,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Index-driven navigation](#index-driven-navigation)
 - [Search and filter](#search-and-filter)
 - [Data-repo bootstrap](#data-repo-bootstrap)
+- [Codex compatibility](#codex-compatibility)
 - [Credential storage and trust](#credential-storage-and-trust)
 - [Bot in the web app](#bot-in-the-web-app)
 
@@ -374,6 +375,29 @@ the bot).
 - Interactive prompts (user names, assistant name, repo URL) vs. flags.
 - Whether it also `git init`s and makes the first commit.
 - Idempotency: refuse / merge when run on a dir that already has `.jade/`.
+
+---
+
+## Codex compatibility
+
+**Scope:** /jade (docs + testing).
+
+Test whether Codex can act as a JADE LENS assistant using the same skill file that
+Claude Code uses. The likely path: add a global Codex config entry (at
+`~/.codex/config.yaml` or equivalent) pointing at
+`<data-repo>/.claude/skills/<assistant-name>/SKILL.md` — the same rendered file the
+Claude Code skill loads. If Codex can read and follow the runbook, the tooling is
+already vendor-neutral (it is: `jadelens-apply` takes no stance on the calling bot)
+and no code changes are needed. The task is to: (1) find the correct Codex
+config knob, (2) test a few representative /jade interactions, (3) note any
+behavioral gaps, (4) if it works well enough, document the setup for users.
+
+**Blockers:** none (exploration only; no code changes expected).
+
+**Open questions:**
+- Exact Codex config file location and schema for registering a custom skill/agent.
+- Whether Codex's instruction-following is close enough to Claude Code's that the
+  skill prose needs no adaptation, or whether a separate render target is warranted.
 
 ---
 

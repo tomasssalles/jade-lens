@@ -8,3 +8,6 @@ next_steps.md
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Node
+node_modules/

@@ -6,9 +6,7 @@
 
 _**J**enuinely **A**daptive, ri**D**iculously v**E**rsati**LE** i**N**tellect **S**idekick._
 
-A personal AI assistant for daily life — calendar, tasks, projects, notes, plans, research, preferences. The bot organises chaotic natural-language input into structured data and answers questions over it. The UI views and edits that data; the bot is the primary input surface.
-
-## What is JADE LENS?
+## What is it?
 
 JADE LENS is a personal AI assistant for the messy parts of daily life — your calendar, tasks, projects, notes, plans, research, and preferences. You talk to it in plain language; it turns that chaos into well-organised, structured data and answers questions across all of it.
 
@@ -56,7 +54,6 @@ A few things we're confident we'll build, beyond the security hardening above:
 
 - **Chatting with your assistant inside the web app**, so Claude Code isn't required to talk to it.
 - **One-command setup** (`jadelens init`) for the data repo.
-- **Calendar integration.**
 
 ## Issues & feedback
 

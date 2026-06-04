@@ -887,85 +887,46 @@ Output-token frugality drives several choices throughout the design:
 
 ## 14. Versioning and Migration
 
-The mechanism that lets v0.1.0 ship with an imperfect design and evolve safely. Many design choices will only crystallise with real day-to-day usage; this strategy lets the user start using a working-but-incomplete app and reshape both code and data in lockstep across releases.
+The mechanism that lets JADE LENS ship with an imperfect design and evolve safely —
+start using a working-but-incomplete app and reshape both code and data in lockstep
+across releases. **Canonical detail: `docs/versioning.md`.** Summary:
 
-### 14.1 Versions
+**Three independent version tracks.**
 
-- The **code repo** has a code version (e.g. `v1.5.42`), embedded in the build. All version strings throughout the project carry a leading `v`.
-- The **data repo** has a `.jade/version` file containing the current data version as a string (e.g. `v0.1.0`).
-- **Migration scripts** live in the code repo under `migrations/<target-version>.md`. The filename target version determines order; semver-sorted by the runtime.
+- **Python tooling/skill** — semver, source of truth in the Python code
+  (`__version__`), git tags `py-vX.Y.Z`, changelog `changelogs/python/`.
+- **Web app** — semver, source of truth `package.json`, git tags `web-vX.Y.Z`,
+  changelog `changelogs/web/`. Always the latest build on reload (GitHub Pages).
+- **Data format** — a sequential integer in `.jade/version`, changelog +
+  migration-doc `changelogs/data/vN.md`, no tags. Every change is a migration.
 
-### 14.2 Migration script format
+The tracks are independent; the only coupling is that **both codebases declare the
+data version they require**, and a data bump always ships with a migration. Data
+changes may freely break older code (no forward-compat guarantee); the code that
+requires a new data version and its migration are pushed together.
 
-Each migration is a markdown file with instructions the bot follows — structurally similar to a Claude Code skill. The bot reads the instructions and transforms the data from the previous version to the target version.
+**No automatic code updates.** We deliberately don't check for code updates on skill
+invocation (the per-interaction flow stays a data pull/push only). The intended use
+is "use Claude however/wherever you normally do; `/jade` is there when you need it"
+— not running from the data repo. Instead the Python/skill world ships a **manual
+update tool** the user runs when they want. The web app is the exception: always
+latest on reload.
 
-Migration scripts mix two registers:
+**Automatic data-version checks** still happen, on every `/jade` interaction and web
+load. `data == code` → normal; `data < code` → migrate (Python/skill) or, in the
+web app, warn + go read-only and direct the user to migrate via `/jade`; `data >
+code` → the code is too old: tell the user to run the update tool and abort (web:
+reload, then clear cache + reload).
 
-- **Natural-language instructions** for semantic / subjective work the bot is well-suited for — *"make all task descriptions more concise,"* *"merge any duplicate research records on the same topic."*
-- **Tool calls to Python helpers** in the code repo for mechanical work — *"for every task record, rename field `description` to `summary`."*
-
-The mix is cost-disciplined: bulk-mechanical work goes through deterministic Python (free, fast, reliable); semantic work goes through the bot (the only thing that can do it). Renaming a field across a year of accumulated records via JSON Patches emitted by the bot would be prohibitively expensive in tokens; running a 10-line Python script over the same data is free.
-
-### 14.3 Self-update
-
-The running code keeps itself current before any data work happens.
-
-**Web app**:
-- Embed the current version in a `<meta name="app-version">` tag in `index.html` (rarely cached aggressively).
-- Bundle the same version into a JS constant in the application bundle (heavily cached).
-- On every startup, compare the two. Mismatch → cache is stale → reload with cache-bust (and/or unregister the Service Worker if we ship one).
-- Works around GitHub Pages caching without anything exotic. Service Worker integration can come later as polish.
-
-**Claude Code skill (rendered into the data repo)**:
-- The session-start hook (§12.7) re-renders the skill from the bundled template **every session** — but only when the rendered file is absent. So the implicit "what version is my skill?" check is "what version of the template is bundled with the currently-installed `jadelens`?" — i.e. it tracks `jadelens-apply`'s install.
-- On claude.ai cold sessions, `jadelens-apply` is reinstalled from the pinned ref (currently `@main`) every time, so the rendered skill stays current automatically.
-- On desktop with an editable `uv tool install -e <local clone>`, `git pull` in the code repo is enough to update both the code and the bundled template; deleting the rendered skill on the next session triggers a re-render with the latest template body.
-- A running Claude Code session does not re-read its skills mid-session; updates propagate on the next session.
-
-### 14.4 Version comparison on every load
-
-After self-update completes and the code is at its latest, the runtime compares the data-version against the code-version:
-
-| Comparison | Action |
-|---|---|
-| `data > code` | **Error.** Refuse to proceed. Ask the user to handle — typically means another device has migrated the data forward and this device's code is behind. |
-| `data == code` | Normal operation. |
-| `data < code` | Run the migration flow (§14.5). |
-
-### 14.5 Migration flow
-
-1. **Pre-check.** Ask the user to review the data — especially recent changes — and fix any mistakes via natural-language correction (§7.4) or manual edits. **This is the user's last chance to clean things up before the data shape is migrated** (§14.6).
-2. **Checkpoint.** Once the user confirms the data is correct, create a checkpoint tag in the data repo (named after the version transition, e.g. `pre-migration-1.5.41-to-1.5.42`).
-3. **Collect.** Gather all migration scripts whose target version lies in `(data-version, code-version]`, sorted in semver order.
-4. **Dry-run summary.** Show the user a per-script summary of what each migration will do. Ask for confirmation before applying.
-5. **Apply.** Run the migrations in order. The bot follows each script's instructions; Python helpers run when invoked.
-6. **Bump version.** Set the data-version to the current code-version — *always*, even if no migrations applied (covers the "no relevant migrations existed in this release range" case cleanly).
-7. **Commit.** Commit the data changes + the new version file. Optionally tag a successful-migration marker.
-8. **New operations log.** Start a fresh `.jade/operations-log/<new-version>.jsonl` file (§7.2). The previous version's log file remains in the same directory for historical reference but is not actively appended to anymore.
-
-### 14.6 The migration is a one-way door
-
-Operations log entries from before a migration reference data shapes that no longer exist after it. They remain readable as historical record but they cannot be re-applied in any meaningful way to the post-migration data.
-
-The pre-checkpoint verification step in §14.5 is the user's chance to fix anything that's wrong *before* the door closes. UI messaging at that step must make it clear:
-
-> *After this checkpoint, the data shape is migrated. Past mistakes are fixed forward against the new shape, not by reaching back into the old log. Please make sure the data is correct now, before we proceed.*
-
-### 14.7 Interrupted migration recovery
-
-If a migration is interrupted partway through — browser crash, power loss, user closes the tab, Claude Code session kills mid-tool-call — the data may be in an intermediate state.
-
-Because the data-version file is updated only at step 6 (the very end of `§14.5`), the next startup still sees `data < code` and re-engages the migration flow. The recovery action is:
-
-> **Reset to the pre-migration checkpoint tag (created in step 2) and retry the migration from scratch.**
-
-**Idempotency is NOT required of individual migration scripts.** Idempotence is realistic only for purely mechanical changes; subjective natural-language instructions to the bot cannot be guaranteed idempotent. The reset-then-retry pattern sidesteps the issue entirely.
-
-### 14.8 Migration testing discipline
-
-Release-time concern, not a runtime concern: before shipping a migration in a release, run it against a snapshot of pre-version data locally and verify the result. Catch breakage at release time, not at the user's startup.
-
-This is especially important because the bot is involved in execution — a migration that worked yesterday may behave subtly differently if model versions or prompt shapes have drifted. Pinning the model version used during migration runs is worth considering.
+**Migrations are bot-run, Python-assisted.** A markdown runbook for the target data
+version interleaves natural-language steps (where intelligence is needed) with calls
+to per-migration Python helper scripts (for everything mechanical) — automate in
+Python whenever possible to save tokens. The flow keeps a safety net: pre-check →
+checkpoint tag → dry-run confirmation → per-migration atomic apply (ops through the
+standard pipeline) + version bump + ops-log entry + commit → push → fresh ops-log;
+reset-to-checkpoint-and-retry on interruption (individual migrations needn't be
+idempotent). The migration is a one-way door — old ops-log entries become historical
+only.
 
 ## 15. v1 Scope and Future Work
 
@@ -988,7 +949,7 @@ This section describes the **full v1 horizon** — what the project aims for onc
 - Chat UI with prominent input + default typed-structured rendering of JSON data + WYSIWYG markdown editor for sidecars. The promoted-view registry (calendar / kanban / table / timeline) is in place as a concept, but specialised renderers can be implemented incrementally as the data shapes that need them emerge.
 - **Manual calendar event import** via chat paste — the bot creates augmentation records and lightweight local shadow records for offline reasoning. No live external-calendar API integration yet (§10).
 - **`/jade` Claude Code skill** for in-IDE use — a SKILL.md describing the data conventions + the `jadelens-apply` custom tool that routes mutations through the same pipeline as the web app (§12). Lightweight; ships with v1 because the mutation pipeline is already built for the web app and the skill is a thin tool wrapper around it.
-- **Versioning and migration system** (§14). Both clients carry a code version, the data repo carries a `version` file, the runtime self-updates and runs the migration flow on every load. v0.1.0 ships with the framework in place (version files, comparison logic, self-update mechanism, migration script discovery + execution, checkpoint tagging), even if the only "migration script" so far is the trivial v0.0.0 → v0.1.0 bootstrap.
+- **Versioning and migration system** (§14; canonical detail in `docs/versioning.md`). Three independent tracks — Python tooling/skill (semver), web app (semver), data format (a sequential integer in `.jade/version`). Automatic data-version checks on `/jade` interaction and web load; on `data < code` the bot runs a markdown migration runbook (Python-assisted) with a checkpoint/dry-run/retry safety net; on `data > code` the user is told to update. A manual update tool replaces any auto-self-update. *Designed; not yet built.*
 - **Two-repo split** (§3) — this code repo plus a separate private data repo. The web app and `/jade` skill read the data-repo location from a setting (or env var, for a single-user install).
 
 ### 15.2 Future work (post-v1 or as the project matures)

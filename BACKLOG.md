@@ -17,10 +17,10 @@ This is a to-do list, not JIRA. Keep it light.
 ## Contents
 
 - [Inline-vs-sidecar promotion](#inline-vs-sidecar-promotion)
-- [Release version decision](#release-version-decision)
+- [Seed version tracks and changelog layout](#seed-version-tracks-and-changelog-layout)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Versioning and version comparison](#versioning-and-version-comparison)
-- [Self-update of code and skill](#self-update-of-code-and-skill)
+- [Update tool](#update-tool)
 - [Data migration framework](#data-migration-framework)
 - [Schema and view registry](#schema-and-view-registry)
 - [Structured-creation forms](#structured-creation-forms)
@@ -68,20 +68,24 @@ oversized inline strings — see Data migration framework).
 
 ---
 
-## Release version decision
+## Seed version tracks and changelog layout
 
 **Scope:** cross-cutting / housekeeping.
 
-Phases 1–4 (web editing, sync, stash, /jade auto-sync) shipped behavior beyond
-what `changelogs/v0.1.0.md` scopes ("no web app", "manual syncing"). Decide
-whether to expand the v0.1.0 changelog or cut `changelogs/v0.2.0.md` and bump
-`.jade/version`. A decision plus a changelog write.
+Adopt the three-track versioning system (`docs/versioning.md`): set the initial
+Python-tooling and web-app semver versions, set `.jade/version` to an integer, and
+split the current flat `changelogs/v0.1.0.md` into the per-track layout
+(`changelogs/{python,web,data}/`). This supersedes the old "expand v0.1.0 vs. cut
+v0.2.0" question — with three independent tracks there's no single "the version" to
+bump. Phases 1–4 already shipped behavior beyond what the flat v0.1.0 changelog
+scopes, so the split also reconciles the record with reality.
 
-**Blockers:** none.
+**Blockers:** none. (Mostly a docs/changelog reorganization; the live version
+*checks* are the Versioning item.)
 
 **Open questions:**
-- Expand v0.1.0 vs. new v0.2.0? A version bump touches the (still unbuilt)
-  migration story, so coordinate with the versioning items.
+- Starting numbers for each track (py/web semver; data `1`).
+- How to map the existing `changelogs/v0.1.0.md` content across the three tracks.
 
 ---
 
@@ -115,55 +119,64 @@ and some now overlap or drift.
 
 **Scope:** pipeline + web + /jade.
 
-Embed a code version in both clients; the data repo carries `.jade/version`; on
-load, compare data-vs-code → `data>code` refuse / `data==code` run / `data<code`
-migrate (DESIGN §14.1, §14.4). Foundational for safe releases. DESIGN §15.1
-expected this in v1 "with the framework in place" — it wasn't built, so this
-closes that gap.
+Implement the three version tracks and the automatic **data**-version checks per
+`docs/versioning.md`: py/web semver (tags `py-`/`web-`; `package.json` + Python
+`__version__`; web version shown in the UI), data version as an integer in
+`.jade/version` that **both** codebases check against on every run. Mismatch
+handling: `data < code` → migrate (/jade) or warn + read-only (web); `data > code`
+→ tell the user to update and abort (/jade) / reload then clear-cache (web).
+Foundational for safe releases.
 
-**Blockers:** Release version decision (need the starting version).
+**Blockers:** Seed version tracks and changelog layout (need the starting points).
 
 **Open questions:**
-- How the web build exposes its version (the §14.3 `<meta>` + bundled constant);
-  how /jade derives its code version (installed `jadelens` package version).
+- Where the web build reads its version from; how /jade derives its code version
+  (installed `jadelens` package version) and stamps the skill's version marker.
 
 ---
 
-## Self-update of code and skill
+## Update tool
 
-**Scope:** web + /jade.
+**Scope:** /jade (CLI tooling).
 
-Code makes itself current *before* any data work (DESIGN §14.3). Web: compare the
-`<meta app-version>` against the bundled JS constant, cache-bust on mismatch
-(works around GitHub Pages caching). Skill: it already re-renders from the bundled
-template each session; make sure that reliably tracks the installed `jadelens`
-version.
+A **manual** update tool (e.g. `jadelens update` — name TBD) that updates the
+installed `jadelens` (tooling + bundled skill template) and re-renders the skill.
+We deliberately do **not** auto-check for code updates on skill invocation — the
+per-interaction flow stays a data pull/push only (`docs/versioning.md`, "No
+automatic code updates"). The user runs this when they want; it's also where the
+`data > code` abort message sends them. (The web app needs no equivalent — it's
+always the latest build on reload.)
 
-**Blockers:** Versioning and version comparison.
+**Blockers:** Versioning and version comparison (its main trigger is the
+data-version check telling the user to update).
 
 **Open questions:**
-- Service-Worker handling if we ship one; exact cache-bust mechanics on GitHub
-  Pages.
+- Command name; whether it surfaces a changelog of what changed.
 
 ---
 
 ## Data migration framework
 
-**Scope:** pipeline + /jade (bot-executed) + web (flow + UI).
+**Scope:** /jade (bot-run, Python-assisted) + web (detect/warn now; run later).
 
-`migrations/<target>.md` scripts (natural-language instructions + Python helpers),
-and the migration flow: checkpoint tag → collect scripts in range → dry-run
-summary → apply → bump version → start a fresh ops-log (DESIGN §14.2, §14.5–14.8).
-Plus the one-way-door messaging and interrupted-migration reset-and-retry. The
-mechanism that lets the data shape evolve safely as the design crystallizes.
+Bot-run migrations following a markdown runbook for the target data version that
+interleaves natural-language steps with calls to per-migration Python helper
+scripts (automate in Python wherever possible to save tokens). Keep the safety net
+(`docs/versioning.md`): pre-check → checkpoint tag → dry-run confirm → per-migration
+atomic apply + version bump + ops-log entry + commit → push → fresh ops-log;
+reset-to-checkpoint-and-retry on interruption (migrations needn't be idempotent);
+one-way-door messaging. Web detects + warns + read-only for now; gains the ability
+to run migrations in the bot-in-web-app phase.
 
-**Blockers:** Versioning and version comparison; Self-update of code and skill.
-(Inline-vs-sidecar promotion, if shipped, gives a low-stakes first migration:
-retroactively promote existing oversized inline strings.)
+**Blockers:** Versioning and version comparison. (Inline-vs-sidecar promotion, if
+shipped, gives a low-stakes first migration: retroactively promote existing
+oversized inline strings.)
 
 **Open questions:**
-- Migration testing discipline at release time; whether to pin the model version
-  used during a migration run (§14.8).
+- Exact migration file layout (`migrations/vN.md` runbook + `migrations/vN*.py`
+  helpers vs. a `migrations/vN/` dir) and its relation to `changelogs/data/vN.md` —
+  settle at implementation.
+- Release-time migration testing; whether to pin the model version used in a run.
 
 ---
 

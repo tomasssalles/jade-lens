@@ -1,101 +1,330 @@
-"""The `jadelens` CLI entry point.
-
-State-aware: scans ``~/.claude/skills/`` for jade-lens installs and branches:
-
-- 0 found → onboarding (prompt for values, render latest template, write).
-- 1 found → update / config-edit / rename (NOT YET IMPLEMENTED in v0.1.0).
-- 2+ found → list and pick (NOT YET IMPLEMENTED in v0.1.0).
-
-Before any of that, performs a best-effort ``git fetch`` against the code
-repo and prints a one-line nudge if origin is ahead. The nudge is purely
-informative; the user runs ``git pull`` themselves when they're ready.
-
-Requires editable install (``uv tool install --editable .``) so that
-``__file__``-relative paths resolve to the live code repo for templates and
-for the git-fetch check.
-"""
+"""The `jadelens` CLI entry point."""
 
 import argparse
 import json
+import re
+import stat
 import subprocess
 import sys
+from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
 from jadelens import sync
 from jadelens.config import Config
+from jadelens.operations import dumps_js_canonical
 from jadelens.skill import parse_marker, render_skill
 from jadelens.stash import describe_operation
+from tests.conftest import data_repo
 
-CODE_REPO_PATH = Path(__file__).resolve().parent.parent
 SKILLS_DIR = Path.home() / ".claude" / "skills"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="jadelens")
+    common = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    common.add_argument(
+        "--version", action="version", version=f"%(prog)s {version('jadelens')}"
+    )
+    common.add_argument(
+        "data_repo", type=Path, help="Path to the local clone of the data repo."
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="jadelens", allow_abbrev=False, parents=[common]
+    )
     sub = parser.add_subparsers(dest="command")
 
-    render = sub.add_parser(
-        "render-skill",
-        help="Render the bundled skill template into a data repo's "
-             ".claude/skills/<assistant.name>/SKILL.md (no-op if it exists).",
+    # -- Commands --
+
+    # jadelens init
+    init = sub.add_parser(
+        "init",
+        help="Interactively clone and initialize a brand new data repo at the provided path.",
     )
-    render.add_argument(
-        "data_repo",
-        type=Path,
-        help="Path to the data repo whose .jade/config.json drives the render.",
+    init.add_argument(
+        "--ssh-url",
+        help="The SSH URL from GitHub to clone your data repository (git@github.com:<username>/<repo>.git).",
+    )
+    init.add_argument(
+        "--assistant-name",
+        help="What you want your AI assistant to be called, and also the name of the agentic skill you'll be using (/<assistant-name>).",
+    )
+    init.add_argument(
+        "--user-full-name",
+        help="Your full name as you want the assistant to refer to you in more formal records.",
+    )
+    init.add_argument(
+        "--user-short-name",
+        help="A short name the assistant will use to refer to you in informal context.",
     )
 
+    # jadelens apply
+    _ = sub.add_parser(
+        "apply",
+        help="Apply edits to the data via stdin. This is meant to be used by the AI. Not a human-friendly input format.",
+    )
+
+    # jadelens render
+    _ = sub.add_parser(
+        "render",
+        help="Render the bundled skill template into a data repo's "
+        ".claude/skills/<assistant-name>/SKILL.md (no-op if it exists and is up-to-date).",
+    )
+
+    # jadelens stash {list,resolve}
     stash = sub.add_parser(
         "stash",
         help="List or resolve conflict-stash entries in a data repo's .jade/stash/.",
     )
     stash_sub = stash.add_subparsers(dest="stash_command")
-    stash_list = stash_sub.add_parser("list", help="List stash entries.")
-    stash_list.add_argument("data_repo", type=Path)
+    _ = stash_sub.add_parser("list", help="List stash entries.")
     stash_resolve = stash_sub.add_parser(
         "resolve", help="Resolve (delete) a stash entry by id, then sync."
     )
-    stash_resolve.add_argument("data_repo", type=Path)
     stash_resolve.add_argument("id", help="The stash entry id (filename stem).")
 
     args = parser.parse_args()
+    data_path = args.data_repo.expanduser().resolve()
 
-    if args.command == "render-skill":
-        do_render_skill(args.data_repo.expanduser().resolve())
-        return
+    match args.command:
+        case "init":
+            do_init(
+                data_path,
+                ssh_url=args.ssh_url,
+                assistant_name=args.assistant_name,
+                user_full_name=args.user_full_name,
+                user_short_name=args.user_short_name,
+            )
+        case "apply":
+            sys.exit("Not implemented yet")
+        case "render":
+            do_render_skill(data_path)
+        case "stash":
+            match args.stash_command:
+                case "list":
+                    do_stash_list(data_path)
+                case "resolve":
+                    do_stash_resolve(data_path, args.id)
+                case _:
+                    stash.print_help()
+        case _:
+            parser.print_help()
+            sys.exit(1)
 
-    if args.command == "stash":
-        if args.stash_command == "list":
-            do_stash_list(args.data_repo.expanduser().resolve())
-        elif args.stash_command == "resolve":
-            do_stash_resolve(args.data_repo.expanduser().resolve(), args.id)
-        else:
-            stash.print_help()
-        return
+    # # No subcommand: legacy onboarding flow.
+    # CODE_REPO_PATH = Path(__file__).resolve().parent.parent
+    # check_for_updates(CODE_REPO_PATH)
+    # installs = scan_for_installs(SKILLS_DIR)
 
-    # No subcommand: legacy onboarding flow.
-    check_for_updates(CODE_REPO_PATH)
-    installs = scan_for_installs(SKILLS_DIR)
+    # print("\n🟢 Welcome to JADE LENS setup 🟢\n")
+
+    # if not installs:
+    #     do_onboarding()
+    # elif len(installs) == 1:
+    #     print(
+    #         "An existing jade-lens skill was found at:\n"
+    #         f"  {installs[0]}\n"
+    #         "Update / config-edit / rename flows are not yet implemented in "
+    #         "v0.1.0. Coming soon."
+    #     )
+    # else:
+    #     print(
+    #         f"{len(installs)} jade-lens skills found:\n"
+    #         + "".join(f"  {p}\n" for p in installs)
+    #         + "Multi-install handling is not yet implemented in v0.1.0. "
+    #         "Coming soon."
+    #     )
+
+
+def do_init(
+    data_repo_path: Path,
+    ssh_url: str | None,
+    assistant_name: str | None,
+    user_full_name: str | None,
+    user_short_name: str | None,
+):
+    # Make sure the data repo path doesn't exist yet
+    if data_repo_path.exists():
+        sys.exit(f"Data repo path exists: {data_repo}")
+
+    # Validate all provided args before prompting for the ones still missing
+    if ssh_url and (error := _get_data_repo_url_error_if_any(ssh_url)):
+        sys.exit(f"Invalid SSH URL {ssh_url!r} for GitHub repo: {error}")
+    if assistant_name and (error := _get_assistant_name_error_if_any(assistant_name)):
+        sys.exit(f"Invalid assistant name {assistant_name!r}: {error}")
 
     print("\n🟢 Welcome to JADE LENS setup 🟢\n")
 
-    if not installs:
-        do_onboarding()
-    elif len(installs) == 1:
-        print(
-            "An existing jade-lens skill was found at:\n"
-            f"  {installs[0]}\n"
-            "Update / config-edit / rename flows are not yet implemented in "
-            "v0.1.0. Coming soon."
+    # Prompt for missing args before taking any action on the actual repo
+    if not assistant_name:
+        assistant_name = prompt_assistant_name()
+
+    repo_skills_dir = claude_dir / "skills"
+    repo_skill_path = repo_skills_dir / assistant_name
+    global_skills_dir = Path.home() / ".claude" / "skills"
+    global_skill_path = global_skills_dir / assistant_name
+    # TODO: Check whether global_skill_path exists. If not, fine. If it does and it is a symlink
+    #       pointing at repo_skill_path, fine. But if it exists and is not a symlink, or it is a
+    #       symlink pointing at something other than repo_skill_path, sys.exit(...)
+
+    if not ssh_url:
+        ssh_url = prompt_ssh_url()
+    if not user_full_name:
+        user_full_name = prompt_user_full_name(Path.home())
+    if not user_short_name:
+        user_short_name = prompt_user_short_name(user_full_name)
+
+    # Clone and verify the data repo
+    data_repo_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _ = subprocess.run(
+            ["git", "clone", ssh_url, str(data_repo_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
         )
-    else:
-        print(
-            f"{len(installs)} jade-lens skills found:\n"
-            + "".join(f"  {p}\n" for p in installs)
-            + "Multi-install handling is not yet implemented in v0.1.0. "
-            "Coming soon."
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+        sys.exit(f"Failed to clone data repo: {e!r}")
+
+    git_dir = data_repo_path / ".git"
+    if not git_dir.is_dir():
+        sys.exit(
+            f"Something went wrong when cloning the data repo: {git_dir}"
+            " does not exist or is not a directory."
         )
+
+    subpaths = [
+        p.relative_to(data_repo_path) for p in data_repo_path.iterdir() if p != git_dir
+    ]
+    if subpaths:
+        sys.exit(f"Data repo is not empty! Found: {subpaths}")
+
+    # Write and commit the necessary files
+    to_add = []
+
+    # .jade/config.json
+    jade_dir = data_repo_path / ".jade"
+    jade_dir.mkdir()
+
+    config_dict = {
+        "user": {
+            "full_name": user_full_name,
+            "short_name": user_short_name,
+        },
+        "assistant": {
+            "name": assistant_name,
+        },
+    }
+    config_path = jade_dir / "config.json"
+    config_path.write_text(dumps_js_canonical(config_dict))
+    to_add.append(config_path)
+
+    # Index.json
+    index_path = data_repo_path / "Index.json"
+    index_path.write_text(dumps_js_canonical([]))
+    to_add.append(index_path)
+
+    # .gitignore
+    gitignore_path = data_repo_path / ".gitignore"
+    gitignore_path.write_text(
+        "\n".join(
+            (
+                "# Rendered skill files",
+                ".claude/skills/",
+            )
+        )
+        + "\n"
+    )
+    to_add.append(gitignore_path)
+
+    # .claude/settings.json
+    claude_dir = data_repo_path / ".claude"
+    claude_dir.mkdir()
+
+    claude_settings_dict = {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start",
+                        },
+                    ],
+                },
+            ],
+        },
+    }
+    claude_settings_path = claude_dir / "settings.json"
+    claude_settings_path.write_text(dumps_js_canonical(claude_settings_dict))
+    to_add.append(claude_settings_path)
+
+    # .claude/hooks/session-start
+    hooks_dir = claude_dir / "hooks"
+    hooks_dir.mkdir()
+
+    hook_path = hooks_dir / "session-start"
+    hook_template_path = files("jadelens").joinpath(
+        "templates", "session-start-hook.sh"
+    )
+    hook_path.write_text(hook_template_path.read_text())
+    # Make it executable before git add
+    hook_mode = hook_path.stat().st_mode
+    hook_path.chmod(hook_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    to_add.append(hook_path)
+
+    # CLAUDE.md
+    claude_md_path = data_repo_path / "CLAUDE.md"
+    claude_md_template_path = files("jadelens").joinpath(
+        "templates", "CLAUDE-template.md"
+    )
+    claude_md_path.write_text(claude_md_template_path.read_text())
+    to_add.append(claude_md_path)
+
+    # Render the skill in <data-repo>/.claude/skills
+    # Could be more elegant by extracting the really necessary common code...
+    do_render_skill(data_repo_path)
+
+    # Symlink the skill in ~/.claude/skills
+    global_skills_dir.mkdir(parents=True, exist_ok=True)
+    # TODO: Make global_skill_path a symlink pointing to repo_skill_path
+
+    # Commit
+    commit_msg = "Prepared repository for use with Jade Lens."
+    # TODO: git add all paths from to_add
+    # TODO: git commit
+    # TODO: git push (do not use force) (remember this might be the first commit)
+
+
+_ssh_url_pattern = re.compile(
+    r"(?:git@github\.com:|ssh://git@github\.com/)(?P<user>[^/]+)/(?P<repo>[^/]+)\.git"
+)
+
+
+def _get_data_repo_url_error_if_any(url: str) -> str | None:
+    m = _ssh_url_pattern.fullmatch(url)
+
+    if not m:
+        return "Wrong format (expected 'git@github.com:<username>/<repo>.git')"
+
+    if (m.group("user") == "tomasssalles") and (m.group("repo") == "jade-lens"):
+        return "Wrong repo (this is the code repo from the Jade Lens project)"
+
+    return None
+
+
+def prompt_ssh_url() -> str:
+    print(
+        "Paste the SSH URL for your (private) GitHub personal data repository. (If you visit"
+        " the repository on GitHub, click on the 'Code' button, tab 'Local', sub-tab 'SSH'.)"
+    )
+    while True:
+        url = input("SSH URL: ").strip()
+        if error := _get_data_repo_url_error_if_any(url):
+            print(f"  {error}")
+            continue
+        return url
 
 
 def check_for_updates(code_repo_path: Path) -> None:
@@ -186,6 +415,14 @@ def do_onboarding() -> None:
     print(f"  You can now run /{assistant_name} in any new Claude Code session.")
 
 
+def _get_assistant_name_error_if_any(name: str) -> str | None:
+    if "/" in name:
+        return "Invalid character '/' in assistant name"
+
+    if any(c.isspace() for c in name):
+        return "Invalid: Assistant name cannot contain whitespace"
+
+
 def prompt_assistant_name() -> str:
     default = "jade"
     while True:
@@ -193,8 +430,8 @@ def prompt_assistant_name() -> str:
             f"Assistant name (used as /<name> in Claude Code) [{default}]: "
         ).strip()
         name = raw or default
-        if "/" in name or " " in name:
-            print("  Invalid: must not contain slashes or spaces. Try again.")
+        if error := _get_assistant_name_error_if_any(name):
+            print(f"  {error}")
             continue
         return name
 
@@ -211,25 +448,23 @@ def prompt_data_repo_path() -> Path:
             print(f"  Invalid: {path} is not an existing directory. Try again.")
             continue
         if not (path / ".git").exists():
-            print(
-                f"  Invalid: {path} is not a git repo (no .git found). Try again."
-            )
+            print(f"  Invalid: {path} is not a git repo (no .git found). Try again.")
             continue
         return path
 
 
-def prompt_user_full_name(data_repo: Path) -> str:
-    """Prompt for the user's full name, defaulting to the data repo's
+def prompt_user_full_name(git_working_dir: Path) -> str:
+    """Prompt for the user's full name, defaulting to the working dir's
     ``git config user.name`` if available."""
-    default = _git_config_user_name(data_repo)
+    default = _git_config_user_name(git_working_dir)
     suffix = f" [{default}]" if default else ""
     while True:
         raw = input(
-            f"Your full name (stored when records mention you){suffix}: "
+            f"Your full name (used when more formal records mention you){suffix}: "
         ).strip()
         name = raw or default
         if not name:
-            print("  Invalid: full name required. Try again.")
+            print("  Invalid: full name is required.")
             continue
         return name
 
@@ -241,9 +476,7 @@ def prompt_user_short_name(full_name: str) -> str:
     default = tokens[0] if tokens else ""
     suffix = f" [{default}]" if default else ""
     while True:
-        raw = input(
-            f"Short version (first name or nickname){suffix}: "
-        ).strip()
+        raw = input(f"Short version (first name or nickname){suffix}: ").strip()
         name = raw or default
         if not name:
             print("  Invalid: short name required. Try again.")
@@ -251,11 +484,12 @@ def prompt_user_short_name(full_name: str) -> str:
         return name
 
 
-def _git_config_user_name(data_repo: Path) -> str:
-    """Return the data repo's ``git config user.name``; empty if unset."""
+def _git_config_user_name(working_dir: Path) -> str:
+    """Return ``git config user.name`` as defined for the working_dir (may be local);
+    empty if unset."""
     try:
         result = subprocess.run(
-            ["git", "-C", str(data_repo), "config", "user.name"],
+            ["git", "-C", str(working_dir), "config", "user.name"],
             capture_output=True,
             text=True,
             check=True,
@@ -263,7 +497,7 @@ def _git_config_user_name(data_repo: Path) -> str:
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-        return ""
+        return
 
 
 def do_render_skill(data_repo: Path) -> None:
@@ -312,9 +546,7 @@ def do_render_skill(data_repo: Path) -> None:
     except ValueError as e:
         sys.exit(f"Invalid config in {config_path}: {e}")
 
-    skill_path = (
-        data_repo / ".claude" / "skills" / assistant_name / "SKILL.md"
-    )
+    skill_path = data_repo / ".claude" / "skills" / assistant_name / "SKILL.md"
     if skill_path.exists():
         return  # no-op; delete to force a re-render
 
@@ -381,13 +613,12 @@ def latest_template_text() -> str:
     """
     skill_dir = files("jadelens").joinpath("templates", "skill")
     candidates = [
-        f for f in skill_dir.iterdir()
+        f
+        for f in skill_dir.iterdir()
         if f.name.startswith("v") and f.name.endswith(".md")
     ]
     if not candidates:
-        sys.exit(
-            "BUG: no templates found in jadelens.templates.skill. Please report."
-        )
+        sys.exit("BUG: no templates found in jadelens.templates.skill. Please report.")
     # TODO: when more than one template ships, sort by semver (vX.Y.Z).
     latest = max(candidates, key=lambda f: f.name)
     return latest.read_text()

@@ -62,6 +62,8 @@ Serialisation sites in the Python source (verified):
 So **only `operations.py:159` changes** for the byte-contract. (Optionally align
 the log serialiser too for tidiness, but it is not required and not tested.)
 
+CORRECTION: Absolutely align the log serialiser too!!!
+
 ### A.2 The concrete deltas (Python `json.dumps(indent=2)` vs JS `JSON.stringify(obj,null,2)`)
 
 Most things already agree at `indent=2`: item separator `,`, key separator

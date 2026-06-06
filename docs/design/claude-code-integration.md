@@ -89,6 +89,7 @@ skill, then commits and pushes. The files it writes:
 
 - `.jade/config.json` — `user.full_name`, `user.short_name`, `assistant.name`,
   shared across the user's devices.
+- `.jade/version` — the data-format version currently in use.
 - `Index.json` — empty array ([data-model.md](data-model.md)).
 - `.gitignore` — ignores `.claude/skills/` (the rendered skill).
 - `.claude/settings.json` — registers the `SessionStart` hook.
@@ -133,13 +134,6 @@ time.
 - **Rename the assistant / change names:** edit `.jade/config.json`, delete the old
   rendered skill dir (and the old home-dir symlink), start a fresh session — the
   hook re-renders under the new name.
-
-### Version pinning *(future tie-in)*
-
-The hook currently pins the install to a moving **`@cli-latest`** tag. Once the
-versioning system lands ([versioning.md](versioning.md)), the ref becomes
-`@$(cat .jade/version)`, making a data-version bump the explicit trigger for
-picking up the matching code.
 
 ### Multi-data-repo
 

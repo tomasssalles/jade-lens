@@ -133,15 +133,15 @@ GitHub API and a bot API — no persistent background processes.
 
 The focused docs under `docs/design/` (linked as each is migrated):
 
-- **Data model** — file types, the index, preferences, schemas & the view
-  registry, the database option.
+- **[Data model](data-model.md)** — file types, the index, preferences, schemas &
+  the view registry, the database option.
 - **[Mutation pipeline](mutation-pipeline.md)** — the five-op change format,
   validation, atomicity, the shared web+CLI pipeline, and cross-client
   byte-identity (the conformance suite).
 - **[Wikilinks](wikilinks.md)** — the `[[path]]` reference convention and its
   rename/delete mechanics.
-- **Inline-vs-sidecar promotion** — auto-migrating large inline strings to `.md`
-  sidecars *(planned)*.
+- **[Inline-vs-sidecar promotion](inline-sidecar-promotion.md)** — auto-migrating
+  large inline strings to `.md` sidecars *(planned)*.
 - **Bot interaction** — the bot's role, the discovery flow, prompt-cache
   structure, multi-vendor support.
 - **Audit and correction** — the atomic-change unit, the operations log,

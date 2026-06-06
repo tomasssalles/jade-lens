@@ -92,10 +92,10 @@ Needs verification against code / ask Tomás:
 
 - [x] Read DESIGN.md end to end; draft target structure + this plan.
 - [x] `jadelens.md` (overview) + doc-map.
-- [ ] `data-model.md`
+- [x] `data-model.md`
 - [x] `mutation-pipeline.md`
 - [x] `wikilinks.md`
-- [ ] `inline-sidecar-promotion.md` (verify built vs. planned) — **confirmed NOT built** (no promotion logic in `jadelens/` or `web/src/mutation/`; only described in the skill prose). Document as planned.
+- [x] `inline-sidecar-promotion.md` — **confirmed NOT built**; documented as planned. Also removed the promotion guidance from the skill template (it shouldn't describe an unbuilt feature).
 - [ ] `bot-interaction.md`
 - [ ] `audit-and-correction.md`
 - [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)

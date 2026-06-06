@@ -1,7 +1,7 @@
 # JADE LENS — design overview
 
 A personal AI assistant for daily life. (Long-form: *Jenuinely Adaptive,
-riDiculously vErsatiLe iNtellect Sidekick*.)
+riDiculously vErsatiLE iNtellect Sidekick*. Nevermind the typo, it's a joke.)
 
 This is the high-level design doc — the map of the system and the entry point
 into the focused design docs under `docs/design/`. It describes **intended

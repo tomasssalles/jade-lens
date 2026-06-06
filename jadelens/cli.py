@@ -11,12 +11,11 @@ from importlib.resources import files
 from pathlib import Path
 
 from jadelens import sync
+from jadelens.apply import do_apply
 from jadelens.config import Config
 from jadelens.operations import dumps_js_canonical
 from jadelens.skill import parse_marker, render_skill
 from jadelens.stash import describe_operation
-
-SKILLS_DIR = Path.home() / ".claude" / "skills"
 
 
 def main() -> None:
@@ -95,7 +94,7 @@ def main() -> None:
                 user_short_name=args.user_short_name,
             )
         case "apply":
-            sys.exit("Not implemented yet")
+            do_apply(data_path)
         case "render":
             do_render_skill(data_path)
         case "stash":
@@ -109,30 +108,6 @@ def main() -> None:
         case _:
             parser.print_help()
             sys.exit(1)
-
-    # # No subcommand: legacy onboarding flow.
-    # CODE_REPO_PATH = Path(__file__).resolve().parent.parent
-    # check_for_updates(CODE_REPO_PATH)
-    # installs = scan_for_installs(SKILLS_DIR)
-
-    # print("\n🟢 Welcome to JADE LENS setup 🟢\n")
-
-    # if not installs:
-    #     do_onboarding()
-    # elif len(installs) == 1:
-    #     print(
-    #         "An existing jade-lens skill was found at:\n"
-    #         f"  {installs[0]}\n"
-    #         "Update / config-edit / rename flows are not yet implemented in "
-    #         "v0.1.0. Coming soon."
-    #     )
-    # else:
-    #     print(
-    #         f"{len(installs)} jade-lens skills found:\n"
-    #         + "".join(f"  {p}\n" for p in installs)
-    #         + "Multi-install handling is not yet implemented in v0.1.0. "
-    #         "Coming soon."
-    #     )
 
 
 def do_init(
@@ -370,94 +345,6 @@ def prompt_ssh_url() -> str:
         return url
 
 
-def check_for_updates(code_repo_path: Path) -> None:
-    """Print a nudge if the code repo's tracked upstream has new commits.
-
-    Best-effort: fails silently on network issues, missing upstream, or any
-    other error. Never blocks the rest of the flow.
-    """
-    print("Checking for updates...")
-    try:
-        subprocess.run(
-            ["git", "-C", str(code_repo_path), "fetch", "--quiet"],
-            timeout=5,
-            check=True,
-            capture_output=True,
-        )
-        result = subprocess.run(
-            ["git", "-C", str(code_repo_path), "rev-list", "--count", "HEAD..@{u}"],
-            timeout=2,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        behind = int(result.stdout.strip())
-        if behind > 0:
-            plural = "s" if behind != 1 else ""
-            print(
-                f"\n⚠ {behind} new commit{plural} on origin. To update: "
-                f"`cd {code_repo_path} && git pull && jadelens`.\n"
-            )
-            response = input("Continue without updating? [y/N]: ").strip().lower()
-            if response != "y":
-                sys.exit("Aborting.")
-    except (subprocess.SubprocessError, OSError, ValueError):
-        pass
-
-
-def scan_for_installs(skills_dir: Path) -> list[Path]:
-    """Return paths to SKILL.md files in ``skills_dir/*/`` that carry the
-    jade-lens marker."""
-    print("Searching for installed jade-lens skills...")
-    if not skills_dir.is_dir():
-        return []
-    return [
-        skill_md
-        for skill_md in skills_dir.glob("*/SKILL.md")
-        if parse_marker(skill_md.read_text()) is not None
-    ]
-
-
-def do_onboarding() -> None:
-    print("No installed skill detected. Let's create one.\n")
-
-    assistant_name = prompt_assistant_name()
-    data_repo_path = prompt_data_repo_path()
-    user_full_name = prompt_user_full_name(data_repo_path)
-    user_short_name = prompt_user_short_name(user_full_name)
-    config = Config(
-        assistant_name=assistant_name,
-        data_repo_path=data_repo_path,
-        user_full_name=user_full_name,
-        user_short_name=user_short_name,
-    )
-
-    template_text = latest_template_text()
-    version = parse_marker(template_text)
-    if version is None:
-        sys.exit("BUG: latest bundled template is missing its marker. Please report.")
-
-    rendered = render_skill(config, version, template_text)
-
-    install_dir = SKILLS_DIR / assistant_name
-    install_path = install_dir / "SKILL.md"
-
-    if install_path.exists():
-        print(
-            f"\n⚠ A file already exists at {install_path}, but it doesn't "
-            f"have the jade-lens marker."
-        )
-        response = input("Overwrite it? [y/N]: ").strip().lower()
-        if response != "y":
-            sys.exit("Aborting.")
-
-    install_dir.mkdir(parents=True, exist_ok=True)
-    install_path.write_text(rendered)
-
-    print(f"\n✓ Installed skill '{assistant_name}' at {install_path}")
-    print(f"  You can now run /{assistant_name} in any new Claude Code session.")
-
-
 def _get_assistant_name_error_if_any(name: str) -> str | None:
     if "/" in name:
         return "Invalid character '/' in assistant name"
@@ -477,23 +364,6 @@ def prompt_assistant_name() -> str:
             print(f"  {error}")
             continue
         return name
-
-
-def prompt_data_repo_path() -> Path:
-    while True:
-        raw = input("Path to your data repo's local clone: ").strip()
-        if not raw:
-            print("  Invalid: path required. Try again.")
-            continue
-        # Accept relative, ~, etc.; resolve to absolute for storage.
-        path = Path(raw).expanduser().resolve()
-        if not path.is_dir():
-            print(f"  Invalid: {path} is not an existing directory. Try again.")
-            continue
-        if not (path / ".git").exists():
-            print(f"  Invalid: {path} is not a git repo (no .git found). Try again.")
-            continue
-        return path
 
 
 def prompt_user_full_name(git_working_dir: Path) -> str:
@@ -627,7 +497,7 @@ def do_stash_list(data_repo: Path) -> None:
         for op in entry.get("operations", []):
             print(f"  - {describe_operation(op)}")
     print(
-        "\nResolve with: jadelens stash resolve <data_repo> <id>  "
+        "\nResolve with: jadelens <data_repo> stash resolve <id>  "
         "(deletes the entry — both 'done' and 'won't do')."
     )
 

@@ -1,4 +1,4 @@
-"""Tests for the auto-sync integration in jadelens-apply (pull-before /
+"""Tests for the auto-sync integration in ``jadelens apply`` (pull-before /
 push-after) and the stash note."""
 
 import io
@@ -7,15 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-from jadelens import apply, sync
+from jadelens import sync
+from jadelens.apply import do_apply
 
 
 def run_apply(monkeypatch, repo: Path, payload: dict) -> None:
-    monkeypatch.setattr(sys, "argv", ["jadelens-apply", str(repo)])
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
-    apply.main()
+    do_apply(repo)
 
 
 def _git(repo: Path, *args: str) -> str:

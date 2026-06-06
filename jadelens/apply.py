@@ -1,11 +1,11 @@
-"""Python entry point for the ``jadelens-apply`` tool.
+"""The data-mutation core behind ``jadelens apply``.
 
 Reads a JSON payload from stdin and hands it to ``workflow.run``, which
-parses + validates + applies + commits atomically. Prints a stdout
-reflection of the applied operations (task 22).
+parses + validates + applies + commits atomically, then auto-syncs. Prints a
+stdout reflection of the applied operations.
 
-CLI:
-    jadelens-apply <data_repo_path>
+Invoked as the ``apply`` subcommand (``jadelens <data_repo> apply``); the CLI
+in ``jadelens.cli`` resolves the data-repo path and calls ``do_apply``.
 
 Stdin:
     {
@@ -23,10 +23,14 @@ from jadelens.operations import ApplyError, ValidationError
 from jadelens.reflection import format_reflection
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        sys.exit("Usage: jadelens-apply <data_repo_path>")
-    data_repo = Path(sys.argv[1]).resolve()
+def do_apply(data_repo: Path) -> None:
+    """Read a JSON mutation payload from stdin, apply it atomically, and sync.
+
+    ``data_repo`` is the already-resolved path to the data repo's local clone.
+    Pulls the latest remote before applying and pushes the new commit after
+    (auto-sync); a cross-device conflict is stashed and reported. Exits with a
+    message on malformed input or a workflow failure (the repo is left at HEAD).
+    """
     if not data_repo.is_dir():
         sys.exit(f"Data repo path does not exist or is not a directory: {data_repo}")
 
@@ -36,9 +40,7 @@ def main() -> None:
         sys.exit(f"Invalid JSON on stdin: {e}")
 
     if not isinstance(payload, dict):
-        sys.exit(
-            f"Payload must be a JSON object, got {type(payload).__name__}"
-        )
+        sys.exit(f"Payload must be a JSON object, got {type(payload).__name__}")
 
     commit_message = payload.get("commit_message")
     if not isinstance(commit_message, str) or not commit_message.strip():
@@ -87,7 +89,3 @@ def main() -> None:
             "review (.jade/stash/). The remote version is now in place and the "
             "working tree has been updated. Use `jadelens stash list` to see it.",
         )
-
-
-if __name__ == "__main__":
-    main()

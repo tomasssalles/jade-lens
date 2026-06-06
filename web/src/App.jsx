@@ -34,6 +34,7 @@ function App() {
   const [stashCount, setStashCount] = useState(0)
   const [pendingCount, setPendingCount] = useState(0) // unpushed local changes
   const [syncTick, setSyncTick] = useState(0) // bumped after a sync updates the working map, to refresh the tree
+  const [repoFiles, setRepoFiles] = useState([]) // repo-relative paths for the wikilink value-editor picker
   const toastTimer = useRef(null)
   const fileViewRef = useRef(null) // latest fileView, for the focus-sync closure
   const syncingRef = useRef(false) // guards against overlapping focus syncs
@@ -339,6 +340,24 @@ function App() {
     applySettingsCssVars(viewerSettings)
   }, [viewerSettings])
 
+  // The repo files offered by the wikilink value-editor's picker. Sourced from
+  // the read cache (best-effort) and refreshed whenever a sync changes the
+  // tracked file set. Protected trees and non-editable files are excluded.
+  useEffect(() => {
+    let cancelled = false
+    getCachedRepo()
+      .then((cached) => {
+        if (cancelled || !cached?.contentMap) return
+        const files = [...cached.contentMap.keys()]
+          .filter((p) => (p.endsWith('.md') || p.endsWith('.json'))
+            && !p.startsWith('.jade/') && !p.startsWith('.claude/') && !p.startsWith('.git/'))
+          .sort()
+        setRepoFiles(files)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [syncTick])
+
   const updateViewerSettings = useCallback(async (newSettings) => {
     setViewerSettings(newSettings)
     try { await saveViewerSettings(newSettings) } catch {}
@@ -406,6 +425,7 @@ function App() {
           onWikilinkClick={handleWikilinkClick}
           onCheckboxToggle={handleCheckboxToggle}
           onJsonValueEdit={handleJsonValueEdit}
+          repoFiles={repoFiles}
         />
       )}
       {toastMessage && <div className="toast">{toastMessage}</div>}

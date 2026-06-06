@@ -18,7 +18,7 @@ const scrollPositions = (() => {
   return map
 })()
 
-export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick, onCheckboxToggle, onJsonValueEdit }) {
+export default function FileView({ path, content, onBack, viewerSettings, onWikilinkClick, onCheckboxToggle, onJsonValueEdit, repoFiles }) {
   const scrollerRef = useRef(null)
 
   useEffect(() => {
@@ -57,6 +57,7 @@ export default function FileView({ path, content, onBack, viewerSettings, onWiki
             settings={viewerSettings}
             onWikilinkClick={onWikilinkClick}
             onValueEdit={onJsonValueEdit}
+            repoFiles={repoFiles}
             onBack={onBack}
           />
         </div>

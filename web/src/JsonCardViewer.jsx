@@ -2,17 +2,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getCardColor, getTextColor, getBorderColor, getTitleColor, getUnlockedLockColor } from './viewerSettings'
 import { appendPointer } from './edit/jsonPointer'
 import { resolveDecimalSeparator, formatNumberForDisplay, parseNumberInput, isPartialNumberInput, mapToSeparator } from './edit/numberFormat'
+import { classifyStringValue, wikilinkTarget, toWikilink, toDateInputValue, datetimeHasSeconds, fromDateInputValue } from './edit/valueType'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
+import DateNode from './nodes/DateNode'
+import WikilinkNode from './nodes/WikilinkNode'
 import LockClosedIcon from './assets/lock-closed.svg?react'
 import LockOpenIcon from './assets/lock-open.svg?react'
 import PencilIcon from './assets/pencil.svg?react'
 
-// Edit-mode context: `{ editing, onValueEdit }`. `editing` is true only when the
-// view is unlocked (docs/web/editing.md "Edit-mode lock"); `onValueEdit(pointer,
-// newValue)` commits one JSON value micro-edit. Both are read by the recursive
-// RenderValue without prop-threading.
-const EditModeContext = createContext({ editing: false, onValueEdit: null })
+// Edit-mode context: `{ editing, onValueEdit, repoFiles }`. `editing` is true only
+// when the view is unlocked (docs/web/editing.md "Edit-mode lock");
+// `onValueEdit(pointer, newValue)` commits one JSON value micro-edit; `repoFiles`
+// is the list of repo-relative paths offered by the wikilink picker. All read by
+// the recursive RenderValue without prop-threading.
+const EditModeContext = createContext({ editing: false, onValueEdit: null, repoFiles: [] })
 
 // Subscribe to a media query and return whether it currently matches.
 // Re-renders only when the match flips, not on every resize pixel.
@@ -292,6 +296,157 @@ function NumberEditor({ value, sep, onCommit, s }) {
   )
 }
 
+// Shared little ✓ commit button for the leaf editors.
+function CommitButton({ valid, onCommit, s }) {
+  return (
+    <button
+      type="button"
+      onClick={() => { if (valid) onCommit() }}
+      disabled={!valid}
+      aria-label="Set value"
+      style={{
+        flexShrink: 0,
+        cursor: valid ? 'pointer' : 'default',
+        opacity: valid ? 1 : 0.4,
+        color: getTitleColor(s),
+        background: 'rgba(0,0,0,0.04)',
+        border: `1px solid ${getBorderColor(s)}`,
+        borderRadius: 4,
+        padding: '3px 8px',
+        font: 'inherit',
+      }}
+    >
+      ✓
+    </button>
+  )
+}
+
+// Date / datetime editor popover: a native picker bound to the value's local
+// part. For a zoned datetime the original offset (Z / ±hh:mm) is preserved
+// across the edit — only the wall-clock value is touched (see valueType.js).
+function DateEditor({ value, type, onCommit, s }) {
+  const [text, setText] = useState(() => toDateInputValue(value, type))
+  const inputRef = useRef(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+  const out = fromDateInputValue(text, type, value)
+  const valid = out !== null
+  // Only show the seconds field when the original datetime carried seconds.
+  const step = type === 'datetime' && datetimeHasSeconds(value) ? 1 : undefined
+  return (
+    <div style={{ ...popoverStyle(s), padding: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <input
+        ref={inputRef}
+        type={type === 'date' ? 'date' : 'datetime-local'}
+        step={step}
+        aria-label="New value"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && valid) { e.preventDefault(); onCommit(out) } }}
+        style={{
+          font: 'inherit',
+          color: 'inherit',
+          padding: '3px 6px',
+          borderRadius: 4,
+          border: `1px solid ${getBorderColor(s)}`,
+          background: getCardColor(1, s),
+        }}
+      />
+      <CommitButton valid={valid} onCommit={() => onCommit(out)} s={s} />
+    </div>
+  )
+}
+
+// Wikilink editor popover: a filterable list of repo files; picking one commits
+// `[[path]]`. When no file list is available it degrades to a free-text path
+// field so a link can still be retargeted by hand.
+function WikilinkEditor({ value, repoFiles, onCommit, s }) {
+  const current = wikilinkTarget(value)
+  const hasList = repoFiles.length > 0
+  // List mode: the field filters, so it starts empty. Free-text mode: the field
+  // *is* the path, so it starts at the current target for easy retargeting.
+  const [query, setQuery] = useState(() => (hasList ? '' : current))
+  const inputRef = useRef(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const matches = useMemo(() => {
+    if (!hasList) return []
+    const q = query.trim().toLowerCase()
+    const filtered = q ? repoFiles.filter((p) => p.toLowerCase().includes(q)) : repoFiles
+    return filtered.slice(0, 50)
+  }, [repoFiles, query, hasList])
+
+  // Free-text fallback: commit whatever path is typed.
+  const typed = toWikilink(query)
+  const typedValid = typed !== null && typed !== value
+
+  const rowButton = (path) => (
+    <button
+      key={path}
+      type="button"
+      onClick={() => onCommit(toWikilink(path))}
+      title={path}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '5px 12px',
+        cursor: 'pointer',
+        font: 'inherit',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        border: 'none',
+        borderBottom: `1px solid ${getBorderColor(s)}`,
+        background: path === current ? getTitleColor(s) : 'transparent',
+        color: path === current ? '#fff' : 'inherit',
+      }}
+    >
+      {path}
+    </button>
+  )
+
+  return (
+    <div style={{ ...popoverStyle(s), padding: 8, width: '16rem', maxWidth: '80vw' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          ref={inputRef}
+          type="text"
+          aria-label={hasList ? 'Filter files' : 'Link target path'}
+          placeholder={hasList ? 'Filter files…' : 'path/to/file.md'}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return
+            if (hasList) {
+              if (matches.length > 0) { e.preventDefault(); onCommit(toWikilink(matches[0])) }
+            } else if (typedValid) {
+              e.preventDefault(); onCommit(typed)
+            }
+          }}
+          style={{
+            flex: '1 1 auto',
+            minWidth: 0,
+            font: 'inherit',
+            color: 'inherit',
+            padding: '3px 6px',
+            borderRadius: 4,
+            border: `1px solid ${getBorderColor(s)}`,
+            background: getCardColor(1, s),
+          }}
+        />
+        {!hasList && <CommitButton valid={typedValid} onCommit={() => onCommit(typed)} s={s} />}
+      </div>
+      {hasList && (
+        <div style={{ marginTop: 6, maxHeight: '12rem', overflowY: 'auto', border: `1px solid ${getBorderColor(s)}`, borderRadius: 4 }}>
+          {matches.length > 0
+            ? matches.map(rowButton)
+            : <div style={{ padding: '6px 12px', opacity: 0.6 }}>No matching files</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Recursive value renderer ─────────────────────────────────────────────────
 
 // A boolean leaf. Read-only it's a plain ✓/✗. In edit mode (view unlocked and
@@ -340,6 +495,50 @@ function NumRow({ value, pointer, keyLabel, s }) {
   )
 }
 
+// A string leaf. Read-only it renders as inline markdown (links, dates, etc.).
+// In edit mode, if the whole string is exactly one date / datetime / wikilink it
+// gains a pencil opening the matching editor; any other string stays plain (full
+// text editing is a separate, larger feature — see docs/web/editing.md).
+function StringRow({ value, pointer, keyLabel, s, onWikilinkClick }) {
+  const { editing, onValueEdit, repoFiles } = useContext(EditModeContext)
+  const editable = editing && !!onValueEdit
+  const type = editable ? classifyStringValue(value) : 'plain'
+  const label = keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>
+
+  if (type === 'date' || type === 'datetime') {
+    return (
+      <EditableLeaf
+        display={<>{label}<DateNode iso={value.trim()} /></>}
+        editing
+        s={s}
+        renderPopover={(close) => (
+          <DateEditor value={value.trim()} type={type} s={s} onCommit={(v) => { close(); onValueEdit(pointer, v) }} />
+        )}
+      />
+    )
+  }
+
+  if (type === 'wikilink') {
+    return (
+      <EditableLeaf
+        display={<>{label}<WikilinkNode path={wikilinkTarget(value)} onWikilinkClick={onWikilinkClick} /></>}
+        editing
+        s={s}
+        renderPopover={(close) => (
+          <WikilinkEditor value={value.trim()} repoFiles={repoFiles} s={s} onCommit={(v) => { close(); onValueEdit(pointer, v) }} />
+        )}
+      />
+    )
+  }
+
+  return (
+    <>
+      {label}
+      <MarkdownRenderer content={value} onWikilinkClick={onWikilinkClick} inline />
+    </>
+  )
+}
+
 function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkClick }) {
   if (value === null) {
     return (
@@ -369,8 +568,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkCli
   if (typeof value === 'string') {
     return (
       <Card depth={depth} s={s} isWide={isWide}>
-        {keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>}
-        <MarkdownRenderer content={value} onWikilinkClick={onWikilinkClick} inline />
+        <StringRow value={value} pointer={pointer} keyLabel={keyLabel} s={s} onWikilinkClick={onWikilinkClick} />
       </Card>
     )
   }
@@ -427,7 +625,7 @@ function RenderValue({ value, depth, s, isWide, keyLabel, pointer, onWikilinkCli
 
 // ─── Top-level export ─────────────────────────────────────────────────────────
 
-export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onValueEdit = null, onBack }) {
+export default function JsonCardViewer({ data, filePath, settings, onWikilinkClick, onValueEdit = null, repoFiles = [], onBack }) {
   // Track only the wide/narrow boolean, not the raw width, so we re-render on
   // the breakpoint crossing rather than on every resize pixel.
   const isWide = useMediaQuery(`(min-width: ${settings.wideBreakpoint}px)`)
@@ -446,7 +644,7 @@ export default function JsonCardViewer({ data, filePath, settings, onWikilinkCli
     setUnlocked(false)
   }
 
-  const editMode = useMemo(() => ({ editing: unlocked, onValueEdit }), [unlocked, onValueEdit])
+  const editMode = useMemo(() => ({ editing: unlocked, onValueEdit, repoFiles }), [unlocked, onValueEdit, repoFiles])
 
   // Each top item carries its JSON Pointer so value edits map back to the source.
   let topItems

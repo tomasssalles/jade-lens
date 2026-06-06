@@ -29,6 +29,7 @@
 
 /* Dates — tooltip only for now; add cursor: pointer when interactive */
 .jl-date {}
+.jl-date-zone { font-size: 0.82em; opacity: 0.55; }
 
 /* Checkboxes — square, Google-Keep-style custom rendering.
    !important overrides the global `input` rule from Settings.css. */

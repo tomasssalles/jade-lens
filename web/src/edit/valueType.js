@@ -57,6 +57,34 @@ export function splitDatetime(iso) {
 }
 
 /**
+ * The conventional-sign offset, in minutes, of a datetime's zone suffix
+ * (e.g. `+02:00` → 120, `-05:30` → -330). `Z` → 0; a naive value ('') → null.
+ */
+export function parseZoneOffsetMinutes(zone) {
+  if (!zone) return null;
+  if (zone === 'Z') return 0;
+  const m = zone.match(/^([+-])(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  return sign * (Number(m[2]) * 60 + Number(m[3]));
+}
+
+/**
+ * The small display suffix for a zoned datetime: `UTC` at offset 0, else a
+ * normalized numeric offset like `+05:30` / `-05:00`. (Only shown for values
+ * whose offset isn't the viewer's current local offset — that decision lives in
+ * DateNode, which knows the browser's offset.)
+ */
+export function formatZoneSuffix(offsetMin) {
+  if (offsetMin === 0) return 'UTC';
+  const sign = offsetMin < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `${sign}${hh}:${mm}`;
+}
+
+/**
  * The `value` to feed a native date / datetime-local input.
  *
  * - date → the `YYYY-MM-DD` string unchanged.

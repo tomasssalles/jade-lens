@@ -28,6 +28,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Text and markdown editor](#text-and-markdown-editor)
 - [File move, rename, and delete](#file-move-rename-and-delete)
 - [JSON value editors](#json-value-editors)
+- [Date/time localization and travel behavior](#datetime-localization-and-travel-behavior)
 - [Raw JSON structural editor](#raw-json-structural-editor)
 - [Create file](#create-file)
 - [Index-driven navigation](#index-driven-navigation)
@@ -268,18 +269,54 @@ auto-removal). The builder logic (`web/src/edit/fileOps.js`) is done.
 
 **Scope:** web.
 
-Phase 5g remainder. Boolean and number are done (the edit-mode lock + per-field
-pencil + picker/type-in field). Remaining effective types:
-- **date / time** → native picker.
-- **wikilink** (`[[path]]`) → file picker.
+Phase 5g remainder. Boolean, number, **date/datetime**, and **wikilink** are done
+(the edit-mode lock + per-field pencil + picker/type-in field; `web/src/edit/
+valueType.js` classifies a string leaf and the editors live in `JsonCardViewer`).
+Remaining effective types:
+- **time-only** (`HH:mm[:ss]`, naive or zoned) → native time picker. Not done:
+  neither the display plugin (`remarkDates`) nor `classifyStringValue` matches a
+  bare time yet, so it currently renders/edits as a plain string. Adding it means
+  extending both, plus a `<input type="time">` editor.
 - **plain string** → opens the text editor on that field.
 
 Each is one `json_patch` `replace` behind the same pencil.
 
-**Blockers:** date and wikilink — none. Plain-string editing leans on the Text and
+Date/datetime model (settled, implemented): storage is never rewritten; values
+are displayed in **their own** zone (naive = local), never converted, with a small
+`UTC` / `±hh:mm` suffix on zoned values that aren't in the viewer's current local
+offset; the editor shows that same wall-clock and keeps the zone. See "Date/time
+localization and travel behavior" for the open follow-ups.
+
+**Blockers:** time-only — none. Plain-string editing leans on the Text and
 markdown editor item; and once strings can grow via the UI, the optimistic apply
 must go through the real pipeline so Inline-vs-sidecar promotion shows up
 immediately (wikilink + new file).
+
+---
+
+## Date/time localization and travel behavior
+
+**Scope:** web (display) + cross-cutting (conventions).
+
+The current model never converts a stored datetime and shows it in its own zone
+(see "JSON value editors"). That's the right default, but a few questions are
+deliberately deferred:
+
+- **How do we decide what's "local"?** Today "local" means "the value's offset
+  equals the browser's current offset," which is what gates the zone suffix. Is
+  that the right notion? Naive values are assumed local by interpretation — do we
+  ever want to attach a real zone to them (e.g. on edit)?
+- **Travel behavior.** When the user is in a different timezone than usual, the
+  browser's offset changes, so the same value can flip between "looks local, no
+  suffix" and "shows a suffix" depending on where they are. Is that desirable, or
+  should "home/usual zone" be a stored preference independent of the device?
+- **Opt-in localization.** Some values (UTC log-style timestamps) *would* be nicer
+  converted to local — the grafana mood. Since nothing in the data distinguishes
+  "a UTC instant I want localized" from "an event genuinely in UTC," this can only
+  be a user-chosen view toggle layered on the never-convert default, not an
+  inferred behavior. Decide if/when to add it.
+
+**Blockers:** none — design discussion, then a small display/setting change.
 
 ---
 

@@ -7,6 +7,8 @@ import {
   toDateInputValue,
   datetimeHasSeconds,
   fromDateInputValue,
+  parseZoneOffsetMinutes,
+  formatZoneSuffix,
 } from './valueType'
 
 describe('classifyStringValue', () => {
@@ -106,5 +108,39 @@ describe('fromDateInputValue', () => {
   it('rejects an empty or malformed datetime input', () => {
     expect(fromDateInputValue('', 'datetime', '2026-06-06T14:30')).toBeNull()
     expect(fromDateInputValue('2026-07-01', 'datetime', '2026-06-06T14:30')).toBeNull()
+  })
+})
+
+describe('parseZoneOffsetMinutes', () => {
+  it('returns null for a naive (zoneless) value', () => {
+    expect(parseZoneOffsetMinutes('')).toBeNull()
+  })
+
+  it('maps Z to 0', () => {
+    expect(parseZoneOffsetMinutes('Z')).toBe(0)
+  })
+
+  it('maps numeric offsets with the conventional sign', () => {
+    expect(parseZoneOffsetMinutes('+02:00')).toBe(120)
+    expect(parseZoneOffsetMinutes('-05:00')).toBe(-300)
+    expect(parseZoneOffsetMinutes('+05:30')).toBe(330)
+    expect(parseZoneOffsetMinutes('-05:30')).toBe(-330)
+  })
+
+  it('returns null for garbage', () => {
+    expect(parseZoneOffsetMinutes('nope')).toBeNull()
+  })
+})
+
+describe('formatZoneSuffix', () => {
+  it('shows UTC at offset 0', () => {
+    expect(formatZoneSuffix(0)).toBe('UTC')
+  })
+
+  it('shows a padded signed offset otherwise', () => {
+    expect(formatZoneSuffix(120)).toBe('+02:00')
+    expect(formatZoneSuffix(-300)).toBe('-05:00')
+    expect(formatZoneSuffix(330)).toBe('+05:30')
+    expect(formatZoneSuffix(-330)).toBe('-05:30')
   })
 })

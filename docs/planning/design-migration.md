@@ -101,7 +101,7 @@ Needs verification against code / ask Tomás:
 - [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)
 - [ ] `web-app.md` (reconcile legacy web README + verify built vs. planned)
 - [x] `calendar.md`
-- [ ] `claude-code-integration.md` (incl. `jadelens init`)
+- [x] `claude-code-integration.md` (reconciled with current `init`/`apply`/`render` + the `@cli-latest` hook)
 - [x] `cost.md`
 - [x] `versioning.md` (migrated legacy versioning.md; aligned changelog dirs to docs/README — `cli/`, `web/`, `data-format/`; `jadelens apply` rename)
 - [x] `security-and-trust.md` (v0.1.0 PAT warning verified against SettingsForm.jsx)

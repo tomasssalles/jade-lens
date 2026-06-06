@@ -96,8 +96,8 @@ Needs verification against code / ask Tomás:
 - [x] `mutation-pipeline.md`
 - [x] `wikilinks.md`
 - [x] `inline-sidecar-promotion.md` — **confirmed NOT built**; documented as planned. Also removed the promotion guidance from the skill template (it shouldn't describe an unbuilt feature).
-- [ ] `bot-interaction.md`
-- [ ] `audit-and-correction.md`
+- [x] `bot-interaction.md`
+- [x] `audit-and-correction.md`
 - [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)
 - [ ] `web-app.md` (reconcile legacy web README + verify built vs. planned)
 - [ ] `calendar.md`

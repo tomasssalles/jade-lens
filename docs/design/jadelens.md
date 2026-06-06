@@ -142,10 +142,10 @@ The focused docs under `docs/design/` (linked as each is migrated):
   rename/delete mechanics.
 - **[Inline-vs-sidecar promotion](inline-sidecar-promotion.md)** — auto-migrating
   large inline strings to `.md` sidecars *(planned)*.
-- **Bot interaction** — the bot's role, the discovery flow, prompt-cache
-  structure, multi-vendor support.
-- **Audit and correction** — the atomic-change unit, the operations log,
-  forward-only correction.
+- **[Bot interaction](bot-interaction.md)** — the bot's role, the discovery flow,
+  prompt-cache structure, multi-vendor support.
+- **[Audit and correction](audit-and-correction.md)** — the atomic-change unit,
+  the operations log, forward-only correction.
 - **Sync and conflicts** — local-first sync, conflict detection, the stash.
 - **Web app** — UI principles, UI edits feeding the pipeline, navigation,
   rendering and promoted views, value editors.

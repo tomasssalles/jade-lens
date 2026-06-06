@@ -56,9 +56,7 @@ Three hard constraints shape every choice:
 
 1. **$0 hosting.** No paid hosting for code, the "binary", or the data.
    GitHub-based hosting is the default path.
-2. **Near-zero recurring AI cost** above the existing Claude Pro subscription. The
-   user will try the API but won't tolerate runaway costs; any API-dependent
-   design must be cheap from day one and validated against real volumes.
+2. **Minimal AI cost**. Design must be cheap from day one and validated against real volumes. Automate as much as possible with tool calls to reduce token counts.
 3. **AI-assisted interaction at the core** — JADE LENS's reason for existing.
    Using *Claude specifically* isn't strict; multi-vendor support is a wish (see
    `bot-interaction.md`).

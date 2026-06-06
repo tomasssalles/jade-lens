@@ -217,6 +217,15 @@ def do_init(
     config_path.write_text(dumps_js_canonical(config_dict))
     to_add.append(config_path)
 
+    # .jade/version — the data-format version. Both codebases read it (the
+    # operations log is partitioned by it, see workflow._log_path), so a repo
+    # without it can't take a single mutation. Interim value matches the
+    # conformance suite + ops-log convention; moving to the final scheme (a
+    # sequential integer) is a versioning-backlog item.
+    version_path = jade_dir / "version"
+    version_path.write_text("v0.1.0\n")
+    to_add.append(version_path)
+
     # Index.json
     index_path = data_repo_path / "Index.json"
     index_path.write_text(dumps_js_canonical([]))

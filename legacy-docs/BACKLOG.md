@@ -121,17 +121,31 @@ and some now overlap or drift.
 
 **Scope:** pipeline + web + /jade.
 
+Settle the **final technical details** of the versioning design, then implement it.
 Implement the three version tracks and the automatic **data**-version checks per
-`docs/versioning.md`: py/web semver (tags `py-`/`web-`; `package.json` + Python
-`__version__`; web version shown in the UI), data version as an integer in
-`.jade/version` that **both** codebases check against on every run. Mismatch
-handling: `data < code` → migrate (/jade) or warn + read-only (web); `data > code`
-→ tell the user to update and abort (/jade) / reload then clear-cache (web).
-Foundational for safe releases.
+`docs/design/versioning.md`: py/web semver (tags `py-`/`web-`; `package.json` +
+Python `__version__`; web version shown in the UI), data version in `.jade/version`
+that **both** codebases check against on every run. Mismatch handling: `data <
+code` → migrate (/jade) or warn + read-only (web); `data > code` → tell the user to
+update and abort (/jade) / reload then clear-cache (web). Foundational for safe
+releases.
+
+`jadelens init` now seeds `.jade/version` (done — a repo without it can't take a
+mutation, since the ops log is partitioned by it via `workflow._log_path`). It
+writes the interim value `v0.1.0`.
 
 **Blockers:** Seed version tracks and changelog layout (need the starting points).
 
-**Open questions:**
+**Open questions / final technical details:**
+- **Data-version value format.** The design specifies a **sequential integer**
+  (`1`, `2`, …), but the code today uses the ad-hoc string `v0.1.0` everywhere the
+  data version is read/seeded (`workflow._log_path` puts it straight into the
+  ops-log filename `.jade/operations-log/<version>.jsonl`; conformance
+  `DEFAULT_DATA_VERSION`; `jadelens init`). Reconcile to the integer scheme —
+  which is itself a (first) data migration, since existing repos carry `v0.1.0` —
+  and update the ops-log filename derivation + the conformance default together.
+- Keep the **data** version distinct from the Python `__version__` (they happen to
+  both be `v0.1.0` now, but they're independent tracks — don't couple them).
 - Where the web build reads its version from; how /jade derives its code version
   (installed `jadelens` package version) and stamps the skill's version marker.
 

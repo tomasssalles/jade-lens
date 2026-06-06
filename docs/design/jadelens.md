@@ -92,8 +92,8 @@ separate code path from the web app (see `claude-code-integration.md`).
 
 | Repo | Holds | Visibility |
 |---|---|---|
-| **Code repo** (this one) | The web app, the skill, the Python tooling, migrations, docs | Public-capable |
-| **Data repo** | The user's JSON + markdown data only — no code | Private |
+| **Code repo** (this one) | The web app, the skill, the Python tooling, migrations, docs | Public (owned by the developer) |
+| **Data repo** | The user's JSON + markdown data only — no code | Private (owned by the user) |
 
 The web app and the skill take the data-repo location as a per-install setting.
 A hypothetical public future gives every user their own private data repo and

@@ -95,9 +95,7 @@ separate code path from the web app (see `claude-code-integration.md`).
 | **Code repo** (this one) | The web app, the skill, the Python tooling, migrations, docs | Public (owned by the developer) |
 | **Data repo** | The user's JSON + markdown data only — no code | Private (owned by the user) |
 
-The web app and the skill take the data-repo location as a per-install setting.
-A hypothetical public future gives every user their own private data repo and
-points the app at it — no multi-tenant backend.
+The web app and the skill take the data-repo URL/location as a per-install setting.
 
 **Local-first.** The UI reads and writes only local state; it never blocks on the
 network. Sync is a background concern that emits events the UI subscribes to.

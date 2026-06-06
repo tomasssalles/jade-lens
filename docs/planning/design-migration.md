@@ -103,7 +103,7 @@ Needs verification against code / ask Tomás:
 - [x] `calendar.md`
 - [ ] `claude-code-integration.md` (incl. `jadelens init`)
 - [x] `cost.md`
-- [ ] `versioning.md` (migrate legacy versioning.md)
+- [x] `versioning.md` (migrated legacy versioning.md; aligned changelog dirs to docs/README — `cli/`, `web/`, `data-format/`; `jadelens apply` rename)
 - [x] `security-and-trust.md` (v0.1.0 PAT warning verified against SettingsForm.jsx)
 - [ ] Distribute §15 future-work + §18 open questions.
 - [ ] Migrate the remaining `legacy-docs/docs/*` mechanism docs into `design/`.

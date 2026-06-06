@@ -7,7 +7,7 @@ across releases.
 
 > **Status: designed, not yet built.** The version *tracks* aren't seeded, the
 > data-version checks aren't wired, and there's no migration runner or update tool
-> yet — all tracked in [docs/planning/backlog.md](../planning/backlog.md). This
+> yet — all tracked in [the backlog](../../legacy-docs/BACKLOG.md). This
 > doc is the intended design.
 
 Related: [audit-and-correction.md](audit-and-correction.md) (the operations log a

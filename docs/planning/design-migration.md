@@ -98,8 +98,8 @@ Needs verification against code / ask Tomás:
 - [x] `inline-sidecar-promotion.md` — **confirmed NOT built**; documented as planned. Also removed the promotion guidance from the skill template (it shouldn't describe an unbuilt feature).
 - [x] `bot-interaction.md`
 - [x] `audit-and-correction.md`
-- [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)
-- [ ] `web-app.md` (reconcile legacy web README + verify built vs. planned)
+- [x] `sync-and-conflicts.md` (design-level from §8; full mechanism in legacy doc still to fold in)
+- [x] `web-app.md` (verified built vs. planned against web/src; legacy web README still to fold in)
 - [x] `calendar.md`
 - [x] `claude-code-integration.md` (reconciled with current `init`/`apply`/`render` + the `@cli-latest` hook)
 - [x] `cost.md`

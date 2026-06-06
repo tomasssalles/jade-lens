@@ -91,11 +91,11 @@ Needs verification against code / ask Tomás:
 ## Checklist
 
 - [x] Read DESIGN.md end to end; draft target structure + this plan.
-- [ ] `jadelens.md` (overview) + doc-map.
+- [x] `jadelens.md` (overview) + doc-map.
 - [ ] `data-model.md`
-- [ ] `mutation-pipeline.md`
-- [ ] `wikilinks.md`
-- [ ] `inline-sidecar-promotion.md` (verify built vs. planned)
+- [x] `mutation-pipeline.md`
+- [x] `wikilinks.md`
+- [ ] `inline-sidecar-promotion.md` (verify built vs. planned) — **confirmed NOT built** (no promotion logic in `jadelens/` or `web/src/mutation/`; only described in the skill prose). Document as planned.
 - [ ] `bot-interaction.md`
 - [ ] `audit-and-correction.md`
 - [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)

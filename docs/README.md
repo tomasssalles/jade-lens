@@ -38,6 +38,7 @@ Design documents should include:
 - The chosen approach and how it works.
 - Alternatives that were considered.
 - The rationale for the decision — why this approach over the others.
+- A rough pointer to the most relevant source files, so a reader can jump from the design straight to the code that implements it. This need not be exhaustive or kept perfectly in sync — just enough to orient.
 
 Files in `design/` can be organized flat (if filenames are descriptive enough) or with one level of subdirectories for broad groupings (e.g. `design/ui/`, `design/data/`, `design/infrastructure/`). Avoid deeper nesting. Some documents will cross category boundaries — that's fine, just pick the best fit and keep a flat structure if categorization feels forced.
 
@@ -83,7 +84,12 @@ Backlogs, known issues, and implementation plans. **Everything in this directory
 
 ### Core files
 
-- **`backlog.md`** (one per major component, or a single shared one — whichever fits better as the project evolves): tasks to be done, roughly prioritized. Entries are removed when completed.
+- **`backlog.md`** (one per major component, or a single shared one — whichever fits better as the project evolves): tasks to be done, roughly prioritized. Entries are removed when completed. Each entry has:
+  - a short **description** of the work;
+  - its **blockers** — what must land first, or "none" if it can be picked up now;
+  - **links to the most relevant docs** — the design doc(s) for the subsystem it touches, and an implementation plan if one exists.
+
+  Those links are how a fresh session orients itself: read the entry, follow its links to understand the intended behavior and rationale, then go to the source. Keep them current as a task's relevant docs appear or move.
 - **`known_issues.md`**: known issues with no current plans to fix. These are indefinitely deferred, not forgotten. Entries are removed when fixed or when a decision is made that they won't be fixed.
 
 ### Implementation plans

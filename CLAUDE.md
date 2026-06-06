@@ -23,6 +23,8 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 - **`docs/changelogs/`** — version-keyed changelogs per independently-versioned component (`cli/`, `web/`, `data-format/`), each accumulating in an `unreleased.md`.
 - **`docs/planning/`** — disposable working material: `backlog.md` (to-do), `known_issues.md` (deferred bugs/limitations), and per-task implementation plans. Entries are deleted when done — but first capture anything permanent into `design/`/`changelogs/`.
 
+**Working a request.** You start each session cold — when I ask for something, get your bearings before coding: find the task in `docs/planning/backlog.md` (each entry carries its blockers, a description, and links to the most relevant docs — the design doc and any implementation plan), read those linked docs for the intended behavior and rationale, then go to the source. Read only what the task touches.
+
 > **Migration in progress.** The docs are being reorganized into the structure above; right now `docs/` holds little beyond its README. Until the migration is finished, most actual content still lives in **`legacy-docs/`** (the old `DESIGN.md`, `BACKLOG.md`, `KNOWN_ISSUES.md`, `changelogs/`, per-feature docs, etc.) — treat it as the interim source of truth for anything not yet migrated. `legacy-docs/` will be deleted once migration completes, and **this file gets another pass** then to name the real `docs/` files worth reading.
 
 ## Practical

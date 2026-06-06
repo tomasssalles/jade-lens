@@ -19,24 +19,26 @@ from jadelens.stash import describe_operation
 
 
 def main() -> None:
+    # Every subcommand takes the data repo path as its first positional, so it's
+    # a shared parent rather than a global pre-subcommand arg (which would read as
+    # the unnatural `jadelens <data_repo> <command>`).
     common = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
-    common.add_argument(
-        "--version", action="version", version=f"%(prog)s {version('jadelens')}"
-    )
     common.add_argument(
         "data_repo", type=Path, help="Path to the local clone of the data repo."
     )
 
-    parser = argparse.ArgumentParser(
-        prog="jadelens", allow_abbrev=False, parents=[common]
+    parser = argparse.ArgumentParser(prog="jadelens", allow_abbrev=False)
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {version('jadelens')}"
     )
     sub = parser.add_subparsers(dest="command")
 
-    # -- Commands --
+    # -- Commands (all take `data_repo` via parents=[common]) --
 
-    # jadelens init
+    # jadelens init <data_repo>
     init = sub.add_parser(
         "init",
+        parents=[common],
         help="Interactively clone and initialize a brand new data repo at the provided path.",
     )
     init.add_argument(
@@ -56,32 +58,41 @@ def main() -> None:
         help="A short name the assistant will use to refer to you in informal context.",
     )
 
-    # jadelens apply
+    # jadelens apply <data_repo>
     _ = sub.add_parser(
         "apply",
+        parents=[common],
         help="Apply edits to the data via stdin. This is meant to be used by the AI. Not a human-friendly input format.",
     )
 
-    # jadelens render
+    # jadelens render <data_repo>
     _ = sub.add_parser(
         "render",
+        parents=[common],
         help="Render the bundled skill template into a data repo's "
         ".claude/skills/<assistant-name>/SKILL.md (no-op if it exists and is up-to-date).",
     )
 
-    # jadelens stash {list,resolve}
+    # jadelens stash <data_repo> (--list | --resolve <id>)
     stash = sub.add_parser(
         "stash",
+        parents=[common],
         help="List or resolve conflict-stash entries in a data repo's .jade/stash/.",
     )
-    stash_sub = stash.add_subparsers(dest="stash_command")
-    _ = stash_sub.add_parser("list", help="List stash entries.")
-    stash_resolve = stash_sub.add_parser(
-        "resolve", help="Resolve (delete) a stash entry by id, then sync."
+    stash_action = stash.add_mutually_exclusive_group(required=True)
+    stash_action.add_argument(
+        "--list", action="store_true", help="List stash entries."
     )
-    stash_resolve.add_argument("id", help="The stash entry id (filename stem).")
+    stash_action.add_argument(
+        "--resolve",
+        metavar="ID",
+        help="Resolve (delete) the stash entry with this id (filename stem), then sync.",
+    )
 
     args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
     data_path = args.data_repo.expanduser().resolve()
 
     match args.command:
@@ -98,16 +109,10 @@ def main() -> None:
         case "render":
             do_render_skill(data_path)
         case "stash":
-            match args.stash_command:
-                case "list":
-                    do_stash_list(data_path)
-                case "resolve":
-                    do_stash_resolve(data_path, args.id)
-                case _:
-                    stash.print_help()
-        case _:
-            parser.print_help()
-            sys.exit(1)
+            if args.list:
+                do_stash_list(data_path)
+            else:
+                do_stash_resolve(data_path, args.resolve)
 
 
 def do_init(
@@ -497,7 +502,7 @@ def do_stash_list(data_repo: Path) -> None:
         for op in entry.get("operations", []):
             print(f"  - {describe_operation(op)}")
     print(
-        "\nResolve with: jadelens <data_repo> stash resolve <id>  "
+        "\nResolve with: jadelens stash <data_repo> --resolve <id>  "
         "(deletes the entry — both 'done' and 'won't do')."
     )
 

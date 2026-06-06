@@ -1,4 +1,4 @@
-"""Tests for the `jadelens stash list` / `jadelens stash resolve` commands."""
+"""Tests for the `jadelens stash <repo> --list` / `--resolve <id>` commands."""
 
 import subprocess
 from pathlib import Path

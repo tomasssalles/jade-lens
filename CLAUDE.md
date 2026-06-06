@@ -25,10 +25,6 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 
 > **Migration in progress.** The docs are being reorganized into the structure above; right now `docs/` holds little beyond its README. Until the migration is finished, most actual content still lives in **`legacy-docs/`** (the old `DESIGN.md`, `BACKLOG.md`, `KNOWN_ISSUES.md`, `changelogs/`, per-feature docs, etc.) — treat it as the interim source of truth for anything not yet migrated. `legacy-docs/` will be deleted once migration completes, and **this file gets another pass** then to name the real `docs/` files worth reading.
 
-There may also be a gitignored `./next_steps.md`; if it's present, read it.
-
-When I say **"catch up"**, read `docs/README.md`, the `planning/` docs, any design docs relevant to what we're about to do, `next_steps.md` if present, and — during the migration — the corresponding material in `legacy-docs/`; plus any memories you have about this project. Then just tell me you're done (no need to recap). Keeping these docs accurate as the project changes is part of the work.
-
 ## Practical
 
 - Mostly a Python project, **uv**-managed. Run the tests with `uv run pytest`.

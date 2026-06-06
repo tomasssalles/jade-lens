@@ -16,7 +16,6 @@ Pulls together the per-op apply logic into a single atomic transaction:
    commits everything with the bot's commit message. Returns the new SHA.
 """
 
-import json
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -31,6 +30,7 @@ from jadelens.operations import (
     Operation,
     RenamePath,
     UnifiedDiff,
+    dumps_js_canonical_compact,
     parse_operation,
 )
 from jadelens.wikilinks import find_references, rewrite_references_under
@@ -259,7 +259,7 @@ def append_log_entry(
         "operations": raw_operations,
     }
     with log_path.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
+        f.write(dumps_js_canonical_compact(entry) + "\n")
 
 
 # ---------- Orchestration ----------

@@ -15,7 +15,6 @@ from jadelens.config import Config
 from jadelens.operations import dumps_js_canonical
 from jadelens.skill import parse_marker, render_skill
 from jadelens.stash import describe_operation
-from tests.conftest import data_repo
 
 SKILLS_DIR = Path.home() / ".claude" / "skills"
 
@@ -145,7 +144,7 @@ def do_init(
 ):
     # Make sure the data repo path doesn't exist yet
     if data_repo_path.exists():
-        sys.exit(f"Data repo path exists: {data_repo}")
+        sys.exit(f"Data repo path exists: {data_repo_path}")
 
     # Validate all provided args before prompting for the ones still missing
     if ssh_url and (error := _get_data_repo_url_error_if_any(ssh_url)):
@@ -159,13 +158,31 @@ def do_init(
     if not assistant_name:
         assistant_name = prompt_assistant_name()
 
-    repo_skills_dir = claude_dir / "skills"
-    repo_skill_path = repo_skills_dir / assistant_name
+    # Skill paths. repo_skill_path is the rendered skill dir inside the data repo;
+    # global_skill_path is the ~/.claude/skills symlink that makes /<name> work
+    # from any session. These paths are only needed for the pre-flight check and
+    # the later symlink — the directories themselves are created further down.
+    repo_skill_path = data_repo_path / ".claude" / "skills" / assistant_name
     global_skills_dir = Path.home() / ".claude" / "skills"
     global_skill_path = global_skills_dir / assistant_name
-    # TODO: Check whether global_skill_path exists. If not, fine. If it does and it is a symlink
-    #       pointing at repo_skill_path, fine. But if it exists and is not a symlink, or it is a
-    #       symlink pointing at something other than repo_skill_path, sys.exit(...)
+
+    # Bail early if the global skill name is taken by something we shouldn't
+    # clobber (an unrelated file/dir, or a symlink pointing elsewhere). A symlink
+    # already pointing at our repo_skill_path is fine — it's the steady state.
+    if global_skill_path.is_symlink():
+        existing_target = global_skill_path.readlink()
+        if existing_target != repo_skill_path:
+            sys.exit(
+                f"A skill named {assistant_name!r} is already symlinked at "
+                f"{global_skill_path} → {existing_target}.\n"
+                "Remove it (or choose a different assistant name) and try again."
+            )
+    elif global_skill_path.exists():
+        sys.exit(
+            f"Something already exists at {global_skill_path} and it isn't a "
+            "symlink to this data repo's skill.\n"
+            "Remove it (or choose a different assistant name) and try again."
+        )
 
     if not ssh_url:
         ssh_url = prompt_ssh_url()
@@ -286,15 +303,41 @@ def do_init(
     # Could be more elegant by extracting the really necessary common code...
     do_render_skill(data_repo_path)
 
-    # Symlink the skill in ~/.claude/skills
+    # Symlink the skill in ~/.claude/skills so /<name> works from any session.
+    # We validated above that global_skill_path is either absent or already the
+    # symlink we want, so only create it when it isn't there yet.
     global_skills_dir.mkdir(parents=True, exist_ok=True)
-    # TODO: Make global_skill_path a symlink pointing to repo_skill_path
+    if not global_skill_path.is_symlink():
+        global_skill_path.symlink_to(repo_skill_path)
+        print(f"✓ Symlinked {global_skill_path} → {repo_skill_path}")
 
-    # Commit
+    # Commit and push the bootstrap files. The data repo was empty, so this is
+    # its first commit; name the default branch `main` (matching CLAUDE.md's
+    # always-work-on-main convention) before committing.
     commit_msg = "Prepared repository for use with Jade Lens."
-    # TODO: git add all paths from to_add
-    # TODO: git commit
-    # TODO: git push (do not use force) (remember this might be the first commit)
+    _run_git(["branch", "-M", "main"], data_repo_path)
+    _run_git(["add", *(str(p) for p in to_add)], data_repo_path)
+    _run_git(["commit", "-m", commit_msg], data_repo_path)
+    _run_git(["push", "-u", "origin", "main"], data_repo_path)
+
+    print(f"\n✓ Done. Your data repo is ready at {data_repo_path}")
+    print(f"  Start a Claude Code session and type /{assistant_name} to begin.")
+
+
+def _run_git(git_args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    """Run ``git -C <cwd> <git_args>``, exiting with a clear message on failure."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), *git_args],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        )
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"git {' '.join(git_args)} failed:\n{e.stderr.strip()}")
+    except (subprocess.TimeoutExpired, OSError) as e:
+        sys.exit(f"git {' '.join(git_args)} failed: {e!r}")
 
 
 _ssh_url_pattern = re.compile(
@@ -497,7 +540,7 @@ def _git_config_user_name(working_dir: Path) -> str:
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-        return
+        return ""
 
 
 def do_render_skill(data_repo: Path) -> None:

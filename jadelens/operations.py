@@ -103,6 +103,22 @@ def dumps_js_canonical(obj: Any) -> str:
     return json.dumps(_to_js_canonical(obj), ensure_ascii=False, indent=2) + "\n"
 
 
+def dumps_js_canonical_compact(obj: Any) -> str:
+    """Serialise ``obj`` to the canonical JS-faithful *compact* form,
+    byte-matching ``JSON.stringify(obj)`` (no indentation, no spaces after the
+    item/key separators).
+
+    Same two JS deltas as :func:`dumps_js_canonical` (``ensure_ascii=False`` and
+    the integer-valued-float normalisation in :func:`_to_js_canonical`), but with
+    compact ``,``/``:`` separators for single-line JSONL — the operations-log
+    line — rather than the indented data-file form. No trailing newline is added;
+    JSONL writers append their own.
+    """
+    return json.dumps(
+        _to_js_canonical(obj), ensure_ascii=False, separators=(",", ":")
+    )
+
+
 @dataclass(slots=True, frozen=True)
 class CreateFile:
     path: str

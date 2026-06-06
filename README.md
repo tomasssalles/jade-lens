@@ -42,7 +42,7 @@ jadelens init /path/where/to/clone/data-repo
 
 4. **Try out the assistant:** Start a `claude` session anywhere and type `/<assistant-name> <your-prompt>` (the name you chose during initialization). Try using your first few interactions to ask the assistant how you can interact with it and what it can do for you. Later you can enter your notes using natural language, e.g. `/jade I just got fired. New project: job search. Second new project: Develop awesome AI assistant tool now that I have some time in my hands.`. You can look at your data directly in the data repo you created on GitHub, but that's not the most user-friendly experience. Which brings us to...
 5. **Open the web app:** Go to **https://tomasssalles.github.io/jade-lens/**. On your first visit, the main page will let you set up access to your data repo. You'll need a **GitHub personal access token (PAT)** (fine-grained is safest, scoped to the data repo only) so the app can read and write your data. (If you don't trust Jade yet, a read-only PAT will also work, but obviously only for visualizing the data.)
-5. **Install it on your phone (optional).** Open the app in the browser (**Chrome** is recommended at least on Android) and choose **Add to Home screen** (and if asked, choose "install" instead of "open in the browser") for an app-like, full-screen launcher with a pretty icon and all (a PWA).
+6. **Install it on your phone (optional).** Open the app in the browser (**Chrome** is recommended at least on Android) and choose **Add to Home screen** (and if asked, choose "install" instead of "open in the browser") for an app-like, full-screen launcher with a pretty icon and all (a PWA).
 
 ## Security & privacy
 

@@ -46,7 +46,7 @@ hours, break cadence), rough duration estimates, and spreading load across days.
   inspectable files make debugging and manual correction feasible. This drives
   the JSON + markdown format choice.
 - *Tertiary — a full audit trail.* Every atomic data change is one git commit +
-  one operations-log entry (see `audit-and-correction.md`).
+  one operations-log entry (see [audit-and-correction.md](audit-and-correction.md)).
 
 ---
 
@@ -59,14 +59,27 @@ Three hard constraints shape every choice:
 2. **Minimal AI cost**. Design must be cheap from day one and validated against real volumes. Automate as much as possible with tool calls to reduce token counts.
 3. **AI-assisted interaction at the core** — JADE LENS's reason for existing.
    Using *Claude specifically* isn't strict; multi-vendor support is a wish (see
-   `bot-interaction.md`).
+   [bot-interaction.md](bot-interaction.md)).
 
 ---
 
 ## 3. Platforms and architecture
 
-Runs on **Linux desktop** (primary), **macOS desktop**, and **Android** mobile.
-iOS is out of scope.
+**Platforms.** The web app is a static site, so it runs in **any modern browser,
+on any OS** — desktop or mobile. What's platform-specific is *installing* it as an
+app: the PWA install (home-screen launcher, standalone window) is supported but
+only **tested on Android (Chrome)**; other platforms' install paths vary and
+aren't a current focus.
+
+The `/jade` Claude Code path is reachable two ways. Via **claude.ai** — in any
+browser, or the native claude.ai apps where they exist — it drives a session on a
+cloud/working repo and is available from essentially any platform. The
+**local-clone path** (Claude Code driving a local git checkout from a terminal)
+needs a real shell, `git`, and `uv`, and is only **tested on Linux and macOS**.
+
+So nothing is hard "out of scope" for browser use; the platform limits are about
+the *installed-app* and *local-terminal* experiences — where Android (the PWA) and
+Linux/macOS (local `/jade`) are what's actually exercised.
 
 **High-level shape** — a static web app (**React + Vite**) hosted on **GitHub
 Pages**; no server-side code we operate. Data lives in a GitHub repository,
@@ -86,7 +99,7 @@ Bot adapter  ←→  Anthropic API  (+ others as multi-vendor matures)
 
 On **desktop with Claude Code**, the user can additionally drive JADE LENS via a
 `/<assistant>` slash command (default `/jade`) operating on a local clone — a
-separate code path from the web app (see `claude-code-integration.md`).
+separate code path from the web app (see [claude-code-integration.md](claude-code-integration.md)).
 
 **Two repositories:**
 
@@ -142,19 +155,23 @@ The focused docs under `docs/design/` (linked as each is migrated):
   prompt-cache structure, multi-vendor support.
 - **[Audit and correction](audit-and-correction.md)** — the atomic-change unit,
   the operations log, forward-only correction.
-- **Sync and conflicts** — local-first sync, conflict detection, the stash.
-- **Web app** — UI principles, UI edits feeding the pipeline, navigation,
-  rendering and promoted views, value editors.
-- **Calendar** — external calendars as an augmentation / lazy-JSON source.
-- **Claude Code integration** — the skill, the `jadelens` CLI mutation tool, and
-  data-repo bootstrap (`jadelens init`).
-- **Cost** — the cost ledger and token-cost as a design metric.
-- **Versioning** — three independent version tracks and the migration system.
-- **Security and trust** — credential storage, hosting, encryption, auth.
+- **[Sync and conflicts](sync-and-conflicts.md)** — local-first sync, conflict
+  detection, the stash.
+- **[Web app](web-app.md)** — UI principles, UI edits feeding the pipeline,
+  navigation, rendering and promoted views, value editors.
+- **[Calendar](calendar.md)** — external calendars as an augmentation / lazy-JSON
+  source.
+- **[Claude Code integration](claude-code-integration.md)** — the skill, the
+  `jadelens` CLI mutation tool, and data-repo bootstrap (`jadelens init`).
+- **[Cost](cost.md)** — the cost ledger and token-cost as a design metric.
+- **[Versioning](versioning.md)** — three independent version tracks and the
+  migration system.
+- **[Security and trust](security-and-trust.md)** — credential storage, hosting,
+  encryption, auth.
 
 > **Migration in progress.** These docs are being split out of
-> `legacy-docs/DESIGN.md`; until each lands, its content still lives there. See
-> `docs/planning/design-migration.md` for status.
+> [legacy-docs/DESIGN.md](../../legacy-docs/DESIGN.md); until each lands, its content still lives there. See
+> [docs/planning/design-migration.md](../planning/design-migration.md) for status.
 
 ## 6. Scope and status
 

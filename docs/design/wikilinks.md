@@ -11,9 +11,9 @@ The path is **relative to the data-repo root**, not to the file containing the
 link. (This costs click-navigability in a plain text editor, but the web app's
 renderer resolves repo-root paths fine, and the rename-safety win is much larger.)
 
-Source of truth: `jadelens/wikilinks.py` (Python), `web/src/mutation/` (JS). The
+Source of truth: [jadelens/wikilinks.py](../../jadelens/wikilinks.py) (Python), [web/src/mutation/](../../web/src/mutation/) (JS). The
 convention is exercised by the `rename_path` / `delete_path` ops of the
-`mutation-pipeline.md`.
+[mutation-pipeline.md](mutation-pipeline.md).
 
 ## Why this form
 
@@ -81,11 +81,11 @@ fails the batch.
 In raw markdown viewers (and Claude Code's TUI) wikilinks render as literal
 `[[path]]` text — recognisable, not clickable. The web app renders the filename
 stem as a clickable label that navigates to the linked file in-app (see
-`web-app.md`).
+[web-app.md](web-app.md)).
 
 ## Forward-compatibility note
 
 The convention was designed for a filesystem, but it survives a future move to a
 database substrate cleanly: a wikilink rename-rewrite becomes a single SQL
-`UPDATE` across rows rather than a recursive grep + rewrite (see `versioning.md` /
-the durable-substrate discussion in `security-and-trust.md`).
+`UPDATE` across rows rather than a recursive grep + rewrite (see [versioning.md](versioning.md) /
+the durable-substrate discussion in [security-and-trust.md](security-and-trust.md)).

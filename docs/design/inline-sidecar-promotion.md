@@ -12,8 +12,8 @@ the *runtime* makes that transition automatically — the bot never has to decid
 so the same content is routed the same way every time, independent of bot mood or
 vendor, and the bot spends one patch op instead of two-plus.
 
-Related: `mutation-pipeline.md` (where this step slots in), `wikilinks.md` (the
-reference it produces), `data-model.md` (the index, which auto-promoted sidecars
+Related: [mutation-pipeline.md](mutation-pipeline.md) (where this step slots in), [wikilinks.md](wikilinks.md) (the
+reference it produces), [data-model.md](data-model.md) (the index, which auto-promoted sidecars
 stay out of).
 
 ## The rule
@@ -70,7 +70,7 @@ locked; decide at implementation.
 
 - Lands in **both** pipelines (Python + JS) and the conformance suite together —
   it changes the bytes a `json_patch` produces, so it's part of the byte-identity
-  contract (`mutation-pipeline.md`).
-- Slots between validation and apply in `workflow.run` / `web/src/mutation/`.
-- A natural first **migration** (`versioning.md`): retroactively promote existing
+  contract ([mutation-pipeline.md](mutation-pipeline.md)).
+- Slots between validation and apply in `workflow.run` / [web/src/mutation/](../../web/src/mutation/).
+- A natural first **migration** ([versioning.md](versioning.md)): retroactively promote existing
   oversized inline strings once the rule exists.

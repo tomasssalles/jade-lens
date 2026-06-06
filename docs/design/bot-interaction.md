@@ -6,25 +6,25 @@ and uses Claude Code's own agentic navigation; the **web app's** bot path — th
 discovery flow and prompt-cache engineering below — is **intended design, not yet
 built**.
 
-Related: `mutation-pipeline.md` (how the bot writes), `data-model.md` (the index it
-navigates by), `claude-code-integration.md` (the `/jade` path), `cost.md` (the
+Related: [mutation-pipeline.md](mutation-pipeline.md) (how the bot writes), [data-model.md](data-model.md) (the index it
+navigates by), [claude-code-integration.md](claude-code-integration.md) (the `/jade` path), [cost.md](cost.md) (the
 ledger behind vendor switching).
 
 ## What the bot does
 
 - **Interpret** the user's chaotic natural-language input.
 - **Decide** what files, schemas, and structures should exist to hold it.
-- **Write** changes via the five-op mutation set (`mutation-pipeline.md`) — never
+- **Write** changes via the five-op mutation set ([mutation-pipeline.md](mutation-pipeline.md)) — never
   raw file-edit primitives.
 - **Answer** queries, apply natural-language filters, produce statistics.
-- **Maintain the index** (`data-model.md`) so future interactions navigate
+- **Maintain the index** ([data-model.md](data-model.md)) so future interactions navigate
   efficiently, including `alwaysLoad` markings for context-essential data.
 
 The **primary input surface** is a prominent, always-visible chat input in the UI;
 single-shot prompts work for quick actions, and the input can expand into a
 multi-turn conversation that settles into a data change only after several rounds
 (or ends with none). Manual UI editing is the fallback and the convenience path
-for trivial operations — see `web-app.md`.
+for trivial operations — see [web-app.md](web-app.md).
 
 ## Discovery flow *(web-app bot — intended, not built)*
 
@@ -64,7 +64,7 @@ invalidated by switching chats; new turns *extend* it rather than break it.
 Anthropic's standard cache TTL is 5 minutes (a 1-hour option exists at ~4× cost,
 interesting for sparse usage — not adopted by default). **Cache is keyed by
 (model, prefix)**, so switching models mid-chat starts cold — which shapes
-model-right-sizing (`cost.md`).
+model-right-sizing ([cost.md](cost.md)).
 
 ### What gets loaded
 
@@ -103,7 +103,7 @@ dominate, staying Anthropic-only is fine.
   early): the user wants to know which model is responding and learn each model's
   failure modes. A settings panel lists configured keys (vendor + model +
   paid/free) with per-key spend / quota; when a key's threshold is crossed the bot
-  refuses and the user picks another. See `cost.md`.
+  refuses and the user picks another. See [cost.md](cost.md).
 
 The `/jade` path is Claude-only by definition (it *is* Claude Code); multi-vendor
 applies to the web app's bot path.

@@ -3,9 +3,9 @@
 JADE LENS keeps a full audit trail of data changes and fixes mistakes by writing
 forward, never by rewinding history.
 
-Source of truth: `jadelens/workflow.py` (`append_log_entry`, the commit) and
-`web/src/mutation/workflow.js` (`appendLogEntry`). Related: `mutation-pipeline.md`
-(what produces a change), `sync-and-conflicts.md` (the stash, which is *excluded*
+Source of truth: [jadelens/workflow.py](../../jadelens/workflow.py) (`append_log_entry`, the commit) and
+[web/src/mutation/workflow.js](../../web/src/mutation/workflow.js) (`appendLogEntry`). Related: [mutation-pipeline.md](mutation-pipeline.md)
+(what produces a change), [sync-and-conflicts.md](sync-and-conflicts.md) (the stash, which is *excluded*
 from the log).
 
 ## The atomic data change is the unit of audit
@@ -21,14 +21,14 @@ entry; the Claude Code chat is the user's ephemeral record of those.
 An append-only **JSONL** log under `.jade/operations-log/`, one file per data-repo
 version: `.jade/operations-log/<version>.jsonl` (e.g. `…/v0.1.0.jsonl`). Old
 versions remain alongside as historical records after a migration
-(`versioning.md`). Each line is one atomic change:
+([versioning.md](versioning.md)). Each line is one atomic change:
 
 ```json
 {"ts":"2026-05-18T14:23:11Z","commit_message":"<one-line summary>","operations":[<op>,<op>]}
 ```
 
 The `operations` field holds the same typed structures the bot or UI emitted
-(`mutation-pipeline.md`). The line is serialised in the **compact JS-canonical
+([mutation-pipeline.md](mutation-pipeline.md)). The line is serialised in the **compact JS-canonical
 form** (`JSON.stringify(obj)` — no spaces, `ensure_ascii=False`,
 integer-valued-float→int) so the Python and JS clients write byte-identical log
 lines.
@@ -41,7 +41,7 @@ external editor breaks that assumption, only that one entry's bijection breaks.
 **The commit message is duplicated, intentionally** — it also lives in git's
 commit message (below). Keeping it in the log entry too makes the log
 self-sufficient as the canonical audit record, so a future move off git (e.g. to
-Postgres — `versioning.md`) doesn't lose intent metadata.
+Postgres — [versioning.md](versioning.md)) doesn't lose intent metadata.
 
 **Why a log at all, when git has diffs?** It preserves operation *semantics* a
 raw diff would lose — most notably a JSON Patch `move`, which a diff shows as
@@ -50,7 +50,7 @@ allows programmatic introspection ("every inline→sidecar promotion", "every re
 this week"), valuable while tuning bot behaviour.
 
 **Scope: applied changes to the user's data only.** Repo machinery isn't logged —
-not the log file itself, not stash files (`sync-and-conflicts.md`). And a batch
+not the log file itself, not stash files ([sync-and-conflicts.md](sync-and-conflicts.md)). And a batch
 that was **rolled back** rather than applied (a conflict stashed instead of
 landing) never appears; the stash entry is its sole record. This keeps the log a
 linear series of changes that actually brought the data to its current state.
@@ -76,7 +76,7 @@ JADE LENS does not rewind or replay history. When the user spots a mistake, they
 say so in natural language — *"no, I meant the read-replica, not the primary"* —
 and the bot reads the relevant data, understands the mistake, and writes the fix
 forward, in the same batch chasing down any references the correction invalidates
-(wikilinks make path fan-out tractable — `wikilinks.md`).
+(wikilinks make path fan-out tractable — [wikilinks.md](wikilinks.md)).
 
 **Why not replay-with-fixes?** Two reasons. First, on the `/jade` path the runtime
 only sees the bot's tool inputs, never the surrounding chat — the "prompts" we'd
@@ -88,7 +88,7 @@ envelope.
 
 ## Mobile substrate note
 
-Mobile reads/writes the data repo via the GitHub API (`jadelens.md` — "no
+Mobile reads/writes the data repo via the GitHub API ([jadelens.md](jadelens.md) — "no
 mobile-native daemons"), not a local clone, so mobile devices never carry `.git/`
 — only the working-tree files. The operations log is a normal tracked file under
 `.jade/operations-log/` and travels with the rest of the data; it's tiny (one JSON

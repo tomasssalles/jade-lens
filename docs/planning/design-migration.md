@@ -100,11 +100,11 @@ Needs verification against code / ask Tomás:
 - [x] `audit-and-correction.md`
 - [ ] `sync-and-conflicts.md` (reconcile legacy mechanism doc)
 - [ ] `web-app.md` (reconcile legacy web README + verify built vs. planned)
-- [ ] `calendar.md`
+- [x] `calendar.md`
 - [ ] `claude-code-integration.md` (incl. `jadelens init`)
-- [ ] `cost.md`
+- [x] `cost.md`
 - [ ] `versioning.md` (migrate legacy versioning.md)
-- [ ] `security-and-trust.md`
+- [x] `security-and-trust.md` (v0.1.0 PAT warning verified against SettingsForm.jsx)
 - [ ] Distribute §15 future-work + §18 open questions.
 - [ ] Migrate the remaining `legacy-docs/docs/*` mechanism docs into `design/`.
 - [ ] Cross-link pass: every design doc links its key source files + siblings.

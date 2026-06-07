@@ -1,7 +1,7 @@
 # Known issues
 
 Bugs and limitations we know about and are not actively fixing. Items
-here are indefinitely deferred — distinct from `next_steps.md`, which
+here are indefinitely deferred — distinct from `backlog.md`, which
 tracks upcoming work.
 
 ## Web app

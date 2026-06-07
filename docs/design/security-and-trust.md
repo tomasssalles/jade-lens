@@ -130,4 +130,4 @@ lock (PIN at start, "lock now" button), at-rest encryption for records flagged
 IndexedDB and the remote substrate, with unprotected data staying plaintext for
 readability), and vendor-trust filtering (each API key carries a trust label; the
 adapter withholds protected records from untrusted keys). Tracked in
-[the backlog](../../legacy-docs/BACKLOG.md).
+[the backlog](../planning/backlog.md).

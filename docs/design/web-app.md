@@ -41,7 +41,7 @@ user never manages "batching" or "committing":
   in [web/src/JsonCardViewer.jsx](../../web/src/JsonCardViewer.jsx): an edit-mode
   lock gates editing; per-field pencils open type-specific editors. Value editors
   exist for **boolean, number, date/datetime, and wikilink**; **time-only and
-  plain-string** editing are pending ([the backlog](../../legacy-docs/BACKLOG.md)).
+  plain-string** editing are pending ([the backlog](../planning/backlog.md)).
   Markdown task-checkbox toggling is built in
   [web/src/MarkdownRenderer.jsx](../../web/src/MarkdownRenderer.jsx).
 - **Text editing → batched by session** *(planned)*. Editing a markdown file or a
@@ -63,7 +63,7 @@ bot's index ([data-model.md](data-model.md)) as the table-of-contents — primar
 files grouped by the index's groupings, records expandable, sidecar wikilinks
 followable — with a search / filter affordance for when navigation isn't fast
 enough. Both index-driven navigation and search are planned
-([the backlog](../../legacy-docs/BACKLOG.md)).
+([the backlog](../planning/backlog.md)).
 
 ## Default rendering vs. promoted views
 

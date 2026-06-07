@@ -32,7 +32,7 @@ names follow [docs/README.md](../README.md): `cli/`, `web/`, `data-format/`.)
 - **Source of truth:** `__version__` in the Python package. The rendered skill
   carries a version marker so the tooling can tell whether the installed skill is
   current.
-- **Git tags:** `py-vMAJOR.MINOR.PATCH` (e.g. `py-v1.2.3`).
+- **Git tags:** `cli-vMAJOR.MINOR.PATCH` (e.g. `cli-v1.2.3`).
 - **Changelog:** `docs/changelogs/cli/vX.Y.Z.md` — audience: `/jade` users.
 
 ### Web app version (semver)
@@ -211,7 +211,7 @@ layout").
 
 | Tag | Example | Meaning |
 |---|---|---|
-| `py-vMAJOR.MINOR.PATCH` | `py-v1.2.3` | Python tooling/skill release |
+| `cli-vMAJOR.MINOR.PATCH` | `cli-v1.2.3` | Python tooling/skill release |
 | `web-vMAJOR.MINOR.PATCH` | `web-v0.4.0` | Web app deployment |
 
 No tags for the data version. Tags are created at the version-bump commit (for the
@@ -224,7 +224,7 @@ a new data version, push the code tag(s) **and** the migration together.
 |---|---|---|---|
 | Format | semver | semver | sequential integer |
 | Source of truth | Python `__version__` | `package.json` | `.jade/version` |
-| Git tags | `py-vX.Y.Z` | `web-vX.Y.Z` | none |
+| Git tags | `cli-vX.Y.Z` | `web-vX.Y.Z` | none |
 | Changelog | `docs/changelogs/cli/` | `docs/changelogs/web/` | `docs/changelogs/data-format/` |
 | Update | manual update tool | page reload (always latest) | migration |
 | On `data < code` | run migration | warn + read-only, point to `/jade` | — |

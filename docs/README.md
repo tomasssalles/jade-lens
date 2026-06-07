@@ -71,7 +71,7 @@ changelogs/
 Each component directory always contains an `unreleased.md` file where changes are collected incrementally as work is done. When a version is finalized:
 
 1. `unreleased.md` is renamed to the version identifier (e.g. `v0.2.0.md` for semver components, `v3.md` for data format).
-2. A git tag is pushed (`py-v0.2.0`, `web-v0.2.0`, etc. — no tags for data format versions).
+2. A git tag is pushed (`cli-v0.2.0`, `web-v0.2.0`, etc. — no tags for data format versions).
 3. A new empty `unreleased.md` is created.
 
 Changelog entries should be concise and human-readable. Web changelogs may be very brief for patch releases (a single line is fine). Data format changelogs should describe what changed in the format and what the migration does — they double as migration documentation.

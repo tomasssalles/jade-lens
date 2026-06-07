@@ -17,4 +17,9 @@
 - Files used by the tooling (instead of directly by the bot) are stored inside the repo in `.jade/`
 - There's a config file at `.jade/config.json`, containing the fields:
   - `user/full_name`: The user's full name, used by the bot in more formal contexts.
-  - `user/short_name`:
+  - `user/short_name`: A short name or nickname, used by the bot in informal contexts.
+  - `assistant/name`: The name the user chose for the assistant (and its `/<name>` skill command).
+- The data format version is recorded in `.jade/version` (`v1` for this release). Both the CLI and the web app declare the version they support and check the repo against it.
+- The operations log lives at `.jade/operations-log/<version>.jsonl` (e.g. `v1.jsonl`): an append-only file with one line per atomic data change, recording its timestamp, commit message, and the operations applied. One file per data format version; older files are kept as history after a migration.
+- Conflict-stashed changes live under `.jade/stash/`: one file per batch that lost a sync race, kept until the user resolves it.
+- Everything under `.jade/` is tooling-managed and off-limits to the bot. More generally, the bot may not write to dot-prefixed top-level paths (`.jade/`, `.claude/`, `.git/`, `.gitignore`, …) — they're reserved for tooling.

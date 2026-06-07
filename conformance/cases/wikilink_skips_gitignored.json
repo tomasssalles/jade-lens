@@ -17,7 +17,7 @@
       "private.md": "[[old.md]] in my notes\n",
       "tracked.md": "[[new.md]] in tracked\n",
       "new.md": "# original\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }
 }

@@ -11,7 +11,7 @@
   ],
   "expect": {
     "after": {
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove archive directory\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"archive\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove archive directory\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"archive\"}]}\n"
     }
   }
 }

@@ -13,7 +13,7 @@
     "after": {
       "archive/a.md": "# a\n",
       "archive/b.md": "# b\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
     }
   }
 }

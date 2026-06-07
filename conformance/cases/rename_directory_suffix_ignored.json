@@ -11,7 +11,7 @@
   "expect": {
     "after": {
       "projects/a.md": "# a\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Drop version suffix from projects dir\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects.v1\", \"to\": \"projects\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Drop version suffix from projects dir\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects.v1\", \"to\": \"projects\"}]}\n"
     }
   }
 }

@@ -236,7 +236,7 @@ byte-for-byte regardless.
 ### Fixture preconditions (runner responsibility, not in the fixture)
 
 - The operations-log path depends on `.jade/version`. Runners seed a known
-  version (the suite assumes **`v0.1.0`** unless a case's `before` provides its
+  version (the suite assumes **`v1`** unless a case's `before` provides its
   own `.jade/version`). Since `.jade/` is a protected path the bot can't write,
   it's a precondition, not an operation.
 - The Python client requires a git repo (for `git mv`/`rm` and commit). The

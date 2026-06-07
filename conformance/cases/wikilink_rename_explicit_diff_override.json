@@ -14,7 +14,7 @@
     "after": {
       "new.md": "# original\n",
       "ref.md": "see [[something_else.md]] for details\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with explicit override\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}, {\"op\": \"unified_diff\", \"path\": \"ref.md\", \"diff\": \"@@ -1 +1 @@\\n-see [[old.md]] for details\\n+see [[something_else.md]] for details\\n\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with explicit override\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}, {\"op\": \"unified_diff\", \"path\": \"ref.md\", \"diff\": \"@@ -1 +1 @@\\n-see [[old.md]] for details\\n+see [[something_else.md]] for details\\n\"}]}\n"
     }
   }
 }

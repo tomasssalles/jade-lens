@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from jadelens import workflow
+from jadelens import __supported_data_format_version__, workflow
 from jadelens.operations import (
     ApplyError,
     CreateFile,
@@ -26,7 +26,6 @@ from jadelens.workflow import (
     validate_batch,
 )
 from tests.conftest import commit
-
 
 # ====================================================================
 # validate_batch
@@ -230,10 +229,13 @@ def test_require_clean_tree_rejects_untracked_file(data_repo: Path):
 
 def test_append_log_entry_creates_file_if_missing(data_repo: Path):
     raw_ops = [{"op": "create_file", "path": "x", "content": "hi"}]
-    append_log_entry(
-        data_repo, raw_ops, "Add x", "2026-05-21T10:00:00+00:00"
+    append_log_entry(data_repo, raw_ops, "Add x", "2026-05-21T10:00:00+00:00")
+    log = (
+        data_repo
+        / ".jade"
+        / "operations-log"
+        / f"{__supported_data_format_version__}.jsonl"
     )
-    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
     assert entry == {
@@ -244,11 +246,14 @@ def test_append_log_entry_creates_file_if_missing(data_repo: Path):
 
 
 def test_append_log_entry_appends_to_existing(data_repo: Path):
-    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text(
-        '{"ts": "earlier", "commit_message": "seed", "operations": []}\n'
+    log = (
+        data_repo
+        / ".jade"
+        / "operations-log"
+        / f"{__supported_data_format_version__}.jsonl"
     )
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text('{"ts": "earlier", "commit_message": "seed", "operations": []}\n')
     append_log_entry(
         data_repo,
         [{"op": "delete_path", "path": "x"}],
@@ -285,7 +290,8 @@ def test_revert_removes_untracked_file(data_repo: Path):
 def test_revert_undoes_staged_deletion(data_repo: Path):
     subprocess.run(
         ["git", "-C", str(data_repo), "rm", ".seed"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     assert not (data_repo / ".seed").exists()
     revert(data_repo)
@@ -299,7 +305,9 @@ def test_git_commit_returns_sha(data_repo: Path):
     # Verify message reached the commit.
     result = subprocess.run(
         ["git", "-C", str(data_repo), "log", "-1", "--format=%s"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert result.stdout.strip() == "test commit"
 
@@ -317,7 +325,8 @@ def test_run_happy_path_create_file(data_repo: Path):
     )
     assert (data_repo / "todos.json").read_text() == "[]\n"
     # Log entry exists with the commit message inlined.
-    log = data_repo / ".jade" / "operations-log" / "v0.1.0.jsonl"
+    data_version = __supported_data_format_version__
+    log = data_repo / ".jade" / "operations-log" / f"{data_version}.jsonl"
     assert log.is_file()
     entry = json.loads(log.read_text())
     assert entry["commit_message"] == "Add empty todo list"
@@ -327,10 +336,12 @@ def test_run_happy_path_create_file(data_repo: Path):
     # Commit captured everything (file + log).
     diff = subprocess.run(
         ["git", "-C", str(data_repo), "show", "--name-only", "--format=", sha],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     files = set(diff.stdout.split())
-    assert files == {"todos.json", ".jade/operations-log/v0.1.0.jsonl"}
+    assert files == {"todos.json", f".jade/operations-log/{data_version}.jsonl"}
 
 
 def test_run_happy_path_mixed_ops(data_repo: Path):
@@ -394,7 +405,9 @@ def test_run_aborts_and_reverts_on_apply_failure(data_repo: Path):
     commit(data_repo)
     pre_sha = subprocess.run(
         ["git", "-C", str(data_repo), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
 
     with pytest.raises(Exception, match="already exists"):
@@ -405,7 +418,11 @@ def test_run_aborts_and_reverts_on_apply_failure(data_repo: Path):
                 # This one fails — exists.json is already there. Its content
                 # differs from the bot's so the assertion below confirms
                 # the original wasn't clobbered.
-                {"op": "create_file", "path": "exists.json", "content": '{"clobbered": true}'},
+                {
+                    "op": "create_file",
+                    "path": "exists.json",
+                    "content": '{"clobbered": true}',
+                },
             ],
             "Should abort and revert",
         )
@@ -413,7 +430,9 @@ def test_run_aborts_and_reverts_on_apply_failure(data_repo: Path):
     # Repo state unchanged.
     post_sha = subprocess.run(
         ["git", "-C", str(data_repo), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     assert post_sha == pre_sha
     assert not (data_repo / "new.json").exists()
@@ -459,10 +478,7 @@ def test_rename_rewrites_self_reference(data_repo: Path):
         [{"op": "rename_path", "from": "old.md", "to": "new.md"}],
         "Rename with self-ref",
     )
-    assert (
-        (data_repo / "new.md").read_text()
-        == "I am [[new.md]] looking at myself\n"
-    )
+    assert (data_repo / "new.md").read_text() == "I am [[new.md]] looking at myself\n"
 
 
 def test_rename_then_explicit_diff_clobbers_auto_rewrite(data_repo: Path):
@@ -490,9 +506,8 @@ def test_rename_then_explicit_diff_clobbers_auto_rewrite(data_repo: Path):
         "Rename with explicit override",
     )
     assert (
-        (data_repo / "ref.md").read_text()
-        == "see [[something_else.md]] for details\n"
-    )
+        data_repo / "ref.md"
+    ).read_text() == "see [[something_else.md]] for details\n"
 
 
 def test_delete_rejects_when_external_references_remain(data_repo: Path):
@@ -527,9 +542,7 @@ def test_delete_succeeds_when_cleanup_diff_in_same_batch(data_repo: Path):
                 "op": "unified_diff",
                 "path": "ref.md",
                 "diff": (
-                    "@@ -1 +1 @@\n"
-                    "-[[doomed.md]] is going away\n"
-                    "+ was here, now gone\n"
+                    "@@ -1 +1 @@\n-[[doomed.md]] is going away\n+ was here, now gone\n"
                 ),
             },
         ],

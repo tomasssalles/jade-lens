@@ -11,7 +11,7 @@
   ],
   "expect": {
     "after": {
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete dir with internal refs\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"doomed\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete dir with internal refs\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"doomed\"}]}\n"
     }
   }
 }

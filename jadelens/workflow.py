@@ -21,6 +21,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from jadelens import __supported_data_format_version__
 from jadelens.operations import (
     ApplyError,
     ConformanceError,
@@ -131,10 +132,13 @@ def merge_unified_diffs(operations: list[Operation]) -> list[Operation]:
             emitted.add(op.path)
             # rstrip per diff to avoid trailing blank lines between hunks
             # (the parser rejects blank/unknown lines inside a hunk body).
-            combined = "\n".join(
-                _strip_diff_preamble(d.diff).rstrip("\n")
-                for d in diffs_by_path[op.path]
-            ) + "\n"
+            combined = (
+                "\n".join(
+                    _strip_diff_preamble(d.diff).rstrip("\n")
+                    for d in diffs_by_path[op.path]
+                )
+                + "\n"
+            )
             merged.append(UnifiedDiff(path=op.path, diff=combined))
         else:
             merged.append(op)
@@ -229,12 +233,12 @@ def git_commit(data_repo: Path, message: str) -> str:
 def _log_path(data_repo: Path) -> Path:
     """Return the path to the current data-version's operations log file.
 
-    The log is partitioned by data-repo version: each migration starts a
+    The log is partitioned by data-format version: each migration starts a
     fresh ``.jade/operations-log/<version>.jsonl`` file so pre-migration
     entries (which reference data shapes that may no longer exist) stay
     readable but separate from post-migration ones (§7.2, §14.5).
     """
-    version = (data_repo / ".jade" / "version").read_text().strip()
+    version = __supported_data_format_version__
     return data_repo / ".jade" / "operations-log" / f"{version}.jsonl"
 
 
@@ -297,9 +301,7 @@ def run(
         raise
 
 
-def _post_apply_wikilink_pass(
-    data_repo: Path, operations: list[Operation]
-) -> None:
+def _post_apply_wikilink_pass(data_repo: Path, operations: list[Operation]) -> None:
     """Run after every op has applied. For each rename, rewrite remaining
     wikilinks pointing at the old path. For each delete, verify no
     wikilinks still point at the deleted path — if any do, raise.

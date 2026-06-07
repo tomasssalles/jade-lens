@@ -9,7 +9,7 @@
   "expect": {
     "after": {
       "projects/.draft/notes.md": "# Draft\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add a nested draft note\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/.draft/notes.md\", \"content\": \"# Draft\\n\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add a nested draft note\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/.draft/notes.md\", \"content\": \"# Draft\\n\"}]}\n"
     }
   }
 }

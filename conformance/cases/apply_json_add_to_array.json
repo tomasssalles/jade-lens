@@ -9,7 +9,7 @@
   "expect": {
     "after": {
       "shopping.json": "{\n  \"items\": [\n    \"groceries\"\n  ]\n}\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add groceries to shopping list\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"shopping.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"groceries\"}]}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add groceries to shopping list\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"shopping.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"groceries\"}]}]}\n"
     }
   }
 }

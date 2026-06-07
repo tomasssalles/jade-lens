@@ -13,7 +13,7 @@
   "expect": {
     "after": {
       "config.json": "{\n  \"count\": 1,\n  \"ratio\": 2,\n  \"threshold\": 0.25,\n  \"label\": \"café ☕\"\n}\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\":\"<TS>\",\"commit_message\":\"Record ratio and label\",\"operations\":[{\"op\":\"json_patch\",\"path\":\"config.json\",\"patch\":[{\"op\":\"add\",\"path\":\"/ratio\",\"value\":2},{\"op\":\"add\",\"path\":\"/threshold\",\"value\":0.25},{\"op\":\"add\",\"path\":\"/label\",\"value\":\"café ☕\"}]}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\":\"<TS>\",\"commit_message\":\"Record ratio and label\",\"operations\":[{\"op\":\"json_patch\",\"path\":\"config.json\",\"patch\":[{\"op\":\"add\",\"path\":\"/ratio\",\"value\":2},{\"op\":\"add\",\"path\":\"/threshold\",\"value\":0.25},{\"op\":\"add\",\"path\":\"/label\",\"value\":\"café ☕\"}]}]}\n"
     }
   }
 }

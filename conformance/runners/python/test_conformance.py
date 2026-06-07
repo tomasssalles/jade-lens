@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from jadelens import __supported_data_format_version__
 from jadelens.operations import ConformanceError
 from jadelens.workflow import run
 
@@ -21,9 +22,8 @@ from jadelens.workflow import run
 CONFORMANCE_ROOT = Path(__file__).resolve().parents[2]
 CASES_DIR = CONFORMANCE_ROOT / "cases"
 
-# The data version the suite assumes unless a case seeds its own .jade/version
-# (drives the operations-log filename — see README §4).
-DEFAULT_DATA_VERSION = "v0.1.0"
+# The data version the suite assumes
+DEFAULT_DATA_VERSION = __supported_data_format_version__
 
 TS_SENTINEL = "<TS>"
 LOG_DIR_PREFIX = ".jade/operations-log/"

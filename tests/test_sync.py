@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from jadelens import sync, workflow
+from jadelens import __supported_data_format_version__, sync, workflow
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -17,7 +17,11 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def _config(repo: Path) -> None:
-    for k, v in (("user.email", "t@e.st"), ("user.name", "T"), ("commit.gpgsign", "false")):
+    for k, v in (
+        ("user.email", "t@e.st"),
+        ("user.name", "T"),
+        ("commit.gpgsign", "false"),
+    ):
         _git(repo, "config", k, v)
 
 
@@ -26,7 +30,9 @@ def repos(tmp_path: Path):
     """A bare remote + clone A seeded with .jade scaffolding and one file.
     Returns (remote, A, clone) where `clone` makes further clones."""
     remote = tmp_path / "remote.git"
-    subprocess.run(["git", "init", "--bare", "-q", "-b", "main", str(remote)], check=True)
+    subprocess.run(
+        ["git", "init", "--bare", "-q", "-b", "main", str(remote)], check=True
+    )
 
     def clone(name: str) -> Path:
         w = tmp_path / name
@@ -36,7 +42,7 @@ def repos(tmp_path: Path):
 
     a = clone("A")
     (a / ".jade").mkdir()
-    (a / ".jade" / "version").write_text("v0.1.0\n")
+    (a / ".jade" / "version").write_text(f"{__supported_data_format_version__}\n")
     (a / "notes.md").write_text("base\n")
     _git(a, "add", "-A")
     _git(a, "commit", "-q", "-m", "seed")
@@ -45,7 +51,13 @@ def repos(tmp_path: Path):
 
 
 def _edit_notes(text: str):
-    return [{"op": "unified_diff", "path": "notes.md", "diff": f"@@ -1,1 +1,1 @@\n-base\n+{text}\n"}]
+    return [
+        {
+            "op": "unified_diff",
+            "path": "notes.md",
+            "diff": f"@@ -1,1 +1,1 @@\n-base\n+{text}\n",
+        }
+    ]
 
 
 def test_push_succeeds_when_remote_unchanged(repos):
@@ -59,8 +71,17 @@ def test_push_succeeds_when_remote_unchanged(repos):
 def test_pull_fast_forwards_a_behind_clone(repos):
     _remote, a, clone = repos
     b = clone("B")  # B is level with the seed
-    workflow.run(a, [{"op": "unified_diff", "path": "notes.md",
-                      "diff": "@@ -1,1 +1,1 @@\n-base\n+from-A\n"}], "A edits notes")
+    workflow.run(
+        a,
+        [
+            {
+                "op": "unified_diff",
+                "path": "notes.md",
+                "diff": "@@ -1,1 +1,1 @@\n-base\n+from-A\n",
+            }
+        ],
+        "A edits notes",
+    )
     sync.push(a)
 
     result = sync.pull(b)
@@ -72,9 +93,13 @@ def test_disjoint_changes_rebase_and_push(repos):
     _remote, a, clone = repos
     b = clone("B")
     # A adds fileA and pushes; B adds fileB without pulling → diverged.
-    workflow.run(a, [{"op": "create_file", "path": "fileA.md", "content": "A\n"}], "A adds fileA")
+    workflow.run(
+        a, [{"op": "create_file", "path": "fileA.md", "content": "A\n"}], "A adds fileA"
+    )
     sync.push(a)
-    workflow.run(b, [{"op": "create_file", "path": "fileB.md", "content": "B\n"}], "B adds fileB")
+    workflow.run(
+        b, [{"op": "create_file", "path": "fileB.md", "content": "B\n"}], "B adds fileB"
+    )
 
     result = sync.push(b)
     assert result.action == "rebased"
@@ -82,7 +107,11 @@ def test_disjoint_changes_rebase_and_push(repos):
     # Remote has both files; the ops-log union-merged both lines.
     tree = _git(b, "ls-tree", "-r", "--name-only", "origin/main")
     assert "fileA.md" in tree and "fileB.md" in tree
-    log = (b / ".jade" / "operations-log" / "v0.1.0.jsonl").read_text().splitlines()
+    log = (
+        (b / ".jade" / "operations-log" / f"{__supported_data_format_version__}.jsonl")
+        .read_text()
+        .splitlines()
+    )
     assert len(log) == 2
 
 
@@ -110,7 +139,11 @@ def test_same_file_conflict_is_stashed(repos):
     assert entry["ancestors"] == {"notes.md": "base\n"}
 
     # The stashed batch never reached the synced ops-log (only A's line is there).
-    log = (b / ".jade" / "operations-log" / "v0.1.0.jsonl").read_text().splitlines()
+    log = (
+        (b / ".jade" / "operations-log" / f"{__supported_data_format_version__}.jsonl")
+        .read_text()
+        .splitlines()
+    )
     assert len(log) == 1
     assert json.loads(log[0])["commit_message"] == "A edits notes"
 
@@ -125,7 +158,7 @@ def test_push_is_local_only_without_a_remote(tmp_path: Path):
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
     _config(repo)
     (repo / ".jade").mkdir()
-    (repo / ".jade" / "version").write_text("v0.1.0\n")
+    (repo / ".jade" / "version").write_text(f"{__supported_data_format_version__}\n")
     (repo / "f.md").write_text("x\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "seed")

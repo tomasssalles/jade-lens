@@ -10,7 +10,7 @@ from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
-from jadelens import sync
+from jadelens import __supported_data_format_version__, sync
 from jadelens.apply import do_apply
 from jadelens.config import Config
 from jadelens.operations import dumps_js_canonical
@@ -80,9 +80,7 @@ def main() -> None:
         help="List or resolve conflict-stash entries in a data repo's .jade/stash/.",
     )
     stash_action = stash.add_mutually_exclusive_group(required=True)
-    stash_action.add_argument(
-        "--list", action="store_true", help="List stash entries."
-    )
+    stash_action.add_argument("--list", action="store_true", help="List stash entries.")
     stash_action.add_argument(
         "--resolve",
         metavar="ID",
@@ -217,13 +215,9 @@ def do_init(
     config_path.write_text(dumps_js_canonical(config_dict))
     to_add.append(config_path)
 
-    # .jade/version — the data-format version. Both codebases read it (the
-    # operations log is partitioned by it, see workflow._log_path), so a repo
-    # without it can't take a single mutation. Interim value matches the
-    # conformance suite + ops-log convention; moving to the final scheme (a
-    # sequential integer) is a versioning-backlog item.
+    # .jade/version — the data-format version currently used in the data repo.
     version_path = jade_dir / "version"
-    version_path.write_text("v0.1.0\n")
+    version_path.write_text(f"{__supported_data_format_version__}\n")
     to_add.append(version_path)
 
     # Index.json

@@ -8,7 +8,7 @@
   "expect": {
     "after": {
       "notes.md": "line one\nLINE TWO\nline three\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Edit line two\", \"operations\": [{\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -2 +2 @@\\n-line two\\n+LINE TWO\\n\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Edit line two\", \"operations\": [{\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -2 +2 @@\\n-line two\\n+LINE TWO\\n\"}]}\n"
     }
   }
 }

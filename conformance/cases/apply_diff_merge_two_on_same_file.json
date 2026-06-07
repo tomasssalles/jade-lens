@@ -10,7 +10,7 @@
   "expect": {
     "after": {
       "notes.md": "a\nb\nX1\nX2\nc\nD\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Two diffs on one file\", \"operations\": [{\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -2,0 +3,2 @@\\n+X1\\n+X2\\n\"}, {\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -4 +4 @@\\n-d\\n+D\\n\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Two diffs on one file\", \"operations\": [{\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -2,0 +3,2 @@\\n+X1\\n+X2\\n\"}, {\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -4 +4 @@\\n-d\\n+D\\n\"}]}\n"
     }
   }
 }

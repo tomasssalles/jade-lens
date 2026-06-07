@@ -9,7 +9,7 @@
   "expect": {
     "after": {
       "notes.md": "# notes\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Create notes via ./ path\", \"operations\": [{\"op\": \"create_file\", \"path\": \"./notes.md\", \"content\": \"# notes\\n\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Create notes via ./ path\", \"operations\": [{\"op\": \"create_file\", \"path\": \"./notes.md\", \"content\": \"# notes\\n\"}]}\n"
     }
   }
 }

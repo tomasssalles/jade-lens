@@ -16,7 +16,7 @@
       "new.md": "# new\n",
       "data.json": "{\n  \"items\": [\n    \"a\"\n  ]\n}\n",
       "renamed.md": "hello\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Mixed batch\", \"operations\": [{\"op\": \"create_file\", \"path\": \"new.md\", \"content\": \"# new\\n\"}, {\"op\": \"json_patch\", \"path\": \"data.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"a\"}]}, {\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"renamed.md\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Mixed batch\", \"operations\": [{\"op\": \"create_file\", \"path\": \"new.md\", \"content\": \"# new\\n\"}, {\"op\": \"json_patch\", \"path\": \"data.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"a\"}]}, {\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"renamed.md\"}]}\n"
     }
   }
 }

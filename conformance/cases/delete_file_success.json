@@ -8,7 +8,7 @@
   "expect": {
     "after": {
       "keep.md": "# Keep\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}]}\n"
     }
   }
 }

@@ -15,7 +15,7 @@
       "ref.md": "see [[archive/leasing/notes.md]] and [[archive/leasing/cars.json]]\n",
       "archive/leasing/notes.md": "# notes\n",
       "archive/leasing/cars.json": "{}\n",
-      ".jade/operations-log/v0.1.0.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects dir to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects dir to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
     }
   }
 }

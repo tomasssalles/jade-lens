@@ -19,7 +19,18 @@
   - `user/full_name`: The user's full name, used by the bot in more formal contexts.
   - `user/short_name`: A short name or nickname, used by the bot in informal contexts.
   - `assistant/name`: The name the user chose for the assistant (and its `/<name>` skill command).
-- The data format version is recorded in `.jade/version` (`v1` for this release). Both the CLI and the web app declare the version they support and check the repo against it.
-- The operations log lives at `.jade/operations-log/<version>.jsonl` (e.g. `v1.jsonl`): an append-only file with one line per atomic data change, recording its timestamp, commit message, and the operations applied. One file per data format version; older files are kept as history after a migration.
+- The data format version is recorded in `.jade/version` (`v1` for this release).
+- The operations log lives at `.jade/operations-log/<version>.jsonl` (e.g. `v1.jsonl`): an append-only file with one line per atomic data change, recording its timestamp, commit message, and the operations applied. One file per data format version; older files are kept as history after a migration. Each line looks like:
+
+```json
+{"ts":"2026-06-08T14:23:11.000000+00:00","commit_message":"Add milk to the shopping list","operations":[{"op":"create_file","path":"Shopping.md","content":"- Milk\n"}]}
+```
 - Conflict-stashed changes live under `.jade/stash/`: one file per batch that lost a sync race, kept until the user resolves it.
 - Everything under `.jade/` is tooling-managed and off-limits to the bot. More generally, the bot may not write to dot-prefixed top-level paths (`.jade/`, `.claude/`, `.git/`, `.gitignore`, …) — they're reserved for tooling.
+
+## Conventions the bot follows
+
+These shape the data the bot produces, so they're relevant to future migrations:
+
+- **Human-readable names.** Directory names, file names, and JSON keys are written as display-ready prose (spaces, proper capitalisation, Unicode/emoji where they add clarity), not machine-style slugs or identifiers.
+- **ISO 8601 dates and times**, left **naive** (no timezone) unless a timezone is explicitly known — only then is a `Z` or offset appended.

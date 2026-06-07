@@ -216,9 +216,7 @@ layout").
 
 No tags for the data version. Tags are created at the version-bump commit (for the
 web app, the commit that triggers the Pages deploy). When a code release requires
-a new data version, push the code tag(s) **and** the migration together. If the
-project ever splits into separate Python/web repos, drop the prefixes and use
-plain `vMAJOR.MINOR.PATCH` per repo.
+a new data version, push the code tag(s) **and** the migration together.
 
 ## Summary
 

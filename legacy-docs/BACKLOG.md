@@ -34,6 +34,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Index-driven navigation](#index-driven-navigation)
 - [Search and filter](#search-and-filter)
 - [Data-repo bootstrap](#data-repo-bootstrap)
+- [Onboarding an existing data repo on a new device](#onboarding-an-existing-data-repo-on-a-new-device)
 - [Codex compatibility](#codex-compatibility)
 - [Credential storage and trust](#credential-storage-and-trust)
 - [Bot in the web app](#bot-in-the-web-app)
@@ -155,10 +156,11 @@ writes the interim value `v0.1.0`.
 
 **Scope:** /jade (CLI tooling).
 
-A **manual** update tool (e.g. `jadelens update` — name TBD) that updates the
-installed `jadelens` (tooling + bundled skill template) and re-renders the skill.
+A **manual** update tool (`jadelens update <data-repo>` — name TBD, takes the
+data-repo path like the other subcommands) that updates the installed `jadelens`
+(tooling + bundled skill template) and re-renders that repo's skill.
 We deliberately do **not** auto-check for code updates on skill invocation — the
-per-interaction flow stays a data pull/push only (`docs/versioning.md`, "No
+per-interaction flow stays a data pull/push only (`docs/design/versioning.md`, "No
 automatic code updates"). The user runs this when they want; it's also where the
 `data > code` abort message sends them. (The web app needs no equivalent — it's
 always the latest build on reload.)
@@ -426,6 +428,31 @@ the bot).
 - Interactive prompts (user names, assistant name, repo URL) vs. flags.
 - Whether it also `git init`s and makes the first commit.
 - Idempotency: refuse / merge when run on a dir that already has `.jade/`.
+
+---
+
+## Onboarding an existing data repo on a new device
+
+**Scope:** /jade (CLI tooling + docs).
+
+`jadelens init` bootstraps a **brand-new, empty** data repo. The other case is
+getting `/jade` working on a **new device** against a data repo that's **already
+been initialized** (has `.jade/`, the hook, a rendered-skill `.gitignore`, etc.).
+The session-start hook already handles most of it once the repo is cloned and a
+`claude` session is started from it (installs `jadelens`, renders the skill,
+symlinks `~/.claude/skills/<name>/`), so this may just need **documenting a
+how-to** (clone the repo; start `claude` from it once; done). Decide whether to
+leave it as docs, add it to `jadelens init` behind a flag (e.g. `--existing` /
+`jadelens setup <clone>`), or have `init` **auto-detect** an already-bootstrapped
+clone and run only the install/render/symlink steps. See
+`docs/design/claude-code-integration.md`.
+
+**Blockers:** none.
+
+**Open questions:**
+- How-to only, an `init` flag, or auto-detection?
+- Does the user clone the repo themselves, or do we offer to clone (like `init`)?
+- Anything device-specific to set beyond the skill symlink?
 
 ---
 

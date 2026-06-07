@@ -20,7 +20,9 @@
 
 ## Setup and app
 
+- One-time-only setup on the main page when settings are empty (first visit).
 - Point the app at your data repo with a GitHub token (PAT), stored on your device.
 - Appearance settings: colours, spacing, fonts, decimal separator, time format.
 - Installable as a phone app (PWA) on Android.
 - Shows the assistant name you chose.
+- Shows the (short) commit hash of the build on the main page (temporary hack for early development).

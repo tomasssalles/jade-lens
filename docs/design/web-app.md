@@ -10,10 +10,10 @@ Source of truth: [web/src/](../../web/src/). Related:
 (the sync layer + stash), [bot-interaction.md](bot-interaction.md) (the planned
 in-app chat), [cost.md](cost.md) (the planned ledger).
 
-> Architecture overview currently in
-> [legacy-docs/web/README.md](../../legacy-docs/web/README.md) and the editing-UX
-> detail in `legacy-docs/docs/web/` — fold both in here when `legacy-docs/` is
-> retired.
+More detail in the companion docs under [`web/`](web/): the
+[architecture overview](web/architecture.md), the [editing UX](web/editing.md),
+the [JSON card viewer](web/json-viewer.md), and markdown rendering
+([design](web/markdown-rendering.md) / [spec](web/markdown-rendering-spec.md)).
 
 ## Guiding principle: the UI follows the data, not use-cases
 

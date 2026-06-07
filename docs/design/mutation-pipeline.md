@@ -99,7 +99,7 @@ choice but a necessity: a JS client loses integer-valued floats on `JSON.parse`
 hold is JS's. In Python this is `operations.dumps_js_canonical` (`ensure_ascii=
 False` + integer-valued-float→int); the same compact variant
 (`dumps_js_canonical_compact`) serialises the operations-log line. See
-[conformance/README.md](../../legacy-docs/conformance/README.md).
+[conformance/README.md](../../conformance/README.md).
 
 ## The mutation tool (CLI)
 

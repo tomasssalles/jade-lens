@@ -44,8 +44,7 @@ names follow [docs/README.md](../README.md): `cli/`, `web/`, `data-format/`.)
   version instead); MINOR = new views/features; PATCH = fixes, styling, deps.
 - **Source of truth:** `package.json` `version`.
 - **Git tags:** `web-vMAJOR.MINOR.PATCH` (e.g. `web-v0.4.0`).
-- **Changelog:** `docs/changelogs/web/vX.Y.Z.md` — audience: web-app users; can be
-  terse. The running version is shown in the UI so the user can see what they're on.
+- **Changelog:** `docs/changelogs/web/vX.Y.Z.md` — audience: web-app users; can be terse. At the moment (early development) the head-commit SHA (short version) is shown in the UI, but it will be removed later (or moved into an About page).
 
 ### Data format version (sequential integer)
 

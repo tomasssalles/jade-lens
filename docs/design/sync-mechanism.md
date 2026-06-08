@@ -2,7 +2,7 @@
 
 How JADE LENS syncs the data repo between devices and resolves conflicts. Spans
 both clients: the **web app** (GitHub REST API) and the **`/jade` Claude Code
-skill** (local git clone). The companion doc `docs/web/editing.md` covers how a
+skill** (local git clone). The companion doc [web/editing.md](web/editing.md) covers how a
 web-app change is produced; this doc covers everything from "a change is
 committed locally" onward.
 
@@ -10,7 +10,7 @@ committed locally" onward.
 > today (the web app is read-only; the `/jade` tooling syncs manually). This
 > records the agreed design. The first implementation increment ships sync +
 > conflict + stash together with web-app checkbox toggling (see
-> `docs/web/editing.md`).
+> [web/editing.md](web/editing.md)).
 
 ---
 

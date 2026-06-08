@@ -11,11 +11,9 @@ Source of truth: [jadelens/sync.py](../../jadelens/sync.py),
 [audit-and-correction.md](audit-and-correction.md) (the log, which excludes stashed
 batches).
 
-> The fine-grained step-by-step mechanism currently lives in
-> [legacy-docs/docs/sync-and-conflicts.md](../../legacy-docs/docs/sync-and-conflicts.md)
+> This doc is the design-level view; the fine-grained step-by-step mechanism
 > (queue model, sync-on-focus/save flows, entry schema, the non-atomic-bookkeeping
-> edge). Fold it in here when `legacy-docs/` is retired; this doc is the
-> design-level view.
+> edge) lives in the companion [sync-mechanism.md](sync-mechanism.md).
 
 ## Local-first
 

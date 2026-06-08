@@ -38,3 +38,14 @@ tracks upcoming work.
   the tree from the wrong cache entry. Both are corrected within the
   same render batch once the init effect reads the new config. Acceptable
   trade-off for the no-flicker benefit.
+## Conformance / serialisation
+
+- **Large integer-valued floats and non-finite floats aren't byte-canonicalised.**
+  The cross-client canonical JSON form (`operations.dumps_js_canonical`) converts
+  integer-valued floats to ints to match `JSON.stringify`, but only below the
+  point where JS switches to exponent notation. Integer-valued floats with
+  `abs(x) >= 1e21` stay floats (JS prints `"1e+21"`, not plain digits), and
+  non-finite floats (`NaN`/`Infinity`) aren't specially handled (Python emits the
+  invalid tokens, JS emits `null`). Neither occurs in life-admin/coding data;
+  add proper handling + a conformance fixture only if it ever matters. The
+  serialisation contract is in `conformance/README.md`.

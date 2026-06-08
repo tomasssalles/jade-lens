@@ -225,8 +225,8 @@ pre-walk, since the C float encoder can't be intercepted by a custom
 `JSONEncoder`). Item/key separators already match JS at `indent=2`. **Known
 residual edge:** integer-valued floats with `abs(x) >= 1e21` stay floats,
 because JS prints them in exponent form (`"1e+21"`) rather than as plain digits;
-such magnitudes don't occur in this domain (see `conformance/PENDING_WORK.md`
-§A.4 for the full edge-case list). Non-finite floats (`NaN`/`Infinity`) are not
+such magnitudes don't occur in this domain (tracked in
+`docs/planning/known_issues.md`). Non-finite floats (`NaN`/`Infinity`) are not
 specially handled yet.
 
 Cases that only modify JSON *textually* (e.g. the wikilink rewriter's in-place

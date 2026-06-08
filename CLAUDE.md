@@ -11,7 +11,7 @@ The repository you're working in is the **code** repo (the product itself), not 
 ## Source layout
 
 - **`jadelens/`** — the Python package: the data-mutation pipeline (parse → validate → apply → commit, atomic, with git auto-sync), the `jadelens` CLI (`init`, `apply`, `render`, `stash`), and skill rendering from the bundled templates. This mutation logic is mirrored in the web app and pinned byte-for-byte by the conformance suite.
-- **`web/`** — the React/Vite web app (architecture overview currently in `legacy-docs/web/README.md`, pending migration). The parallel mutation pipeline lives in `web/src/mutation/` and must stay byte-identical to the Python one.
+- **`web/`** — the React/Vite web app (design under `docs/design/web/`, starting with `architecture.md`). The parallel mutation pipeline lives in `web/src/mutation/` and must stay byte-identical to the Python one.
 - **`conformance/`** — the cross-client conformance suite: shared fixtures run by both a Python and a JS runner so the two pipelines are guaranteed to agree.
 - **`tests/`** — Python tests.
 
@@ -19,13 +19,11 @@ The repository you're working in is the **code** repo (the product itself), not 
 
 All documentation lives under **`docs/`** — **read `docs/README.md` first**; it is the authority on how the docs are organized and maintained. The shape:
 
-- **`docs/design/`** — permanent conceptual design docs: how a subsystem works, the alternatives considered, and the rationale. They describe intended behavior and may cover future phases, not just what's built. Read the relevant one when working on a subsystem; update it (never append-only) when decisions change.
+- **`docs/design/`** — permanent conceptual design docs: how a subsystem works, the alternatives considered, and the rationale. They describe intended behavior and may cover future phases, not just what's built. **`docs/design/jadelens.md`** is the high-level overview and the map to the focused docs (data model, mutation pipeline, wikilinks, sync, web app, claude-code integration, versioning, security, …). Read the relevant one when working on a subsystem; update it (never append-only) when decisions change.
 - **`docs/changelogs/`** — version-keyed changelogs per independently-versioned component (`cli/`, `web/`, `data-format/`), each accumulating in an `unreleased.md`.
 - **`docs/planning/`** — disposable working material: `backlog.md` (to-do), `known_issues.md` (deferred bugs/limitations), and per-task implementation plans. Entries are deleted when done — but first capture anything permanent into `design/`/`changelogs/`.
 
 **Working a request.** You start each session cold — when I ask for something, get your bearings before coding: find the task in `docs/planning/backlog.md` (each entry carries its blockers, a description, and links to the most relevant docs — the design doc and any implementation plan), read those linked docs for the intended behavior and rationale, then go to the source. Read only what the task touches.
-
-> **Migration in progress.** The docs are being reorganized into the structure above; right now `docs/` holds little beyond its README. Until the migration is finished, most actual content still lives in **`legacy-docs/`** (the old `DESIGN.md`, `BACKLOG.md`, `KNOWN_ISSUES.md`, `changelogs/`, per-feature docs, etc.) — treat it as the interim source of truth for anything not yet migrated. `legacy-docs/` will be deleted once migration completes, and **this file gets another pass** then to name the real `docs/` files worth reading.
 
 ## Practical
 

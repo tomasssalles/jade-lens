@@ -169,10 +169,6 @@ The focused docs under `docs/design/` (linked as each is migrated):
 - **[Security and trust](security-and-trust.md)** — credential storage, hosting,
   encryption, auth.
 
-> **Migration in progress.** These docs are being split out of
-> [legacy-docs/DESIGN.md](../../legacy-docs/DESIGN.md); until each lands, its content still lives there. See
-> [docs/planning/design-migration.md](../planning/design-migration.md) for status.
-
 ## 6. Scope and status
 
 What ships when is tracked in the changelogs (`docs/changelogs/`) and the backlog

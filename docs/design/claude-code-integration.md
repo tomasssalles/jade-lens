@@ -141,8 +141,3 @@ Each data repo is independent — its own hook, its own `assistant.name`, its ow
 rendered skill. Home-dir symlinks at `~/.claude/skills/<each-name>/` coexist as
 long as the names differ (e.g. `/jade` for personal, `/family-jade` for a shared
 repo). No central installer knows about all of them.
-
-> The legacy file-by-file setup walkthrough lives in
-> [legacy-docs/docs/data-repo-setup.md](../../legacy-docs/docs/data-repo-setup.md)
-> (largely superseded by `jadelens init`; fold any still-useful detail here when
-> `legacy-docs/` is retired).

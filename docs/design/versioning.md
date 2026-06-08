@@ -202,10 +202,9 @@ docs/changelogs/
 ```
 
 Per-track directories, one file per version — keeps changelogs focused instead of
-a monolithic CHANGELOG mixing unrelated changes. This replaces the current flat
-`legacy-docs/changelogs/v0.1.0.md`, which is split into the per-track layout when
-the system is adopted (see the backlog item "Seed version tracks and changelog
-layout").
+a monolithic CHANGELOG mixing unrelated changes. This replaced the original flat
+changelog, now split into the per-track layout (`cli/v0.1.0.md`, `web/v0.1.0.md`,
+`data-format/v1.md`).
 
 ## Git tags
 

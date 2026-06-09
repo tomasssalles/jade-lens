@@ -78,14 +78,12 @@ Garden.json  path: phases -> research -> summary
   => Garden.sidecars/phases/research/summary.md
 ```
 
-Reversing a filename to a JSON path: strip `.md`, split on `/`, each segment
-is an array index if it is a non-negative integer, otherwise an object key.
-
-**Note on integer object keys.** A path segment `0` is ambiguous (array index
-vs. object key `"0"`). In practice pure-integer object keys are rare. The
-enforcement logic resolves ambiguity by inspecting the actual JSON structure.
-If this proves problematic, pure-integer object keys can be forbidden — left
-as an implementation-time decision.
+Reversing a filename to a JSON path: strip `.md`, split on `/`, then traverse
+the actual JSON structure in lockstep. At each level, if the current value is
+an array, parse the segment as an integer index; if it is an object, use the
+segment as a string key. No ambiguity — the type of the parent value determines
+interpretation, so an object key `"0"` and an array index `0` are
+distinguishable without any key restrictions.
 
 ## JSON key restrictions
 
@@ -103,12 +101,23 @@ collision in the web app, which strips file extensions) but bears explicit
 mention here because `Garden.json` and `Garden.sidecars/` coexist by design —
 the `.sidecars` suffix distinguishes them cleanly.
 
-## Reserved paths
+## Bot access to `.sidecars/` directories
 
-`<anything>.sidecars` directories are reserved for the runtime. The bot cannot
-create, rename into, or write files under a `.sidecars/` path directly. This
-extends the protected-path concept (currently covering dot-prefixed top-level
-paths) to the `.sidecars` suffix.
+`.sidecars/` directories are **not** protected paths. The bot can and should:
+
+- Edit sidecar files directly via `unified_diff` — a sidecar is a normal `.md`
+  file from the bot's perspective once it exists.
+- Use `rename_path` to move a primary `.md` file into a `.sidecars/` directory
+  if it wants to demote it to a sidecar (e.g. a topic that started as a
+  standalone note but later became a field on a JSON record). This is a cheap
+  single rename op; the enforcement checks verify structural correctness after
+  the fact.
+
+The skill instructs the bot to let the runtime handle *automatic* promotion
+(don't manually build wikilinks for inline content, don't manually rename files
+when restructuring JSON) — but the bot retains full access to make deliberate
+structural decisions about sidecars when needed. The enforcement rules are the
+safety net, not path protection.
 
 ## Enforcement
 

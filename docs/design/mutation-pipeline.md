@@ -134,7 +134,25 @@ CLI auto-syncs around the apply (pull before, push after — see
 ## Planned: inline-vs-sidecar promotion
 
 A planned pipeline step (**not yet built** — see [inline-sidecar-promotion.md](inline-sidecar-promotion.md))
-will, when a `json_patch` writes a large or markdown-structured string value,
-auto-migrate it to a `.md` sidecar and rewrite the value to a wikilink — so the
-bot never has to decide. It will sit between validation and apply, and (like
-everything else) must land in both pipelines and the conformance suite together.
+will, when a `json_patch` writes a string value containing more than one
+CommonMark content block, auto-migrate it to a `.md` sidecar under a
+`<stem>.sidecars/` directory and rewrite the value to a wikilink — so the bot
+never has to decide. It slots between validation and apply, and (like everything
+else) must land in both pipelines and the conformance suite together.
+
+## Planned: end-of-apply enforcement checks
+
+A planned set of structural checks (**not yet built**) run after all ops in a
+batch have been applied, before the commit:
+
+- **Wikilink integrity:** every wikilink anywhere in the repo resolves to an
+  existing file.
+- **Index completeness:** every primary file has an index entry; every `File`
+  wikilink in the index points to an existing file; entries have the required
+  format.
+- **Sidecar structural invariants:** for every `<stem>.sidecars/` directory,
+  `<stem>.json` exists; every file is a `.md`; its corresponding JSON path
+  exists with the exact sidecar wikilink as its value. Sidecar wikilinks are
+  forbidden outside their owner field.
+
+Any failure reverts the batch (same atomicity guarantee as all other failures).

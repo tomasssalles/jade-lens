@@ -22,12 +22,22 @@ These are separate files. Prose can also live **inline** as a JSON string value
 when small; the (planned) promotion rule decides which case applies — see
 [inline-sidecar-promotion.md](inline-sidecar-promotion.md).
 
+**Primary files vs. sidecars.** Every markdown or JSON file is either a
+*primary file* or a *sidecar*. Sidecars live under a `<stem>.sidecars/`
+directory and are structurally owned by their parent `<stem>.json` — they hold
+the content of a single JSON field value. Everything else is a primary file.
+Primary files have an index entry; sidecars do not. See
+[inline-sidecar-promotion.md](inline-sidecar-promotion.md) for the full sidecar
+design.
+
 ## The index file (`Index.json`)
 
 A JSON file at the data-repo **root**, maintained by the bot, describing which
-**primary JSON files** exist and what each holds. It's the bot's map of the data:
+**primary files** exist and what each holds. It's the bot's map of the data:
 it lets the bot pick which files to read without scanning everything, and it
-doubles as the web app's navigation structure (see [web-app.md](web-app.md)).
+doubles as the web app's file tree (see [web-app.md](web-app.md)). Sidecar
+files are not in the index — they're discoverable through the wikilink held in
+their owner JSON field.
 
 It lives at the root rather than under `.jade/` because the bot is its writer and
 the bot can't touch protected dot-paths ([mutation-pipeline.md](mutation-pipeline.md)). The capitalised
@@ -40,6 +50,7 @@ grows it from there.
 `Index.json` is a JSON **array**; each element is an object with at minimum:
 
 - **`"File"`** — a wikilink to the primary file, e.g. `"[[Projects/Citizenship.json]]"`.
+  Must be a valid wikilink pointing to an existing file.
 - **`"Scope"`** — a short description of what the file holds.
 
 ```json
@@ -52,24 +63,29 @@ grows it from there.
 It deliberately contains **no** field that mutates on every data write (line
 counts, timestamps): the index is reloaded every bot interaction and is a prime
 prompt-cache anchor ([bot-interaction.md](bot-interaction.md)), so a churning field would destroy
-cache fitness. Sidecar `.md` files get **no** index entry — they're discoverable
-through the wikilink that points at them.
+cache fitness.
+
+**Index completeness is enforced.** At the end of `jadelens apply`, every
+primary file in the repo must have an index entry, and every `File` wikilink
+must point to an existing file. This is verified structurally: the array is
+checked for correct format (each entry an object with string `File` and string
+`Scope`; `File` is a wikilink of the form `[[<path>]]`). The index is the
+authoritative list of primary files; anything not listed is, by definition, a
+sidecar or does not belong in the repo.
 
 ### Annotations
 
 Entries can carry annotations alongside `File`/`Scope`:
 
-- **`"alwaysLoad": true`** — the runtime includes this file (and its sidecars) in
-  every interaction's prompt, at a stable cache-friendly position. This is how
+- **`"alwaysLoad": true`** — the runtime includes this file in every
+  interaction's prompt, at a stable cache-friendly position. This is how
   preferences and similar always-needed context stay loaded and cached. The bot
   maintains it: when it spots context-essential input ("I work out in the
   mornings"), it writes the data *and* marks the destination always-load.
+  Unrelated to sidecars.
 - **`"view": "<type>"`** — selects a promoted UI view (calendar / kanban / table /
   timeline) from the view registry (see [web-app.md](web-app.md) and "Schemas & the view
   registry" below).
-- **`"lazyLoadSidecars": true`** *(tentative)* — for the unusual JSON file with
-  many large, rarely-needed sidecars: skip eager sidecar loading for it. Default
-  is eager ([bot-interaction.md](bot-interaction.md)).
 
 ## Preferences
 

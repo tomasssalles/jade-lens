@@ -83,6 +83,38 @@ In raw markdown viewers (and Claude Code's TUI) wikilinks render as literal
 stem as a clickable label that navigates to the linked file in-app (see
 [web-app.md](web-app.md)).
 
+## Wikilink integrity enforcement *(planned)*
+
+A planned end-of-apply check will verify that **every wikilink anywhere in the
+repo resolves to an existing file**. This generalises the existing
+`delete_path` reference check (which only covers files being deleted in the
+current batch) into a full integrity scan over the final repo state. Any
+dangling wikilink causes the batch to be reverted.
+
+## Sidecar wikilinks
+
+A wikilink pointing into a `.sidecars/` directory is a special restricted case.
+Such a wikilink may **only** appear at the exact JSON field that owns the
+sidecar (`<stem>.json` at the path corresponding to the sidecar filename). Any
+other occurrence — in markdown prose, in other JSON files, or in other fields
+of the same JSON — is rejected by the pipeline. See
+[inline-sidecar-promotion.md](inline-sidecar-promotion.md).
+
+## Future: JSON value links
+
+A planned extension (not part of the current wikilink implementation) will
+allow linking to any JSON value, not just files:
+
+```
+[[Projects/Garden.json:comparisons/0/description]]
+```
+
+Displayed as e.g. **Projects / Garden [comparisons/0/description]**. Clicking
+navigates to the JSON file scrolled to that value; if the value is a sidecar,
+it opens the sidecar view instead. This subsumes the sidecar top-bar notation
+into a referenceable link format usable uniformly in prose and other JSON
+values.
+
 ## Forward-compatibility note
 
 The convention was designed for a filesystem, but it survives a future move to a

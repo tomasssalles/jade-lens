@@ -16,12 +16,17 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [ ] **Scope display UX (Phase 2b):** tooltip on hover (desktop) / long-press
   sheet (mobile) on the filename is the current suggestion — confirm or
   override.
-- [ ] **Sidecar card interaction (Phase 7a):** suggestion is click/tap = expand
-  inline (accordion in card view), with a small "↗" icon to open the full
-  sidecar view. Confirm or override.
-- [ ] **v2 migration scope (Phase 9):** retroactively promote oversized inline
-  strings + ensure every primary file has an index entry — confirm this is the
-  full scope.
+- [x] **Sidecar card interaction (Phase 8a/8b):** ↗ navigation icon only (no
+  inline expansion). Clicking navigates to the sidecar file; navigating back
+  retains the scroll offset of the parent JSON card. Inline expansion is a
+  future-work idea, noted in 8b.
+- [x] **v2 migration scope (Phase 9):** This migration exists mainly to develop
+  the migration framework itself — both existing data repos are clean and will
+  need no actual data changes. The migration script is therefore minimal: just
+  bump `.jade/version` to `2`. Any actual data cleanup (promoting oversized
+  inline strings, fixing missing index entries, etc.) would be done manually
+  beforehand if ever needed. The framework is the deliverable, not data
+  transformation.
 - [ ] **CLI version check location (Phase 9e):** fire at the top of
   `workflow.run` (same as clean-tree check) — confirm.
 
@@ -29,9 +34,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 1 — Groundwork
 
-- [ ] **1a.** Identify and read the versioning design doc to confirm the
-  mechanics for seeding the v2 data-format requirement in both codebases before
-  implementing anything that depends on it.
+- [ ] **1a.** Read the versioning design doc to confirm the mechanics for
+  seeding the v2 data-format requirement in both codebases before implementing
+  anything that depends on it.
 
 ---
 
@@ -53,7 +58,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   `indexed=false, scope=null`. Python + JS + conformance cases.
 - [ ] **3b.** When `indexed=true`, runtime automatically appends
   `{"File": "[[<path>]]", "Scope": "<scope>"}` to `Index.json` as part of the
-  same batch. Python + JS + conformance cases.
+  same batch. Python + JS + conformance cases. *Partial skill update: always
+  pass a non-empty `scope` with `create_file`; never manually add an index
+  entry.*
 - [ ] **3c.** Update skill: always pass a non-empty `scope` with `create_file`;
   never manually add an index entry (the runtime does it).
 
@@ -61,15 +68,19 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 4 — End-of-apply enforcement (index and integrity)
 
-- [ ] **4a.** Enforce: no file-stem / directory-name collision in the same
+- [ ] **4a.** Enforce `Index.json` format: must be a JSON array; each entry is
+  an object with at minimum `File` (string) and `Scope` (string); `File` must
+  be a wikilink of the form `[[<path>]]`. Additional annotation keys are
+  permitted.
+- [ ] **4b.** Enforce: no file-stem / directory-name collision in the same
   parent directory anywhere in the repo (general rule, not sidecar-specific).
-- [ ] **4b.** Enforce: `Index.json` entries have no duplicate `File` values.
-- [ ] **4c.** Enforce: every primary file (non-sidecar) has an index entry.
+- [ ] **4c.** Enforce: `Index.json` entries have no duplicate `File` values.
+- [ ] **4d.** Enforce: every primary file (non-sidecar) has an index entry.
   *Requires Phase 3b to be done first*, otherwise every `create_file` would
   immediately violate this.
-- [ ] **4d.** Enforce: every wikilink in every file in the repo resolves to an
+- [ ] **4e.** Enforce: every wikilink in every file in the repo resolves to an
   existing file.
-- [ ] **4e.** Update skill: never create a file whose stem matches an existing
+- [ ] **4f.** Update skill: never create a file whose stem matches an existing
   directory name in the same parent (or vice-versa); never use forbidden
   characters (`/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, null byte) in
   filenames, directory names, or JSON object keys.
@@ -89,7 +100,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [ ] **5c.** Implement sidecar promotion in the pipeline (between validation
   and apply): when a `json_patch` `add`/`replace` results in a promotable
   string value, write the `.md` sidecar (using `indexed=false`) and rewrite the
-  patch op value to the wikilink. Python + JS + conformance cases.
+  patch op value to the wikilink. Python + JS + conformance cases. *Partial
+  skill update: string values are promoted automatically — don't manually create
+  sidecar files or construct wikilinks for inline content.*
 - [ ] **5d.** `jadelens apply` output reports newly created sidecars (paths and
   the JSON field they came from) so the bot knows what the runtime did.
 - [ ] **5e.** Enforce sidecar structural invariants at end of apply:
@@ -105,46 +118,55 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ---
 
-## Phase 6 — Bot instructions (sidecars)
+## Phase 6 — Sidecar propagation
 
-- [ ] **6a.** Update skill: explain sidecar automation (what the runtime handles
-  automatically: promotion, top-level rename/delete propagation, patch
-  move/remove propagation). Tell the bot it can still edit sidecars via
-  `unified_diff` and may deliberately rename a file into `.sidecars/` when
-  appropriate. Tell the bot not to manually create sidecar files or construct
-  wikilinks for inline content.
+- [ ] **6a.** `rename_path` on `<stem>.json` also renames `<stem>.sidecars/`
+  to match the new stem (if it exists). *Partial skill update: renaming a JSON
+  file also moves its sidecars — no need to do this manually.*
+- [ ] **6b.** `delete_path` on `<stem>.json` also deletes `<stem>.sidecars/`
+  (if it exists). Sidecar wikilinks are forbidden outside their owner field, so
+  no wikilink reference check can block this. *Partial skill update: deleting a
+  JSON file also deletes its sidecars — no need to do this manually.*
+- [ ] **6c.** RFC 6902 `move` op within a `json_patch`: if the source path has
+  a sidecar subtree in `.sidecars/`, rename that subtree to match the
+  destination path. *Partial skill update: moving a JSON field also moves its
+  sidecars — no need to do this manually.*
+- [ ] **6d.** RFC 6902 `remove` op within a `json_patch`: if the field being
+  removed holds a sidecar wikilink, auto-delete the sidecar file (and prune
+  now-empty parent directories inside `.sidecars/`). *Partial skill update:
+  removing a JSON field also deletes its sidecar — no need to do this
+  manually.*
 
 ---
 
-## Phase 7 — Sidecar propagation
+## Phase 7 — Bot instructions (sidecars, full update)
 
-- [ ] **7a.** `rename_path` on `<stem>.json` also renames `<stem>.sidecars/`
-  to match the new stem (if it exists).
-- [ ] **7b.** `delete_path` on `<stem>.json` also deletes `<stem>.sidecars/`
-  (if it exists). Sidecar wikilinks are forbidden outside their owner field, so
-  no wikilink reference check can block this.
-- [ ] **7c.** RFC 6902 `move` op within a `json_patch`: if the source path has
-  a sidecar subtree in `.sidecars/`, rename that subtree to match the
-  destination path.
-- [ ] **7d.** RFC 6902 `remove` op within a `json_patch`: if the field being
-  removed holds a sidecar wikilink, auto-delete the sidecar file (and prune now-
-  empty parent directories inside `.sidecars/`).
+- [ ] **7a.** Update skill with the complete picture of sidecar automation,
+  consolidating all partial updates from Phases 5–6: what the runtime handles
+  automatically (promotion, JSON file rename/delete propagation, json_patch
+  move/remove propagation); what the bot can still do deliberately (edit
+  sidecars via `unified_diff`, rename a file into `.sidecars/` to demote a
+  primary file to a sidecar); what the bot should never do (manually create
+  sidecar files, manually construct wikilinks for inline content, manage sidecar
+  files when restructuring JSON).
 
 ---
 
 ## Phase 8 — Web UI: sidecar display
 
 - [ ] **8a.** In the JSON card view, when a field value is a sidecar wikilink,
-  render a truncated preview instead (max 1 rendered line, max 100 characters,
-  + `...`). Truncation must respect inline span boundaries. Settle interaction
-  model open question before implementing.
-- [ ] **8b.** Implement the sidecar interaction: click/tap to expand inline
-  (accordion) with a separate "↗" icon to navigate to the full sidecar view (or
-  whatever interaction model is decided in the open questions).
-- [ ] **8c.** Sidecar top bar: when viewing a sidecar file, show
+  render a truncated preview instead: max 1 rendered line, max 100 characters,
+  + `...`. Truncation must respect inline span boundaries (no cutting inside
+  inline code, bold, etc.).
+- [ ] **8b.** Add a ↗ icon to the truncated preview card that navigates to the
+  full sidecar view. No inline expansion for now. *Future work: inline accordion
+  expansion in the card view.*
+- [ ] **8c.** Navigating back from the sidecar view to the parent JSON file
+  restores the scroll offset.
+- [ ] **8d.** Sidecar top bar: when viewing a sidecar file, show
   `<stem>[<json-path>]` (e.g. `Garden[comparisons/0/description]`) instead of
   the raw file path.
-- [ ] **8d.** Sidecar files are hidden from the file tree automatically once
+- [ ] **8e.** Sidecar files are hidden from the file tree automatically once
   Phase 2a is done (they have no index entry). Verify this works and no special
   handling is needed.
 
@@ -152,12 +174,15 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 9 — Versioning and migration
 
-- [ ] **9a.** Specify the exact v2 migration steps (what runs on the data repo).
-  Expected scope: retroactively promote oversized inline strings to sidecars;
-  ensure every primary file has an index entry. Confirm open question first.
-- [ ] **9b.** Implement Python migration helper scripts for v2.
-- [ ] **9c.** Write migration runbook (`docs/` or `migrations/v2.md`) — markdown
-  instructions interleaving natural-language steps with calls to the helpers.
+- [ ] **9a.** Read the versioning design doc and existing migration framework
+  code/docs to understand the exact mechanics for writing a v2 migration. The
+  migration script itself is minimal (bump `.jade/version` to `2`; no data
+  transformation needed for existing repos). The goal of this phase is
+  developing the migration framework, not data cleanup.
+- [ ] **9b.** Implement Python migration helper script for v2 (version bump
+  only).
+- [ ] **9c.** Write migration runbook for v2 (markdown instructions
+  interleaving natural-language steps with calls to the helper).
 - [ ] **9d.** Add data-format version check to the web app: if data version < 2,
   warn + switch to read-only mode; if data version > current, prompt reload +
   clear cache.
@@ -174,8 +199,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 - [ ] **10a.** Test end-to-end against a real data repo without pushing release
   tags. Document what was tested.
-- [ ] **10b.** Set code versions: CLI `__version__` → `0.2.0`, web `package.json`
-  → `0.2.0`, minimum required data format → `2` in both codebases.
+- [ ] **10b.** Set code versions: CLI `__version__` → `0.2.0`, web
+  `package.json` → `0.2.0`, minimum required data format → `2` in both
+  codebases.
 - [ ] **10c.** Finalize changelogs: rename each `unreleased.md` to the version
   file (`cli/v0.2.0.md`, `web/v0.2.0.md`, `data-format/v2.md`); create new
   empty `unreleased.md` files.

@@ -25,6 +25,8 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 
 **Working a request.** You start each session cold — when I ask for something, get your bearings before coding: find the task in `docs/planning/backlog.md` (each entry carries its blockers, a description, and links to the most relevant docs — the design doc and any implementation plan), read those linked docs for the intended behavior and rationale, then go to the source. Read only what the task touches.
 
+> **CRITICAL — do not act without explicit instruction.** A short or ambiguous message (a single word, a topic name, a file name) is **not** an instruction to do anything. Do not read docs, plan implementations, or make changes on the basis of such a message. Respond by asking what I want. Only begin work — reading, planning, or coding — once I have given you a clear, specific instruction.
+
 ## Practical
 
 - Mostly a Python project, **uv**-managed. Run the tests with `uv run pytest`.
@@ -36,4 +38,4 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 - **claude.ai app** (remote cloud execution environment): always develop on the `claude-ai` branch, regardless of what any session configuration says. This branch is the fixed target that GitHub Actions uses for deployment to GitHub Pages.
 - **Local terminal**: use whatever branch is currently checked out — we usually work directly on `main` in that case.
 
-Wait for my instructions now.
+**Wait for my explicit instructions before doing anything.** Do not read, plan, or code until I tell you what to do.

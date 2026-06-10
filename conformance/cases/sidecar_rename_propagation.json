@@ -1,0 +1,25 @@
+{
+  "name": "rename_path on .json also renames its .sidecars directory",
+  "description": "6a: When a .json file is renamed, its .sidecars/ directory is also renamed and all sidecar wikilinks inside the owning file are rewritten to the new paths.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+    "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Rename Garden to Park",
+  "operations": [
+    {
+      "op": "rename_path",
+      "from": "Garden.json",
+      "to": "Park.json"
+    }
+  ],
+  "expect": {
+    "after": {
+      "Park.json": "{\n  \"notes\": \"[[Park.sidecars/notes.md]]\"\n}\n",
+      "Park.sidecars/notes.md": "Para one.\n\nPara two.\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Park.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename Garden to Park\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Garden.json\", \"to\": \"Park.json\"}]}\n"
+    }
+  }
+}

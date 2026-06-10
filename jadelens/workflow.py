@@ -43,6 +43,7 @@ from jadelens.sidecar import (
     is_promotable,
     json_path_from_sidecar,
     pointer_to_sidecar_path,
+    sidecar_dir_for_json,
     sidecar_path_to_pointer,
 )
 from jadelens.wikilinks import WIKILINK_RE, find_dead_wikilinks, rewrite_references_under
@@ -326,6 +327,7 @@ def run(
             full.write_text(content)
         for op in effective:
             op.apply(data_repo)
+        _post_apply_sidecar_propagation_pass(data_repo, effective)
         _post_apply_wikilink_pass(data_repo, effective)
         _post_apply_index_pass(data_repo, effective)
         _post_apply_enforcement_pass(data_repo)
@@ -428,6 +430,36 @@ def _pre_apply_sidecar_promotion_pass(
         new_ops.append(op)
 
     return new_ops, new_sidecars
+
+
+def _post_apply_sidecar_propagation_pass(
+    data_repo: Path, operations: list[Operation]
+) -> None:
+    """Propagate sidecar side-effects for structural ops.
+
+    6a: When rename_path renames <stem>.json → <new_stem>.json, also rename
+        <stem>.sidecars/ → <new_stem>.sidecars/ (if it exists) and rewrite
+        all wikilinks pointing into the old sidecar directory.
+    """
+    for op in operations:
+        if isinstance(op, RenamePath) and op.from_path.endswith(".json"):
+            from_sidecar_dir = sidecar_dir_for_json(op.from_path)
+            to_sidecar_dir = sidecar_dir_for_json(op.to_path)
+            if not (data_repo / from_sidecar_dir).is_dir():
+                continue
+            (data_repo / to_sidecar_dir).parent.mkdir(parents=True, exist_ok=True)
+            try:
+                subprocess.run(
+                    ["git", "-C", str(data_repo), "mv", "--",
+                     from_sidecar_dir, to_sidecar_dir],
+                    capture_output=True, text=True, check=True,
+                )
+            except subprocess.CalledProcessError as e:
+                raise ApplyError(
+                    f"Failed to rename sidecar directory {from_sidecar_dir!r} → "
+                    f"{to_sidecar_dir!r}: {e.stderr.strip()}"
+                ) from e
+            rewrite_references_under(data_repo, from_sidecar_dir, to_sidecar_dir)
 
 
 def _post_apply_index_pass(data_repo: Path, operations: list[Operation]) -> None:

@@ -891,3 +891,45 @@ def test_5f_iv_sidecar_wikilink_duplicate(data_repo: Path):
         "Duplicate wikilink",
         "SIDECAR_WIKILINK_DUPLICATE",
     )
+
+
+# ====================================================================
+# run — sidecar propagation (phase 6)
+# ====================================================================
+
+
+def test_6a_rename_json_also_renames_sidecars_dir(data_repo: Path):
+    (data_repo / "Garden.json").write_text('{\n  "notes": "[[Garden.sidecars/notes.md]]"\n}\n')
+    (data_repo / "Garden.sidecars").mkdir()
+    (data_repo / "Garden.sidecars" / "notes.md").write_text("Para one.\n\nPara two.\n")
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [{"op": "rename_path", "from": "Garden.json", "to": "Park.json"}],
+        "Rename Garden to Park",
+    )
+
+    assert not (data_repo / "Garden.json").exists()
+    assert not (data_repo / "Garden.sidecars").exists()
+    park = json.loads((data_repo / "Park.json").read_text())
+    assert park["notes"] == "[[Park.sidecars/notes.md]]"
+    assert (data_repo / "Park.sidecars" / "notes.md").read_text() == "Para one.\n\nPara two.\n"
+
+
+def test_6a_rename_json_without_sidecars_is_ok(data_repo: Path):
+    """Renaming a .json that has no .sidecars/ directory succeeds normally."""
+    (data_repo / "Garden.json").write_text('{"title": "Garden"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [{"op": "rename_path", "from": "Garden.json", "to": "Park.json"}],
+        "Rename Garden to Park",
+    )
+
+    assert not (data_repo / "Garden.json").exists()
+    assert (data_repo / "Park.json").exists()
+    assert not (data_repo / "Park.sidecars").exists()

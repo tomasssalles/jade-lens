@@ -22,6 +22,7 @@ import {
   isPromotable,
   jsonPathFromSidecar,
   pointerToSidecarPath,
+  sidecarDirForJson,
   sidecarPathToPointer,
 } from "./sidecar.js";
 import { normpath } from "./posixPath.js";
@@ -461,6 +462,26 @@ function postApplyEnforcementPass(tree) {
   }
 }
 
+// ---------- Post-apply sidecar propagation pass ----------
+
+function postApplySidecarPropagationPass(tree, operations) {
+  for (const op of operations) {
+    // 6a: rename_path on .json also renames its .sidecars/ directory
+    if (op instanceof RenamePath && op.fromPath.endsWith('.json')) {
+      const fromSidecarDir = sidecarDirForJson(op.fromPath);
+      const toSidecarDir = sidecarDirForJson(op.toPath);
+      const prefix = fromSidecarDir + '/';
+      const sidecarKeys = [...tree.keys()].filter((k) => k.startsWith(prefix));
+      if (sidecarKeys.length === 0) continue;
+      for (const k of sidecarKeys) {
+        tree.set(toSidecarDir + '/' + k.slice(prefix.length), tree.get(k));
+        tree.delete(k);
+      }
+      rewriteReferencesUnder(tree, fromSidecarDir, toSidecarDir);
+    }
+  }
+}
+
 // ---------- Pre-apply sidecar promotion pass ----------
 
 function resolveJsonPointer(pointer, data) {
@@ -552,6 +573,7 @@ export function run(tree, rawOperations, commitMessage, opts = {}) {
   const { promotedOps, newSidecars } = preApplySidecarPromotionPass(work, effective);
   for (const { path, content } of newSidecars) work.set(path, content);
   for (const op of promotedOps) op.apply(work);
+  postApplySidecarPropagationPass(work, effective);
   postApplyWikilinkPass(work, effective);
   postApplyIndexPass(work, effective);
   postApplyEnforcementPass(work);

@@ -77,6 +77,20 @@ function escapePointerSegment(seg) {
  * @param {string} pointer  - e.g. "/notes" or "/comparisons/0/description"
  * @returns {string} - e.g. "Garden.sidecars/notes.md"
  */
+/**
+ * Return the .sidecars directory path for a given .json file.
+ *
+ * @param {string} jsonPath - e.g. "Garden.json" or "a/Work.json"
+ * @returns {string} - e.g. "Garden.sidecars" or "a/Work.sidecars"
+ */
+export function sidecarDirForJson(jsonPath) {
+  const lastSlash = jsonPath.lastIndexOf('/');
+  const dir = lastSlash >= 0 ? jsonPath.slice(0, lastSlash + 1) : '';
+  const basename = lastSlash >= 0 ? jsonPath.slice(lastSlash + 1) : jsonPath;
+  const stem = basename.endsWith('.json') ? basename.slice(0, -5) : basename;
+  return dir + stem + SIDECARS_SUFFIX;
+}
+
 export function pointerToSidecarPath(jsonPath, pointer) {
   if (!pointer.startsWith('/')) throw new Error(`JSON pointer must start with '/': ${pointer}`);
   const segments = pointer.slice(1).split('/').map(unescapePointerSegment);

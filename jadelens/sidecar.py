@@ -55,6 +55,18 @@ def _escape_pointer_segment(seg: str) -> str:
     return seg.replace("~", "~0").replace("/", "~1")
 
 
+def sidecar_dir_for_json(json_path: str) -> str:
+    """Return the .sidecars directory path for a given .json file.
+
+    Examples::
+
+        sidecar_dir_for_json("Garden.json")   # → "Garden.sidecars"
+        sidecar_dir_for_json("a/Work.json")    # → "a/Work.sidecars"
+    """
+    p = PurePosixPath(json_path)
+    return str(p.parent / (p.stem + _SIDECARS_SUFFIX))
+
+
 def pointer_to_sidecar_path(json_path: str, pointer: str) -> str:
     """Derive sidecar filepath from a .json path and RFC 6901 pointer.
 

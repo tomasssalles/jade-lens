@@ -17,6 +17,7 @@ This is a to-do list, not JIRA. Keep it light.
 ## Contents
 
 - [Inline-vs-sidecar promotion](#inline-vs-sidecar-promotion)
+- [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
 - [Seed version tracks and changelog layout](#seed-version-tracks-and-changelog-layout)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Versioning and version comparison](#versioning-and-version-comparison)
@@ -68,6 +69,47 @@ oversized inline strings — see Data migration framework).
   as concrete regexes.
 - Scope guards: only inline strings via `json_patch` add/replace; never re-promote
   a value that's already a wikilink; unified diffs to existing `.md` pass through.
+
+---
+
+## Automation visibility in apply output and log
+
+**Scope:** pipeline (Python + JS).
+
+Currently, post-apply passes (wikilink rewrites on `rename_path`, index-entry
+appending on `create_file` with `indexed: true`, and any future automations) are
+invisible: they don't appear in the `jadelens apply` output and aren't recorded in
+the operations log. Only the bot's original operations appear in both places.
+
+This is a transparency gap in both directions:
+
+- **For the bot**: the apply reflection is what it sees as the result of its call.
+  If `Index.json` was written or a wikilink was rewritten, the bot doesn't know
+  unless it re-reads the file. This could lead to stale assumptions in subsequent
+  interactions.
+- **For the human**: reading the log to understand how the data got to its current
+  state, automation effects are invisible — their cause is the code version, not
+  the log entry. This is exactly the version-dependency we want to avoid.
+
+The right fix is probably to surface automation effects in both places, but with an
+unambiguous visual distinction from bot-issued operations — e.g. a `[runtime]`
+prefix or a separate "Automations:" section in the output. The log is harder:
+recording automations in it means the log entries are no longer a pure replay of
+bot ops. One option is a separate `automations` field alongside `operations` in
+each log entry, so the two are always distinguishable.
+
+**Blockers:** none. But settle the design before building — the log schema change
+is permanent.
+
+**Open questions:**
+- Should automation effects appear in the apply output, the log, or both?
+- Log schema: a top-level `automations` field per entry (records `{type, ...}` for
+  each runtime action), or a separate log file, or something else?
+- Exact output format: prefix, section, or interspersed after the triggering op?
+- Do we want the bot to see automations in its reflection, or is it better for the
+  bot to re-query state when it needs to know? (Contrast: the wikilink rewrite is
+  unlikely to affect a subsequent op in the same session; the index append might
+  matter if the bot queries the index soon after.)
 
 ---
 

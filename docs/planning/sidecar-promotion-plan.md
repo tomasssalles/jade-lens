@@ -127,7 +127,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 7 — Bot instructions (sidecars, full update)
 
-- [ ] **7a.** Update skill with the complete picture of sidecar automation,
+- [x] **7a.** Update skill with the complete picture of sidecar automation,
   consolidating all partial updates from Phases 5–6: what the runtime handles
   automatically (promotion, JSON file rename/delete propagation, json_patch
   move/remove propagation); what the bot can still do deliberately (edit

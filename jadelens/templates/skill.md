@@ -179,6 +179,31 @@ where `path` is **relative to the data-repo root**, e.g. `[[projects/leasing/not
    - Emit `unified_diff` / `json_patch` ops in the same batch that remove or rewrite the offending wikilinks. Order within the batch doesn't matter — clean-up before or after the delete both work.
    - To preserve historical mention as plain prose, unlink the reference: `[[foo.md]]` → `` `foo.md` ``.
 
+## Sidecars: large string values as markdown files
+
+When a `json_patch` `add` or `replace` writes a **multi-block** string value (more than one paragraph, heading, code block, list item, or blockquote — as CommonMark counts them), the runtime **automatically promotes** it to a sidecar:
+
+1. A `.md` file is created at `<stem>.sidecars/<segments>.md` (e.g. `/notes` in `Garden.json` → `Garden.sidecars/notes.md`).
+2. The patch value is rewritten to the sidecar wikilink (`[[Garden.sidecars/notes.md]]`).
+3. The apply output lists every sidecar that was created so you know what the runtime did.
+
+**Never create sidecar files yourself.** Do not use `create_file` with a path inside `.sidecars/`, and do not write `[[<stem>.sidecars/...]]` wikilinks by hand as field values. The runtime handles promotion automatically.
+
+### Editing a sidecar
+
+Edit an existing sidecar with `unified_diff` on its `.md` path (e.g. `Garden.sidecars/notes.md`). You can also `rename_path` an existing standalone `.md` file into a `.sidecars/` directory to manually turn it into a sidecar (you'll still need a `json_patch` to point the owning JSON field at it).
+
+### Automatic propagation — never manage sidecar files when restructuring
+
+When you restructure JSON or the file tree, the runtime keeps sidecar files in sync. **Do not** rename, move, or delete sidecar files yourself during restructuring:
+
+| What you do | What the runtime does automatically |
+|---|---|
+| `rename_path Garden.json → Park.json` | Renames `Garden.sidecars/` → `Park.sidecars/`; rewrites all wikilinks inside |
+| `delete_path Garden.json` | Deletes `Garden.sidecars/` entirely |
+| `json_patch` RFC 6902 `move` (`/notes` → `/summary`) | Renames the sidecar file/subtree to match the destination path |
+| `json_patch` RFC 6902 `remove` (or `move` away from a sidecar field) | Deletes the sidecar file/subtree; prunes empty parent dirs inside `.sidecars/` |
+
 ## Maintaining the index
 
 `Index.json` at the data repo root is a **JSON array** where each entry describes one primary file. The two required fields are `"File"` (a wikilink to the file) and `"Scope"` (a short description of what the file holds). Example entry:

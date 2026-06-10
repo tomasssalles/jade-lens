@@ -33,24 +33,6 @@
   font-weight: 500;
 }
 
-/* Pinned index entry: emphasized, with a separating gap below it. Uses the
-   shallow card colour so it reads against the dark tree background. */
-.tree-index {
-  font-weight: 600;
-  color: var(--jl-card-color, #9db4d6);
-}
-
-.tree-index-icon {
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.tree-index-separator {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.1);
-  margin: 0.4rem 0.75rem 0.6rem;
-}
-
 .tree-chevron {
   font-size: 0.75rem;
   width: 1rem;

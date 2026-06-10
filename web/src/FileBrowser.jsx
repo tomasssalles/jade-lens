@@ -21,13 +21,40 @@ function filterItems(items) {
   return Array.isArray(items) ? items.filter(item => !isExcluded(item)) : []
 }
 
+function parseWikilink(s) {
+  const m = s?.match(/^\[\[(.+)\]\]$/)
+  return m ? m[1] : null
+}
+
+// Build the tree item list from Index.json when available. Returns null if
+// Index.json is absent or unparseable, so callers can fall back to the raw
+// git tree.
+function indexItems(contentMap) {
+  const content = contentMap?.get('Index.json')
+  if (!content) return null
+  try {
+    const entries = JSON.parse(content)
+    if (!Array.isArray(entries)) return null
+    const result = []
+    for (const entry of entries) {
+      const path = parseWikilink(entry?.File)
+      if (path) result.push({ path, type: 'blob' })
+    }
+    return result.length > 0 ? result : null
+  } catch {
+    return null
+  }
+}
+
 export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded, syncTick = 0 }) {
   // Initialise synchronously from whatever is already in memory: the session
   // cache (in-app navigation) or the module-load IDB preload (page reload).
   const initData = getSessionCache() ?? getPreloadedRepo()
 
   const [status, setStatus] = useState(() => initData ? 'ready' : 'loading')
-  const [treeItems, setTreeItems] = useState(() => filterItems(initData?.items))
+  const [treeItems, setTreeItems] = useState(
+    () => indexItems(initData?.contentMap) ?? filterItems(initData?.items),
+  )
   const [truncated, setTruncated] = useState(() => initData?.truncated ?? false)
   const [error, setError] = useState(null)
   const [openDirs, setOpenDirs] = useState(() => {
@@ -66,7 +93,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
       it => it.type === 'blob' && !view.contentMap.has(it.path) && !wt.contentMap.has(it.path),
     )
     contentMapRef.current = wt.contentMap
-    setTreeItems(filterItems([...wt.items, ...untracked]))
+    setTreeItems(indexItems(wt.contentMap) ?? filterItems([...wt.items, ...untracked]))
     setTruncated(false)
     setStatus('ready')
     const jadeCfg = parseJadeConfig(wt.contentMap)
@@ -110,7 +137,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
       setSessionCache({ repoUrl, items: filtered, contentMap, truncated })
       contentMapRef.current = contentMap
       cacheViewRef.current = { items: filtered, contentMap }
-      setTreeItems(filtered)
+      setTreeItems(indexItems(contentMap) ?? filtered)
       setTruncated(truncated)
       setStatus('ready')
       const jadeCfg = parseJadeConfig(contentMap)
@@ -166,7 +193,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
 
         // Only update visible tree state if the structure actually changed
         if (treeStructureChanged) {
-          setTreeItems(filtered)
+          setTreeItems(indexItems(map) ?? filtered)
           setTruncated(truncated)
         }
         // Notify jade config only if content (hence config) could have changed
@@ -186,7 +213,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
         if (session?.repoUrl === cfg.githubRepoUrl) {
           contentMapRef.current = session.contentMap
           cacheViewRef.current = { items: session.items, contentMap: session.contentMap }
-          setTreeItems(session.items)
+          setTreeItems(indexItems(session.contentMap) ?? session.items)
           setTruncated(session.truncated)
           setStatus('ready')
           const jadeCfg = parseJadeConfig(session.contentMap)

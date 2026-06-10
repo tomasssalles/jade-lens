@@ -466,6 +466,15 @@ function postApplyEnforcementPass(tree) {
 
 function postApplySidecarPropagationPass(tree, operations) {
   for (const op of operations) {
+    // 6b: delete_path on .json also deletes its .sidecars/ directory
+    if (op instanceof DeletePath && op.path.endsWith('.json')) {
+      const sidecarDir = sidecarDirForJson(op.path);
+      const prefix = sidecarDir + '/';
+      for (const k of [...tree.keys()]) {
+        if (k.startsWith(prefix)) tree.delete(k);
+      }
+    }
+
     // 6a: rename_path on .json also renames its .sidecars/ directory
     if (op instanceof RenamePath && op.fromPath.endsWith('.json')) {
       const fromSidecarDir = sidecarDirForJson(op.fromPath);

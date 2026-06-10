@@ -109,7 +109,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [x] **6a.** `rename_path` on `<stem>.json` also renames `<stem>.sidecars/`
   to match the new stem (if it exists). *Partial skill update: renaming a JSON
   file also moves its sidecars — no need to do this manually.*
-- [ ] **6b.** `delete_path` on `<stem>.json` also deletes `<stem>.sidecars/`
+- [x] **6b.** `delete_path` on `<stem>.json` also deletes `<stem>.sidecars/`
   (if it exists). Sidecar wikilinks are forbidden outside their owner field, so
   no wikilink reference check can block this. *Partial skill update: deleting a
   JSON file also deletes its sidecars — no need to do this manually.*

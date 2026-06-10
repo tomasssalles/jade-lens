@@ -1,0 +1,29 @@
+{
+  "name": "delete_path on .json also deletes its .sidecars directory",
+  "description": "6b: When a .json file is deleted, its .sidecars/ directory is also deleted automatically.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+    "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+    "Notes.json": "{\n  \"summary\": \"short\"\n}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  },\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Remove Garden file",
+  "operations": [
+    {
+      "op": "delete_path",
+      "path": "Garden.json"
+    },
+    {
+      "op": "json_patch",
+      "path": "Index.json",
+      "patch": [{"op": "remove", "path": "/0"}]
+    }
+  ],
+  "expect": {
+    "after": {
+      "Notes.json": "{\n  \"summary\": \"short\"\n}\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove Garden file\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"Garden.json\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
+    }
+  }
+}

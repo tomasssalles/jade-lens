@@ -440,8 +440,27 @@ def _post_apply_sidecar_propagation_pass(
     6a: When rename_path renames <stem>.json → <new_stem>.json, also rename
         <stem>.sidecars/ → <new_stem>.sidecars/ (if it exists) and rewrite
         all wikilinks pointing into the old sidecar directory.
+    6b: When delete_path deletes <stem>.json, also delete <stem>.sidecars/
+        (if it exists). Sidecar wikilinks are forbidden outside the owning
+        field, so no dangling reference can block this.
     """
     for op in operations:
+        # 6b
+        if isinstance(op, DeletePath) and op.path.endswith(".json"):
+            sidecar_dir = sidecar_dir_for_json(op.path)
+            if (data_repo / sidecar_dir).is_dir():
+                try:
+                    subprocess.run(
+                        ["git", "-C", str(data_repo), "rm", "-r", "--force", "--",
+                         sidecar_dir],
+                        capture_output=True, text=True, check=True,
+                    )
+                except subprocess.CalledProcessError as e:
+                    raise ApplyError(
+                        f"Failed to delete sidecar directory {sidecar_dir!r}: "
+                        f"{e.stderr.strip()}"
+                    ) from e
+
         if isinstance(op, RenamePath) and op.from_path.endswith(".json"):
             from_sidecar_dir = sidecar_dir_for_json(op.from_path)
             to_sidecar_dir = sidecar_dir_for_json(op.to_path)

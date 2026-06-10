@@ -933,3 +933,47 @@ def test_6a_rename_json_without_sidecars_is_ok(data_repo: Path):
     assert not (data_repo / "Garden.json").exists()
     assert (data_repo / "Park.json").exists()
     assert not (data_repo / "Park.sidecars").exists()
+
+
+def test_6b_delete_json_also_deletes_sidecars_dir(data_repo: Path):
+    (data_repo / "Garden.json").write_text('{\n  "notes": "[[Garden.sidecars/notes.md]]"\n}\n')
+    (data_repo / "Garden.sidecars").mkdir()
+    (data_repo / "Garden.sidecars" / "notes.md").write_text("Para one.\n\nPara two.\n")
+    (data_repo / "Notes.json").write_text('{"summary": "short"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden"), ("Notes.json", "Notes")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {"op": "delete_path", "path": "Garden.json"},
+            {"op": "json_patch", "path": "Index.json",
+             "patch": [{"op": "remove", "path": "/0"}]},
+        ],
+        "Remove Garden file",
+    )
+
+    assert not (data_repo / "Garden.json").exists()
+    assert not (data_repo / "Garden.sidecars").exists()
+    assert (data_repo / "Notes.json").exists()
+
+
+def test_6b_delete_json_without_sidecars_is_ok(data_repo: Path):
+    """Deleting a .json that has no .sidecars/ directory succeeds normally."""
+    (data_repo / "Garden.json").write_text('{"title": "Garden"}\n')
+    (data_repo / "Notes.json").write_text('{"summary": "short"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden"), ("Notes.json", "Notes")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {"op": "delete_path", "path": "Garden.json"},
+            {"op": "json_patch", "path": "Index.json",
+             "patch": [{"op": "remove", "path": "/0"}]},
+        ],
+        "Remove Garden file",
+    )
+
+    assert not (data_repo / "Garden.json").exists()
+    assert (data_repo / "Notes.json").exists()

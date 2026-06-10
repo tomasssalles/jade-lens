@@ -54,6 +54,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
   const [treeItems, setTreeItems] = useState(
     () => indexItems(initData?.contentMap),
   )
+  const [hasIndex, setHasIndex] = useState(() => initData?.contentMap?.has('Index.json') ?? false)
   const [truncated, setTruncated] = useState(() => initData?.truncated ?? false)
   const [error, setError] = useState(null)
   const [openDirs, setOpenDirs] = useState(() => {
@@ -86,6 +87,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
     if (!wt || !mountedRef.current) return false
     contentMapRef.current = wt.contentMap
     setTreeItems(indexItems(wt.contentMap))
+    setHasIndex(wt.contentMap.has('Index.json'))
     setTruncated(false)
     setStatus('ready')
     const jadeCfg = parseJadeConfig(wt.contentMap)
@@ -130,6 +132,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
       contentMapRef.current = contentMap
       cacheViewRef.current = { items: filtered, contentMap }
       setTreeItems(indexItems(contentMap))
+      setHasIndex(contentMap.has('Index.json'))
       setTruncated(truncated)
       setStatus('ready')
       const jadeCfg = parseJadeConfig(contentMap)
@@ -186,6 +189,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
         // Only update visible tree state if the structure actually changed
         if (treeStructureChanged) {
           setTreeItems(indexItems(map))
+          setHasIndex(map.has('Index.json'))
           setTruncated(truncated)
         }
         // Notify jade config only if content (hence config) could have changed
@@ -206,6 +210,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
           contentMapRef.current = session.contentMap
           cacheViewRef.current = { items: session.items, contentMap: session.contentMap }
           setTreeItems(indexItems(session.contentMap))
+          setHasIndex(session.contentMap.has('Index.json'))
           setTruncated(session.truncated)
           setStatus('ready')
           const jadeCfg = parseJadeConfig(session.contentMap)
@@ -280,6 +285,11 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
 
   return (
     <div className="file-browser">
+      {!hasIndex && (
+        <p className="browser-message browser-error">
+          Index.json is missing. Use the CLI or /jade skill to initialise it.
+        </p>
+      )}
       {truncated && <p className="browser-message">Tree truncated — repo is too large for a single request.</p>}
       <FileTree
         items={treeItems}

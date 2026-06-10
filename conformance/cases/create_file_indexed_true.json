@@ -1,5 +1,5 @@
 {
-  "name": "create_file with indexed=true and a non-empty scope succeeds",
+  "name": "create_file with indexed=true appends an entry to Index.json",
   "before": {},
   "commit_message": "Add notes",
   "operations": [
@@ -8,6 +8,7 @@
   "expect": {
     "after": {
       "notes.md": "# notes\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"My notes\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"My notes\"}]}\n"
     }
   }

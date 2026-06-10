@@ -1,0 +1,19 @@
+{
+  "name": "create_file with indexed=true appends to an existing Index.json",
+  "before": {
+    "existing.md": "# existing\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[existing.md]]\",\n    \"Scope\": \"Existing file\"\n  }\n]\n"
+  },
+  "commit_message": "Add notes",
+  "operations": [
+    { "op": "create_file", "path": "notes.md", "content": "# notes\n", "indexed": true, "scope": "New file" }
+  ],
+  "expect": {
+    "after": {
+      "existing.md": "# existing\n",
+      "notes.md": "# notes\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[existing.md]]\",\n    \"Scope\": \"Existing file\"\n  },\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"New file\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"New file\"}]}\n"
+    }
+  }
+}

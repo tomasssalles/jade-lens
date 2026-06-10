@@ -39,14 +39,14 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 3 — `create_file` automation
 
-- [ ] **3a.** Add `indexed` (bool, default `true`) and `scope`
+- [x] **3a.** Add `indexed` (bool, default `true`) and `scope`
   (`string | null`, default `null`) fields to the `create_file` op. Validate
   the only allowed combinations: `indexed=true, scope=<non-empty string>` and
   `indexed=false, scope=null`. Python + JS + conformance cases.
-- [ ] **3b.** When `indexed=true`, runtime automatically appends
+- [x] **3b.** When `indexed=true`, runtime automatically appends
   `{"File": "[[<path>]]", "Scope": "<scope>"}` to `Index.json` as part of the
   same batch. Python + JS + conformance cases.
-- [ ] **3c.** Update skill: always pass a non-empty `scope` with `create_file`;
+- [x] **3c.** Update skill: always pass a non-empty `scope` with `create_file`;
   never manually add an index entry (the runtime does it).
 
 ---

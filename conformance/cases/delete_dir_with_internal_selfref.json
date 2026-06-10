@@ -3,15 +3,18 @@
   "description": "References from files inside the deleted directory don't count toward the dangling-wikilink check — those files are gone by the time the post-pass scans. The batch succeeds.",
   "before": {
     "doomed/a.md": "[[doomed/b.md]] inside\n",
-    "doomed/b.md": "# b\n"
+    "doomed/b.md": "# b\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[doomed/a.md]]\",\n    \"Scope\": \"a\"\n  },\n  {\n    \"File\": \"[[doomed/b.md]]\",\n    \"Scope\": \"b\"\n  }\n]\n"
   },
   "commit_message": "Delete dir with internal refs",
   "operations": [
-    { "op": "delete_path", "path": "doomed" }
+    { "op": "delete_path", "path": "doomed" },
+    { "op": "json_patch", "path": "Index.json", "patch": [{ "op": "remove", "path": "/0" }, { "op": "remove", "path": "/0" }] }
   ],
   "expect": {
     "after": {
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete dir with internal refs\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"doomed\"}]}\n"
+      "Index.json": "[]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Delete dir with internal refs\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"doomed\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}, {\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
     }
   }
 }

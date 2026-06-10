@@ -4,7 +4,8 @@
   "before": {
     "old.md": "# original\n",
     "unrelated.md": "# unrelated\n",
-    "ref.md": "see [[old.md]] and [[./unrelated.md]]\n"
+    "ref.md": "see [[old.md]] and [[./unrelated.md]]\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[old.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[unrelated.md]]\",\n    \"Scope\": \"unrelated\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n"
   },
   "commit_message": "Rename preserving unrelated links",
   "operations": [
@@ -15,6 +16,7 @@
       "new.md": "# original\n",
       "unrelated.md": "# unrelated\n",
       "ref.md": "see [[new.md]] and [[./unrelated.md]]\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[unrelated.md]]\",\n    \"Scope\": \"unrelated\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename preserving unrelated links\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }

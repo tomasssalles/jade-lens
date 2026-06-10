@@ -21,7 +21,10 @@ const read = (extra) => ({
   repoUrl: 'https://github.com/o/r',
   branch: 'main',
   pat: 'tok',
-  contentMap: baseMap({ 'notes.md': 'x\n' }),
+  contentMap: baseMap({
+    'notes.md': 'x\n',
+    'Index.json': '[\n  {\n    "File": "[[notes.md]]",\n    "Scope": "user"\n  }\n]\n',
+  }),
   truncated: false,
   ...extra,
 });
@@ -57,7 +60,7 @@ describe('initQueueFromRead', () => {
     const q = new OpQueue(createMemoryQueueStore());
     await initQueueFromRead(q, read(), { getHead: fakeHead() });
     await q.enqueue({
-      operations: [{ op: 'create_file', path: 'new.md', content: 'y\n' }],
+      operations: [{ op: 'create_file', path: 'new.md', content: 'y\n', indexed: true, scope: 'user' }],
       commitMessage: 'add new',
       timestamp: '2026-06-01T00:00:00.000Z',
     });
@@ -101,7 +104,10 @@ describe('commitEdit', () => {
       pat: 'tok',
       operations,
       commitMessage,
-      contentMap: baseMap({ [TODO]: content }),
+      contentMap: baseMap({
+        [TODO]: content,
+        'Index.json': `[\n  {\n    "File": "[[${TODO}]]",\n    "Scope": "user"\n  }\n]\n`,
+      }),
     };
   }
 
@@ -157,7 +163,10 @@ describe('commitEdit', () => {
       branch: 'main',
       commitSha: 'remoteC',
       treeSha: 'remoteT',
-      contentMap: baseMap({ [TODO]: '- [ ] a\n' }),
+      contentMap: baseMap({
+        [TODO]: '- [ ] a\n',
+        'Index.json': `[\n  {\n    "File": "[[${TODO}]]",\n    "Scope": "user"\n  }\n]\n`,
+      }),
       truncated: false,
     });
 
@@ -176,7 +185,7 @@ describe('syncPending', () => {
     const q = new OpQueue(createMemoryQueueStore());
     await initQueueFromRead(q, read(), { getHead: fakeHead() });
     await q.enqueue({
-      operations: [{ op: 'create_file', path: 'n.md', content: 'x\n' }],
+      operations: [{ op: 'create_file', path: 'n.md', content: 'x\n', indexed: true, scope: 'user' }],
       commitMessage: 'add n',
       timestamp: '2026-06-01T00:00:00.000Z',
     });
@@ -217,7 +226,7 @@ describe('initQueueFromRead — already at head', () => {
     const q = new OpQueue(createMemoryQueueStore());
     await initQueueFromRead(q, read(), { getHead: fakeHead() });
     await q.enqueue({
-      operations: [{ op: 'create_file', path: 'new.md', content: 'N\n' }],
+      operations: [{ op: 'create_file', path: 'new.md', content: 'N\n', indexed: true, scope: 'user' }],
       commitMessage: 'add',
       timestamp: 't',
     });
@@ -276,7 +285,7 @@ describe('getWorkingTree', () => {
   it('reflects an enqueued create in the items', async () => {
     const q = new OpQueue(createMemoryQueueStore());
     await initQueueFromRead(q, read(), { getHead: fakeHead() });
-    await q.enqueue({ operations: [{ op: 'create_file', path: 'new.md', content: 'z\n' }], commitMessage: 'add' });
+    await q.enqueue({ operations: [{ op: 'create_file', path: 'new.md', content: 'z\n', indexed: true, scope: 'user' }], commitMessage: 'add' });
     const wt = await getWorkingTree({ repoUrl: 'https://github.com/o/r' }, q);
     expect(wt.items.map((i) => i.path)).toContain('new.md');
   });

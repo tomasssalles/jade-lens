@@ -29,7 +29,7 @@ async function freshQueue(base = baseMap()) {
 // A create_file batch for one path, with a fixed timestamp for determinism.
 function createBatch(path, content, ts) {
   return {
-    operations: [{ op: "create_file", path, content }],
+    operations: [{ op: "create_file", path, content, indexed: true, scope: "user" }],
     commitMessage: `add ${path}`,
     timestamp: ts,
   };

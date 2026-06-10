@@ -27,7 +27,7 @@ def _config(repo: Path) -> None:
 
 @pytest.fixture
 def repos(tmp_path: Path):
-    """A bare remote + clone A seeded with .jade scaffolding and one file.
+    """A bare remote + clone A seeded with .jade scaffolding and three files.
     Returns (remote, A, clone) where `clone` makes further clones."""
     remote = tmp_path / "remote.git"
     subprocess.run(
@@ -44,6 +44,13 @@ def repos(tmp_path: Path):
     (a / ".jade").mkdir()
     (a / ".jade" / "version").write_text(f"{__supported_data_format_version__}\n")
     (a / "notes.md").write_text("base\n")
+    (a / "fileA.md").write_text("a base\n")
+    (a / "fileB.md").write_text("b base\n")
+    (a / "Index.json").write_text(
+        '[\n  {\n    "File": "[[notes.md]]",\n    "Scope": "Notes"\n  },'
+        '\n  {\n    "File": "[[fileA.md]]",\n    "Scope": "File A"\n  },'
+        '\n  {\n    "File": "[[fileB.md]]",\n    "Scope": "File B"\n  }\n]\n'
+    )
     _git(a, "add", "-A")
     _git(a, "commit", "-q", "-m", "seed")
     _git(a, "push", "-q", "origin", "HEAD:main")
@@ -62,10 +69,10 @@ def _edit_notes(text: str):
 
 def test_push_succeeds_when_remote_unchanged(repos):
     _remote, a, _clone = repos
-    workflow.run(a, [{"op": "create_file", "path": "x.md", "content": "x\n"}], "add x")
+    workflow.run(a, [{"op": "unified_diff", "path": "fileA.md", "diff": "@@ -1 +1 @@\n-a base\n+from-A\n"}], "edit fileA")
     assert sync.push(a).action == "pushed"
-    # The remote now has x.md.
-    assert "x.md" in _git(a, "ls-tree", "-r", "--name-only", "origin/main")
+    # The updated file reached the remote.
+    assert "fileA.md" in _git(a, "ls-tree", "-r", "--name-only", "origin/main")
 
 
 def test_pull_fast_forwards_a_behind_clone(repos):
@@ -92,19 +99,19 @@ def test_pull_fast_forwards_a_behind_clone(repos):
 def test_disjoint_changes_rebase_and_push(repos):
     _remote, a, clone = repos
     b = clone("B")
-    # A adds fileA and pushes; B adds fileB without pulling → diverged.
+    # A edits fileA and pushes; B edits fileB without pulling → diverged.
     workflow.run(
-        a, [{"op": "create_file", "path": "fileA.md", "content": "A\n"}], "A adds fileA"
+        a, [{"op": "unified_diff", "path": "fileA.md", "diff": "@@ -1 +1 @@\n-a base\n+A\n"}], "A edits fileA"
     )
     sync.push(a)
     workflow.run(
-        b, [{"op": "create_file", "path": "fileB.md", "content": "B\n"}], "B adds fileB"
+        b, [{"op": "unified_diff", "path": "fileB.md", "diff": "@@ -1 +1 @@\n-b base\n+B\n"}], "B edits fileB"
     )
 
     result = sync.push(b)
     assert result.action == "rebased"
     assert result.stashed == 0
-    # Remote has both files; the ops-log union-merged both lines.
+    # Remote has both edited files; the ops-log union-merged both lines.
     tree = _git(b, "ls-tree", "-r", "--name-only", "origin/main")
     assert "fileA.md" in tree and "fileB.md" in tree
     log = (

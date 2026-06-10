@@ -3,7 +3,8 @@
   "description": "The basic post-apply wikilink pass: renaming a file rewrites every [[old]] reference in a markdown file to [[new]], preserving surrounding text.",
   "before": {
     "old.md": "# original\n",
-    "ref.md": "see [[old.md]] for details\n"
+    "ref.md": "see [[old.md]] for details\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[old.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n"
   },
   "commit_message": "Rename old to new",
   "operations": [
@@ -13,6 +14,7 @@
     "after": {
       "new.md": "# original\n",
       "ref.md": "see [[new.md]] for details\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old to new\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }

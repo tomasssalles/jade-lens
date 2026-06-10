@@ -17,6 +17,7 @@ describe('buildRename', () => {
     const tree = base({
       'notes.md': 'see [[projects/old.md]] for details\n',
       'projects/old.md': 'body\n',
+      'Index.json': '[\n  {\n    "File": "[[notes.md]]",\n    "Scope": "user"\n  },\n  {\n    "File": "[[projects/old.md]]",\n    "Scope": "user"\n  }\n]\n',
     });
     const { operations, commitMessage } = buildRename('projects/old.md', 'projects/new.md');
     const out = run(tree, operations, commitMessage);
@@ -46,6 +47,7 @@ describe('buildDelete', () => {
       'gone.md': 'bye\n',
       'notes.md': 'link [[gone.md]] here\n',
       'other.md': 'also [[gone.md]]\n',
+      'Index.json': '[\n  {\n    "File": "[[notes.md]]",\n    "Scope": "user"\n  },\n  {\n    "File": "[[other.md]]",\n    "Scope": "user"\n  }\n]\n',
     });
     const { operations, commitMessage } = buildDelete('gone.md');
     let thrown;

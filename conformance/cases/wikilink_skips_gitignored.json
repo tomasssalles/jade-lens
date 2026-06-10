@@ -5,7 +5,8 @@
     ".gitignore": "private.md\n",
     "private.md": "[[old.md]] in my notes\n",
     "tracked.md": "[[old.md]] in tracked\n",
-    "old.md": "# original\n"
+    "old.md": "# original\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[tracked.md]]\",\n    \"Scope\": \"tracked\"\n  },\n  {\n    \"File\": \"[[old.md]]\",\n    \"Scope\": \"original\"\n  }\n]\n"
   },
   "commit_message": "Rename, leaving gitignored refs alone",
   "operations": [
@@ -17,6 +18,7 @@
       "private.md": "[[old.md]] in my notes\n",
       "tracked.md": "[[new.md]] in tracked\n",
       "new.md": "# original\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[tracked.md]]\",\n    \"Scope\": \"tracked\"\n  },\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }

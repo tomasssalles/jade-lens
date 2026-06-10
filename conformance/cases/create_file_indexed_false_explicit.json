@@ -1,14 +1,12 @@
 {
-  "name": "create_file with indexed=false and scope=null succeeds",
+  "name": "create_file with indexed=false creates a file that fails index completeness",
+  "description": "Creating a user file with indexed=false means it has no index entry, which fails the post-apply index completeness check.",
   "before": {},
   "commit_message": "Add sidecar file",
   "operations": [
     { "op": "create_file", "path": "notes.md", "content": "Long content.\n", "indexed": false, "scope": null }
   ],
   "expect": {
-    "after": {
-      "notes.md": "Long content.\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add sidecar file\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"Long content.\\n\", \"indexed\": false, \"scope\": null}]}\n"
-    }
+    "error": "INDEX_MISSING_ENTRY"
   }
 }

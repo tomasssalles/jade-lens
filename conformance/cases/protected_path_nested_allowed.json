@@ -4,12 +4,13 @@
   "before": {},
   "commit_message": "Add a nested draft note",
   "operations": [
-    { "op": "create_file", "path": "projects/.draft/notes.md", "content": "# Draft\n" }
+    { "op": "create_file", "path": "projects/.draft/notes.md", "content": "# Draft\n", "indexed": true, "scope": "Draft notes" }
   ],
   "expect": {
     "after": {
       "projects/.draft/notes.md": "# Draft\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add a nested draft note\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/.draft/notes.md\", \"content\": \"# Draft\\n\"}]}\n"
+      "Index.json": "[\n  {\n    \"File\": \"[[projects/.draft/notes.md]]\",\n    \"Scope\": \"Draft notes\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add a nested draft note\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/.draft/notes.md\", \"content\": \"# Draft\\n\", \"indexed\": true, \"scope\": \"Draft notes\"}]}\n"
     }
   }
 }

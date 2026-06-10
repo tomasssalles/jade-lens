@@ -307,10 +307,9 @@ function enforceNoStemDirCollision(files) {
 function postApplyEnforcementPass(tree) {
   const files = userFiles(tree);
   const indexEntries = enforceIndexFormat(tree);
-  if (indexEntries !== null) {
-    enforceIndexNoDuplicates(indexEntries);
-    enforceIndexCompleteness(files, indexEntries);
-  }
+  const entries = indexEntries !== null ? indexEntries : [];
+  enforceIndexNoDuplicates(entries);
+  enforceIndexCompleteness(files, entries);
   enforceNoStemDirCollision(files);
   const dead = findDeadWikilinks(tree);
   if (dead.length) {

@@ -3,7 +3,8 @@
   "description": "If a referencing wikilink is denormalised (e.g. [[bar/../old.md]]) but resolves to the rename source, the rewritten output is emitted in clean normalised form ([[new.md]]).",
   "before": {
     "old.md": "# original\n",
-    "ref.md": "see [[bar/../old.md]] please\n"
+    "ref.md": "see [[bar/../old.md]] please\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[old.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n"
   },
   "commit_message": "Rename with denormalised ref",
   "operations": [
@@ -13,6 +14,7 @@
     "after": {
       "new.md": "# original\n",
       "ref.md": "see [[new.md]] please\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with denormalised ref\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }

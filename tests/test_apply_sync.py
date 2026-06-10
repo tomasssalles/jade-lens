@@ -32,13 +32,14 @@ def test_apply_pushes_after_commit(monkeypatch, tmp_path, capsys):
     (repo / ".jade").mkdir()
     (repo / ".jade" / "version").write_text("v0.1.0\n")
     (repo / "seed.md").write_text("s\n")
+    (repo / "Index.json").write_text('[\n  {\n    "File": "[[seed.md]]",\n    "Scope": "Seed"\n  }\n]\n')
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "seed")
     _git(repo, "push", "-q", "origin", "HEAD:main")
 
     run_apply(monkeypatch, repo, {
         "commit_message": "add note",
-        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n"}],
+        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n", "indexed": True, "scope": "Note"}],
     })
 
     out = capsys.readouterr().out
@@ -50,7 +51,7 @@ def test_apply_pushes_after_commit(monkeypatch, tmp_path, capsys):
 def test_apply_works_local_only_without_remote(monkeypatch, data_repo, capsys):
     run_apply(monkeypatch, data_repo, {
         "commit_message": "add note",
-        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n"}],
+        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n", "indexed": True, "scope": "Note"}],
     })
     out = capsys.readouterr().out
     assert "could not sync" not in out
@@ -66,7 +67,7 @@ def test_apply_reports_a_stashed_conflict(monkeypatch, data_repo, capsys):
 
     run_apply(monkeypatch, data_repo, {
         "commit_message": "add note",
-        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n"}],
+        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n", "indexed": True, "scope": "Note"}],
     })
     out = capsys.readouterr().out
     assert "stashed for review" in out
@@ -81,7 +82,7 @@ def test_apply_notes_a_deferred_sync_failure(monkeypatch, data_repo, capsys):
     monkeypatch.setattr(sync, "push", boom)
     run_apply(monkeypatch, data_repo, {
         "commit_message": "add note",
-        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n"}],
+        "operations": [{"op": "create_file", "path": "note.md", "content": "n\n", "indexed": True, "scope": "Note"}],
     })
     out = capsys.readouterr().out
     assert "could not sync" in out

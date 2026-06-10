@@ -1,14 +1,20 @@
 {
   "name": "delete_path removes a file with no remaining references",
-  "before": { "stale.md": "# Stale\n", "keep.md": "# Keep\n" },
+  "before": {
+    "stale.md": "# Stale\n",
+    "keep.md": "# Keep\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[stale.md]]\",\n    \"Scope\": \"Stale note\"\n  },\n  {\n    \"File\": \"[[keep.md]]\",\n    \"Scope\": \"Keep note\"\n  }\n]\n"
+  },
   "commit_message": "Remove stale note",
   "operations": [
-    { "op": "delete_path", "path": "stale.md" }
+    { "op": "delete_path", "path": "stale.md" },
+    { "op": "json_patch", "path": "Index.json", "patch": [{ "op": "remove", "path": "/0" }] }
   ],
   "expect": {
     "after": {
       "keep.md": "# Keep\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}]}\n"
+      "Index.json": "[\n  {\n    \"File\": \"[[keep.md]]\",\n    \"Scope\": \"Keep note\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
     }
   }
 }

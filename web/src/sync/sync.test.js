@@ -25,7 +25,7 @@ async function freshQueue(base = baseMap()) {
 
 function createBatch(path, content, ts) {
   return {
-    operations: [{ op: "create_file", path, content }],
+    operations: [{ op: "create_file", path, content, indexed: true, scope: "user" }],
     commitMessage: `add ${path}`,
     timestamp: ts,
   };
@@ -110,7 +110,10 @@ describe("OpQueue.sync — remote advanced, no conflict (fast-forward rebase)", 
   it("adopts remote as base and pushes the local batch on top", async () => {
     const q = await freshQueue();
     await q.enqueue(createBatch("local.md", "L\n", "2026-06-01T00:00:00.000Z"));
-    const remoteMap = baseMap({ "remote.md": "R\n" });
+    const remoteMap = baseMap({
+      "remote.md": "R\n",
+      "Index.json": '[\n  {\n    "File": "[[remote.md]]",\n    "Scope": "user"\n  }\n]\n',
+    });
     const { commit, calls } = recordingCommit();
 
     const res = await q.sync({
@@ -140,15 +143,24 @@ describe("OpQueue.sync — remote advanced, no conflict (fast-forward rebase)", 
 
 describe("OpQueue.sync — conflict → stash", () => {
   async function setupConflict() {
-    const q = await freshQueue(baseMap({ "shared.md": "base\n" }));
+    const q = await freshQueue(baseMap({
+      "shared.md": "base\n",
+      "Index.json": '[\n  {\n    "File": "[[shared.md]]",\n    "Scope": "user"\n  }\n]\n',
+    }));
     await q.enqueue(createBatch("a.md", "A\n", "2026-06-01T00:00:01.000Z")); // batch1, no conflict
     await q.enqueue({
-      operations: [{ op: "delete_path", path: "shared.md" }],
+      operations: [
+        { op: "delete_path", path: "shared.md" },
+        { op: "json_patch", path: "Index.json", patch: [{ op: "remove", path: "/0" }] },
+      ],
       commitMessage: "delete shared",
       timestamp: "2026-06-01T00:00:02.000Z",
     }); // batch2 — conflicts with remote's edit to shared.md
     await q.enqueue(createBatch("c.md", "C\n", "2026-06-01T00:00:03.000Z")); // batch3
-    const remoteMap = baseMap({ "shared.md": "remote-edited\n" });
+    const remoteMap = baseMap({
+      "shared.md": "remote-edited\n",
+      "Index.json": '[\n  {\n    "File": "[[shared.md]]",\n    "Scope": "user"\n  }\n]\n',
+    });
     return { q, remoteMap };
   }
 
@@ -207,9 +219,13 @@ describe("OpQueue.sync — conflict → stash", () => {
       (e) => e.operations[0].op === "delete_path",
     );
     // Ancestor is the PRISTINE base content, not the remote-edited version.
-    expect(deleteEntry.ancestors).toEqual({ "shared.md": "base\n" });
+    expect(deleteEntry.ancestors).toEqual({
+      "shared.md": "base\n",
+      "Index.json": '[\n  {\n    "File": "[[shared.md]]",\n    "Scope": "user"\n  }\n]\n',
+    });
     expect(deleteEntry.operations).toEqual([
       { op: "delete_path", path: "shared.md" },
+      { op: "json_patch", path: "Index.json", patch: [{ op: "remove", path: "/0" }] },
     ]);
   });
 

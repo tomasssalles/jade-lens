@@ -388,9 +388,9 @@ def _post_apply_enforcement_pass(data_repo: Path) -> None:
     ]
 
     index_entries = _enforce_index_format(data_repo)
-    if index_entries is not None:
-        _enforce_index_no_duplicates(index_entries)
-        _enforce_index_completeness(user_relative, index_entries)
+    entries = index_entries if index_entries is not None else []
+    _enforce_index_no_duplicates(entries)
+    _enforce_index_completeness(user_relative, entries)
 
     _enforce_no_stem_dir_collision(user_relative)
 

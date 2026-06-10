@@ -6,12 +6,13 @@
   },
   "commit_message": "Add x",
   "operations": [
-    { "op": "create_file", "path": "x.md", "content": "hi\n" }
+    { "op": "create_file", "path": "x.md", "content": "hi\n", "indexed": true, "scope": "Note" }
   ],
   "expect": {
     "after": {
       "x.md": "hi\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"earlier\", \"commit_message\": \"seed entry\", \"operations\": []}\n{\"ts\": \"<TS>\", \"commit_message\": \"Add x\", \"operations\": [{\"op\": \"create_file\", \"path\": \"x.md\", \"content\": \"hi\\n\"}]}\n"
+      "Index.json": "[\n  {\n    \"File\": \"[[x.md]]\",\n    \"Scope\": \"Note\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"earlier\", \"commit_message\": \"seed entry\", \"operations\": []}\n{\"ts\": \"<TS>\", \"commit_message\": \"Add x\", \"operations\": [{\"op\": \"create_file\", \"path\": \"x.md\", \"content\": \"hi\\n\", \"indexed\": true, \"scope\": \"Note\"}]}\n"
     }
   }
 }

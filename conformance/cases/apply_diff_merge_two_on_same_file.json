@@ -1,7 +1,10 @@
 {
   "name": "two unified_diffs on one file both reference the pre-batch state",
   "description": "First diff inserts after line 2; second replaces original line 4 ('d'). Without merging, the second would fail (line 4 would have shifted). The log records the two raw ops as emitted.",
-  "before": { "notes.md": "a\nb\nc\nd\n" },
+  "before": {
+    "notes.md": "a\nb\nc\nd\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
   "commit_message": "Two diffs on one file",
   "operations": [
     { "op": "unified_diff", "path": "notes.md", "diff": "@@ -2,0 +3,2 @@\n+X1\n+X2\n" },
@@ -10,6 +13,7 @@
   "expect": {
     "after": {
       "notes.md": "a\nb\nX1\nX2\nc\nD\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Two diffs on one file\", \"operations\": [{\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -2,0 +3,2 @@\\n+X1\\n+X2\\n\"}, {\"op\": \"unified_diff\", \"path\": \"notes.md\", \"diff\": \"@@ -4 +4 @@\\n-d\\n+D\\n\"}]}\n"
     }
   }

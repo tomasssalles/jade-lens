@@ -3,7 +3,8 @@
   "description": "After the batch, Hub.md still references [[old.md]], so the enforcement pass fails and the batch reverts.",
   "before": {
     "Hub.md": "See [[old.md]] for details.\n",
-    "old.md": "# Old\n"
+    "old.md": "# Old\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Hub.md]]\",\n    \"Scope\": \"Hub\"\n  },\n  {\n    \"File\": \"[[old.md]]\",\n    \"Scope\": \"Old note\"\n  }\n]\n"
   },
   "operations": [
     { "op": "delete_path", "path": "old.md" }

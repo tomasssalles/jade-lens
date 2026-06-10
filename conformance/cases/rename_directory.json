@@ -3,7 +3,8 @@
   "description": "Renaming a directory moves every file beneath it to the new prefix.",
   "before": {
     "projects/a.md": "# a\n",
-    "projects/b.md": "# b\n"
+    "projects/b.md": "# b\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[projects/a.md]]\",\n    \"Scope\": \"a\"\n  },\n  {\n    \"File\": \"[[projects/b.md]]\",\n    \"Scope\": \"b\"\n  }\n]\n"
   },
   "commit_message": "Rename projects to archive",
   "operations": [
@@ -13,6 +14,7 @@
     "after": {
       "archive/a.md": "# a\n",
       "archive/b.md": "# b\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[archive/a.md]]\",\n    \"Scope\": \"a\"\n  },\n  {\n    \"File\": \"[[archive/b.md]]\",\n    \"Scope\": \"b\"\n  }\n]\n",
       ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
     }
   }

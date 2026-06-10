@@ -7,6 +7,12 @@ from pathlib import Path
 import pytest
 
 from jadelens import __supported_data_format_version__, workflow
+
+
+def _write_index(repo: Path, entries: list[tuple[str, str]]) -> None:
+    """Write a valid Index.json with the given (path, scope) entries."""
+    payload = [{"File": f"[[{p}]]", "Scope": s} for p, s in entries]
+    (repo / "Index.json").write_text(json.dumps(payload, indent=2) + "\n")
 from jadelens.operations import (
     ApplyError,
     CreateFile,
@@ -320,7 +326,7 @@ def test_git_commit_returns_sha(data_repo: Path):
 def test_run_happy_path_create_file(data_repo: Path):
     sha = workflow.run(
         data_repo,
-        [{"op": "create_file", "path": "todos.json", "content": "[]\n"}],
+        [{"op": "create_file", "path": "todos.json", "content": "[]\n", "indexed": True, "scope": "Todo list"}],
         "Add empty todo list",
     )
     assert (data_repo / "todos.json").read_text() == "[]\n"
@@ -331,9 +337,9 @@ def test_run_happy_path_create_file(data_repo: Path):
     entry = json.loads(log.read_text())
     assert entry["commit_message"] == "Add empty todo list"
     assert entry["operations"] == [
-        {"op": "create_file", "path": "todos.json", "content": "[]\n"}
+        {"op": "create_file", "path": "todos.json", "content": "[]\n", "indexed": True, "scope": "Todo list"}
     ]
-    # Commit captured everything (file + log).
+    # Commit captured everything (file + log + auto-created Index.json).
     diff = subprocess.run(
         ["git", "-C", str(data_repo), "show", "--name-only", "--format=", sha],
         capture_output=True,
@@ -341,18 +347,19 @@ def test_run_happy_path_create_file(data_repo: Path):
         check=True,
     )
     files = set(diff.stdout.split())
-    assert files == {"todos.json", f".jade/operations-log/{data_version}.jsonl"}
+    assert files == {"todos.json", "Index.json", f".jade/operations-log/{data_version}.jsonl"}
 
 
 def test_run_happy_path_mixed_ops(data_repo: Path):
     (data_repo / "old.md").write_text("hello\n")
     (data_repo / "data.json").write_text('{"items": []}\n')
+    _write_index(data_repo, [("old.md", "Old note"), ("data.json", "Data")])
     commit(data_repo)
 
     workflow.run(
         data_repo,
         [
-            {"op": "create_file", "path": "new.md", "content": "# new\n"},
+            {"op": "create_file", "path": "new.md", "content": "# new\n", "indexed": True, "scope": "New file"},
             {
                 "op": "json_patch",
                 "path": "data.json",
@@ -378,6 +385,7 @@ def test_run_merges_multiple_unified_diffs_on_same_file(data_repo: Path):
     fail verification. Passing this test proves the merge happens.
     """
     (data_repo / "notes.md").write_text("a\nb\nc\nd\n")
+    _write_index(data_repo, [("notes.md", "Notes")])
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -457,6 +465,7 @@ def test_run_refuses_with_dirty_working_tree(data_repo: Path):
 def test_rename_rewrites_external_wikilinks(data_repo: Path):
     (data_repo / "old.md").write_text("# original\n")
     (data_repo / "ref.md").write_text("see [[old.md]] for details\n")
+    _write_index(data_repo, [("old.md", "original"), ("ref.md", "reference")])
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -472,6 +481,7 @@ def test_rename_rewrites_self_reference(data_repo: Path):
     rewritten too — after the rename, the moved file's self-reference
     points at the new location."""
     (data_repo / "old.md").write_text("I am [[old.md]] looking at myself\n")
+    _write_index(data_repo, [("old.md", "self-referencing note")])
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -489,6 +499,7 @@ def test_rename_then_explicit_diff_clobbers_auto_rewrite(data_repo: Path):
     (data_repo / "old.md").write_text("# original\n")
     (data_repo / "ref.md").write_text("see [[old.md]] for details\n")
     (data_repo / "something_else.md").write_text("# something else\n")
+    _write_index(data_repo, [("old.md", "original"), ("ref.md", "reference"), ("something_else.md", "something else")])
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -516,6 +527,7 @@ def test_delete_rejects_when_external_references_remain(data_repo: Path):
     path, the post-pass refuses and the whole batch reverts."""
     (data_repo / "doomed.md").write_text("# delete me\n")
     (data_repo / "ref.md").write_text("see [[doomed.md]] still here\n")
+    _write_index(data_repo, [("doomed.md", "to delete"), ("ref.md", "reference")])
     commit(data_repo)
     with pytest.raises(ApplyError, match="nonexistent"):
         workflow.run(
@@ -534,6 +546,7 @@ def test_delete_succeeds_when_cleanup_diff_in_same_batch(data_repo: Path):
     state of the batch."""
     (data_repo / "doomed.md").write_text("# delete me\n")
     (data_repo / "ref.md").write_text("[[doomed.md]] is going away\n")
+    _write_index(data_repo, [("doomed.md", "to delete"), ("ref.md", "reference")])
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -546,6 +559,7 @@ def test_delete_succeeds_when_cleanup_diff_in_same_batch(data_repo: Path):
                     "@@ -1 +1 @@\n-[[doomed.md]] is going away\n+ was here, now gone\n"
                 ),
             },
+            {"op": "json_patch", "path": "Index.json", "patch": [{"op": "remove", "path": "/0"}]},
         ],
         "Delete + cleanup in one batch",
     )
@@ -558,6 +572,7 @@ def test_delete_rejects_when_new_file_references_deleted(data_repo: Path):
     a file in one op and then create a new file referencing it in a
     later op of the same batch — the scan catches it at the end."""
     (data_repo / "doomed.md").write_text("# delete me\n")
+    _write_index(data_repo, [("doomed.md", "to delete")])
     commit(data_repo)
     with pytest.raises(ApplyError, match="nonexistent"):
         workflow.run(
@@ -568,6 +583,8 @@ def test_delete_rejects_when_new_file_references_deleted(data_repo: Path):
                     "op": "create_file",
                     "path": "new.md",
                     "content": "I reference [[doomed.md]] in my fresh file\n",
+                    "indexed": True,
+                    "scope": "New file",
                 },
             ],
             "Self-inconsistent batch",
@@ -585,10 +602,14 @@ def test_delete_doesnt_count_references_from_inside_deleted_dir(
     (data_repo / "doomed").mkdir()
     (data_repo / "doomed" / "a.md").write_text("[[doomed/b.md]] inside\n")
     (data_repo / "doomed" / "b.md").write_text("# b\n")
+    _write_index(data_repo, [("doomed/a.md", "a"), ("doomed/b.md", "b")])
     commit(data_repo)
     workflow.run(
         data_repo,
-        [{"op": "delete_path", "path": "doomed"}],
+        [
+            {"op": "delete_path", "path": "doomed"},
+            {"op": "json_patch", "path": "Index.json", "patch": [{"op": "remove", "path": "/0"}, {"op": "remove", "path": "/0"}]},
+        ],
         "Delete whole dir with internal refs",
     )
     assert not (data_repo / "doomed").exists()

@@ -30,7 +30,10 @@ describe('buildJsonValueEdit', () => {
   });
 
   it('flips a boolean through the pipeline with canonical output', () => {
-    const tree = base({ 'a.json': '{\n  "active": false,\n  "name": "x"\n}\n' });
+    const tree = base({
+      'a.json': '{\n  "active": false,\n  "name": "x"\n}\n',
+      'Index.json': '[\n  {\n    "File": "[[a.json]]",\n    "Scope": "user"\n  }\n]\n',
+    });
     const { operations, commitMessage } = buildJsonValueEdit('a.json', '/active', true);
     const out = run(tree, operations, commitMessage);
     expect(out.get('a.json')).toBe('{\n  "active": true,\n  "name": "x"\n}\n');

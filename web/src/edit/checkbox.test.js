@@ -11,6 +11,7 @@ function applyToggle(content, line, path = 'todo.md') {
   const tree = new Map([
     ['.jade/version', VERSION],
     [path, content],
+    ['Index.json', `[\n  {\n    "File": "[[${path}]]",\n    "Scope": "user"\n  }\n]\n`],
   ]);
   const out = run(tree, batch.operations, batch.commitMessage, { timestamp: 'T' });
   return out.get(path);

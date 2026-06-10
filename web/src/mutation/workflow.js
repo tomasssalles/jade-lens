@@ -18,7 +18,12 @@ import {
 } from "./operations.js";
 import { findDeadWikilinks, rewriteReferencesUnder } from "./wikilinks.js";
 import { makeIgnoreMatcher } from "./gitignore.js";
-import { isPromotable, pointerToSidecarPath } from "./sidecar.js";
+import {
+  isPromotable,
+  jsonPathFromSidecar,
+  pointerToSidecarPath,
+  sidecarPathToPointer,
+} from "./sidecar.js";
 import { normpath } from "./posixPath.js";
 
 // ---------- Batch validation ----------
@@ -312,6 +317,128 @@ function enforceNoStemDirCollision(files) {
   }
 }
 
+function enforceSidecarOwnerExists(tree) {
+  const allPaths = new Set(tree.keys());
+  const checked = new Set();
+  for (const path of tree.keys()) {
+    if (!isSidecarPath(path)) continue;
+    let jsonPath;
+    try { jsonPath = jsonPathFromSidecar(path); } catch { continue; }
+    if (checked.has(jsonPath)) continue;
+    checked.add(jsonPath);
+    if (!allPaths.has(jsonPath)) {
+      throw new ApplyError(
+        `Sidecar path ${JSON.stringify(path)} requires ${JSON.stringify(jsonPath)} to exist, but it does not`,
+        'SIDECAR_OWNER_MISSING',
+      );
+    }
+  }
+}
+
+function enforceSidecarOnlyMd(tree) {
+  for (const path of tree.keys()) {
+    if (isSidecarPath(path) && !path.endsWith('.md')) {
+      throw new ApplyError(
+        `Non-.md file inside a sidecar directory: ${JSON.stringify(path)}`,
+        'SIDECAR_NON_MD_FILE',
+      );
+    }
+  }
+}
+
+const WIKILINK_RE = /\[\[([^\]]+)\]\]/g;
+
+function getAtJsonPointer(data, pointer) {
+  let node = data;
+  for (const seg of pointer.slice(1).split('/')) {
+    const key = seg.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (Array.isArray(node)) {
+      const idx = parseInt(key, 10);
+      node = !isNaN(idx) && idx >= 0 && idx < node.length ? node[idx] : undefined;
+    } else if (node !== null && typeof node === 'object') {
+      node = Object.prototype.hasOwnProperty.call(node, key) ? node[key] : undefined;
+    } else {
+      return undefined;
+    }
+    if (node === undefined) return undefined;
+  }
+  return node;
+}
+
+function enforceSidecarIntegrity(tree) {
+  const sidecarPaths = [];
+  for (const path of tree.keys()) {
+    if (isSidecarPath(path) && path.endsWith('.md')) sidecarPaths.push(path);
+  }
+  const sidecarPathSet = new Set(sidecarPaths);
+
+  const ownerDataCache = new Map();
+  const loadOwner = (jsonPath) => {
+    if (!ownerDataCache.has(jsonPath)) {
+      const content = tree.get(jsonPath);
+      if (content === undefined) { ownerDataCache.set(jsonPath, null); return null; }
+      try { ownerDataCache.set(jsonPath, JSON.parse(content)); }
+      catch { ownerDataCache.set(jsonPath, null); }
+    }
+    return ownerDataCache.get(jsonPath);
+  };
+
+  // 5f-iii
+  for (const sidecarPath of sidecarPaths) {
+    let jsonPath;
+    try { jsonPath = jsonPathFromSidecar(sidecarPath); } catch { continue; }
+    const data = loadOwner(jsonPath);
+    if (data === null) continue; // caught by 5f-i
+
+    let pointer;
+    try { pointer = sidecarPathToPointer(sidecarPath, data); }
+    catch (e) {
+      throw new ApplyError(
+        `Sidecar ${JSON.stringify(sidecarPath)} has no corresponding field in ${JSON.stringify(jsonPath)}: ${e.message}`,
+        'SIDECAR_FIELD_MISSING',
+      );
+    }
+
+    const actual = getAtJsonPointer(data, pointer);
+    const expected = `[[${sidecarPath}]]`;
+    if (actual !== expected) {
+      throw new ApplyError(
+        `Sidecar ${JSON.stringify(sidecarPath)}: ${JSON.stringify(jsonPath)} at ${JSON.stringify(pointer)} must be ${JSON.stringify(expected)}, found ${JSON.stringify(actual ?? null)}`,
+        'SIDECAR_WIKILINK_MISSING',
+      );
+    }
+  }
+
+  // 5f-iv
+  const occurrences = new Map();
+  for (const [path, content] of tree.entries()) {
+    if (!path.endsWith('.json') && !path.endsWith('.md')) continue;
+    for (const m of content.matchAll(new RegExp(WIKILINK_RE.source, 'g'))) {
+      const linkPath = m[1];
+      if (!sidecarPathSet.has(linkPath)) continue;
+      let owner;
+      try { owner = jsonPathFromSidecar(linkPath); } catch { continue; }
+      if (path !== owner) {
+        throw new ApplyError(
+          `Sidecar wikilink [[${linkPath}]] found in ${JSON.stringify(path)}; only ${JSON.stringify(owner)} may reference it`,
+          'SIDECAR_WIKILINK_WRONG_FILE',
+        );
+      }
+      occurrences.set(linkPath, (occurrences.get(linkPath) ?? 0) + 1);
+    }
+  }
+
+  for (const [sidecarPath, count] of occurrences.entries()) {
+    if (count > 1) {
+      const owner = jsonPathFromSidecar(sidecarPath);
+      throw new ApplyError(
+        `Sidecar wikilink [[${sidecarPath}]] appears ${count} times in ${JSON.stringify(owner)}; only one occurrence is allowed`,
+        'SIDECAR_WIKILINK_DUPLICATE',
+      );
+    }
+  }
+}
+
 function postApplyEnforcementPass(tree) {
   const files = userFiles(tree);
   const indexEntries = enforceIndexFormat(tree);
@@ -319,6 +446,9 @@ function postApplyEnforcementPass(tree) {
   enforceIndexNoDuplicates(entries);
   enforceIndexCompleteness(files, entries);
   enforceNoStemDirCollision(files);
+  enforceSidecarOwnerExists(tree);
+  enforceSidecarOnlyMd(tree);
+  enforceSidecarIntegrity(tree);
   const dead = findDeadWikilinks(tree);
   if (dead.length) {
     const detail = dead.map(([f, p]) => `${f}: [[${p}]]`).join('; ');

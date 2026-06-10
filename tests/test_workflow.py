@@ -789,3 +789,105 @@ def test_run_log_records_original_ops_before_promotion(data_repo: Path):
     log = data_repo / ".jade" / "operations-log" / f"{data_version}.jsonl"
     entry = json.loads(log.read_text())
     assert entry["operations"] == raw_ops
+
+
+# ====================================================================
+# run — sidecar structural invariants (5f)
+# ====================================================================
+
+
+def _run_expects_code(data_repo, ops, message, expected_code):
+    from jadelens.operations import ApplyError
+    with pytest.raises(ApplyError) as exc_info:
+        workflow.run(data_repo, ops, message)
+    assert exc_info.value.code == expected_code, (
+        f"expected {expected_code!r}, got {exc_info.value.code!r}"
+    )
+
+
+def test_5f_i_sidecar_owner_missing(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"summary": "short"}\n')
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "create_file", "path": "Orphan.sidecars/x.md", "content": "Para.\n", "indexed": False, "scope": None}],
+        "Orphan sidecar",
+        "SIDECAR_OWNER_MISSING",
+    )
+
+
+def test_5f_ii_sidecar_non_md_file(data_repo: Path):
+    (data_repo / "Garden.json").write_text('{"notes": "[[Garden.sidecars/notes.md]]"}\n')
+    (data_repo / "Garden.sidecars").mkdir()
+    (data_repo / "Garden.sidecars" / "notes.md").write_text("Para one.\n\nPara two.\n")
+    (data_repo / "Extra.json").write_text('{"x": "y"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "rename_path", "from": "Extra.json", "to": "Garden.sidecars/Extra.json"}],
+        "Move into sidecar dir",
+        "SIDECAR_NON_MD_FILE",
+    )
+
+
+def test_5f_iii_sidecar_field_missing(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"title": "Notes"}\n')
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "create_file", "path": "Notes.sidecars/body.md", "content": "Para one.\n\nPara two.\n", "indexed": False, "scope": None}],
+        "Sidecar without field",
+        "SIDECAR_FIELD_MISSING",
+    )
+
+
+def test_5f_iii_sidecar_wikilink_missing(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"summary": "wrong value"}\n')
+    (data_repo / "Notes.sidecars").mkdir()
+    (data_repo / "Notes.sidecars" / "summary.md").write_text("Para one.\n\nPara two.\n")
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "json_patch", "path": "Notes.json", "patch": [{"op": "add", "path": "/title", "value": "Notes"}]}],
+        "No wikilink fix",
+        "SIDECAR_WIKILINK_MISSING",
+    )
+
+
+def test_5f_iv_sidecar_wikilink_wrong_file(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"summary": "[[Notes.sidecars/summary.md]]"}\n')
+    (data_repo / "Notes.sidecars").mkdir()
+    (data_repo / "Notes.sidecars" / "summary.md").write_text("Para one.\n\nPara two.\n")
+    (data_repo / "Garden.json").write_text('{"notes": "short"}\n')
+    _write_index(data_repo, [("Notes.json", "Notes"), ("Garden.json", "Garden")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "json_patch", "path": "Garden.json", "patch": [{"op": "replace", "path": "/notes", "value": "[[Notes.sidecars/summary.md]]"}]}],
+        "Wikilink in wrong file",
+        "SIDECAR_WIKILINK_WRONG_FILE",
+    )
+
+
+def test_5f_iv_sidecar_wikilink_duplicate(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"summary": "[[Notes.sidecars/summary.md]]"}\n')
+    (data_repo / "Notes.sidecars").mkdir()
+    (data_repo / "Notes.sidecars" / "summary.md").write_text("Para one.\n\nPara two.\n")
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    _run_expects_code(
+        data_repo,
+        [{"op": "json_patch", "path": "Notes.json", "patch": [{"op": "add", "path": "/other", "value": "[[Notes.sidecars/summary.md]]"}]}],
+        "Duplicate wikilink",
+        "SIDECAR_WIKILINK_DUPLICATE",
+    )

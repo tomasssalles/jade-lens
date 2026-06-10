@@ -1,0 +1,19 @@
+{
+  "name": "non-.md file in a sidecar directory is rejected",
+  "description": "5f-ii: All files inside a .sidecars/ directory must end with .md. Renaming a .json file into a .sidecars/ directory triggers SIDECAR_NON_MD_FILE.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+    "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+    "Extra.json": "{\"data\": \"stuff\"}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Move JSON into sidecar dir",
+  "operations": [
+    {
+      "op": "rename_path",
+      "from": "Extra.json",
+      "to": "Garden.sidecars/Extra.json"
+    }
+  ],
+  "expect": { "error": "SIDECAR_NON_MD_FILE" }
+}

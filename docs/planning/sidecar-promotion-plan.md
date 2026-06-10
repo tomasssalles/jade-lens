@@ -91,7 +91,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   sidecar files or construct wikilinks for inline content.*
 - [x] **5e.** `jadelens apply` output reports newly created sidecars (paths and
   the JSON field they came from) so the bot knows what the runtime did.
-- [ ] **5f.** Enforce sidecar structural invariants at end of apply:
+- [x] **5f.** Enforce sidecar structural invariants at end of apply:
   - **5f-i.** Every `<stem>.sidecars/` directory requires `<stem>.json` to
     exist.
   - **5f-ii.** `<stem>.sidecars/` contains only `.md` files (recursively); no

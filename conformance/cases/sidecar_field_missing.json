@@ -1,0 +1,19 @@
+{
+  "name": "sidecar .md without a matching JSON field is rejected",
+  "description": "5f-iii: Each sidecar .md must correspond to an existing field in its owning JSON. If the field does not exist, SIDECAR_FIELD_MISSING is raised.",
+  "before": {
+    "Notes.json": "{\"title\": \"Notes\"}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Add sidecar with no matching field",
+  "operations": [
+    {
+      "op": "create_file",
+      "path": "Notes.sidecars/body.md",
+      "content": "Para one.\n\nPara two.\n",
+      "indexed": false,
+      "scope": null
+    }
+  ],
+  "expect": { "error": "SIDECAR_FIELD_MISSING" }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "sidecar's JSON field does not hold the wikilink",
+  "description": "5f-iii: The JSON field corresponding to a sidecar .md must hold exactly [[sidecar_path]] as its value. If it holds something else, SIDECAR_WIKILINK_MISSING is raised.",
+  "before": {
+    "Notes.json": "{\"summary\": \"wrong value\"}\n",
+    "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Patch without fixing sidecar wikilink",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Notes.json",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/title",
+          "value": "Notes"
+        }
+      ]
+    }
+  ],
+  "expect": { "error": "SIDECAR_WIKILINK_MISSING" }
+}

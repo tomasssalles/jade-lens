@@ -1,0 +1,24 @@
+{
+  "name": "duplicate sidecar wikilink in owning JSON is rejected",
+  "description": "5f-iv: A sidecar wikilink may appear only once (at the exact owning field). A second occurrence of the same sidecar wikilink in the owning JSON triggers SIDECAR_WIKILINK_DUPLICATE.",
+  "before": {
+    "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\"\n}\n",
+    "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Add duplicate sidecar wikilink",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Notes.json",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/other",
+          "value": "[[Notes.sidecars/summary.md]]"
+        }
+      ]
+    }
+  ],
+  "expect": { "error": "SIDECAR_WIKILINK_DUPLICATE" }
+}

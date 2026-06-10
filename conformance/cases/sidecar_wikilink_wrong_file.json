@@ -1,0 +1,25 @@
+{
+  "name": "sidecar wikilink in a non-owning file is rejected",
+  "description": "5f-iv: A wikilink pointing to a sidecar path may only appear in the owning JSON file. Placing it in any other file triggers SIDECAR_WIKILINK_WRONG_FILE.",
+  "before": {
+    "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\"\n}\n",
+    "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
+    "Garden.json": "{\"notes\": \"short\"}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  },\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Put sidecar wikilink in wrong file",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Garden.json",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/notes",
+          "value": "[[Notes.sidecars/summary.md]]"
+        }
+      ]
+    }
+  ],
+  "expect": { "error": "SIDECAR_WIKILINK_WRONG_FILE" }
+}

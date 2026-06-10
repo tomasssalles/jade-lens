@@ -2,25 +2,30 @@
   "name": "sidecar files are excluded from index completeness",
   "description": "A .sidecars/ file exists in the tree but is not in Index.json. The index completeness check ignores it, so the batch succeeds.",
   "before": {
-    "Notes.json": "{\n  \"summary\": \"short\"\n}\n",
+    "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\"\n}\n",
+    "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
     "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
   },
-  "commit_message": "Add sidecar",
+  "commit_message": "Add title field",
   "operations": [
     {
-      "op": "create_file",
-      "path": "Notes.sidecars/summary.md",
-      "content": "Para one.\n\nPara two.\n",
-      "indexed": false,
-      "scope": null
+      "op": "json_patch",
+      "path": "Notes.json",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/title",
+          "value": "Notes"
+        }
+      ]
     }
   ],
   "expect": {
     "after": {
-      "Notes.json": "{\n  \"summary\": \"short\"\n}\n",
+      "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\",\n  \"title\": \"Notes\"\n}\n",
       "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add sidecar\", \"operations\": [{\"op\": \"create_file\", \"path\": \"Notes.sidecars/summary.md\", \"content\": \"Para one.\\n\\nPara two.\\n\", \"indexed\": false, \"scope\": null}]}\n"
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add title field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Notes.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/title\", \"value\": \"Notes\"}]}]}\n"
     }
   }
 }

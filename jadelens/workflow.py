@@ -39,8 +39,13 @@ from jadelens.operations import (
     dumps_js_canonical_compact,
     parse_operation,
 )
-from jadelens.sidecar import is_promotable, pointer_to_sidecar_path
-from jadelens.wikilinks import find_dead_wikilinks, rewrite_references_under
+from jadelens.sidecar import (
+    is_promotable,
+    json_path_from_sidecar,
+    pointer_to_sidecar_path,
+    sidecar_path_to_pointer,
+)
+from jadelens.wikilinks import WIKILINK_RE, find_dead_wikilinks, rewrite_references_under
 
 
 @dataclass
@@ -500,6 +505,10 @@ def _post_apply_enforcement_pass(data_repo: Path) -> None:
     4d — Every non-excluded file has an index entry (only enforced when
          Index.json exists).
     4e — Every wikilink in every file resolves to an existing file.
+    5f-i   — Every .sidecars/ directory has a matching .json owner.
+    5f-ii  — Files inside .sidecars/ directories must end with .md.
+    5f-iii — Each sidecar .md's owning JSON field holds exactly the wikilink.
+    5f-iv  — Sidecar wikilinks appear only at their owning JSON field.
     """
     result = subprocess.run(
         ["git", "-C", str(data_repo), "ls-files",
@@ -520,6 +529,10 @@ def _post_apply_enforcement_pass(data_repo: Path) -> None:
 
     _enforce_no_stem_dir_collision(user_relative)
 
+    _enforce_sidecar_owner_exists(all_relative)
+    _enforce_sidecar_only_md(all_relative)
+    _enforce_sidecar_integrity(data_repo, all_relative)
+
     dead = find_dead_wikilinks(data_repo)
     if dead:
         detail = "; ".join(
@@ -529,6 +542,131 @@ def _post_apply_enforcement_pass(data_repo: Path) -> None:
             f"Wikilinks resolve to nonexistent files:\n  {detail}",
             code="WIKILINK_DEAD",
         )
+
+
+def _enforce_sidecar_owner_exists(all_relative: list[str]) -> None:
+    """5f-i: Every .sidecars/ directory must have a matching .json owner."""
+    all_paths = set(all_relative)
+    checked: set[str] = set()
+    for path in all_relative:
+        if not _is_sidecar_path(path):
+            continue
+        try:
+            json_path = json_path_from_sidecar(path)
+        except ValueError:
+            continue
+        if json_path in checked:
+            continue
+        checked.add(json_path)
+        if json_path not in all_paths:
+            raise ApplyError(
+                f"Sidecar path {path!r} requires {json_path!r} to exist, but it does not",
+                code="SIDECAR_OWNER_MISSING",
+            )
+
+
+def _enforce_sidecar_only_md(all_relative: list[str]) -> None:
+    """5f-ii: Files inside .sidecars/ directories must all end with .md."""
+    for path in all_relative:
+        if _is_sidecar_path(path) and not path.endswith(".md"):
+            raise ApplyError(
+                f"Non-.md file inside a sidecar directory: {path!r}",
+                code="SIDECAR_NON_MD_FILE",
+            )
+
+
+def _get_at_json_pointer(data: object, pointer: str) -> object | None:
+    """Return the value at *pointer* in *data*, or None if unreachable."""
+    node = data
+    for seg in pointer[1:].split("/"):
+        key = seg.replace("~1", "/").replace("~0", "~")
+        if isinstance(node, list):
+            try:
+                node = node[int(key)]
+            except (ValueError, IndexError):
+                return None
+        elif isinstance(node, dict):
+            if key not in node:
+                return None
+            node = node[key]
+        else:
+            return None
+    return node
+
+
+def _enforce_sidecar_integrity(data_repo: Path, all_relative: list[str]) -> None:
+    """5f-iii + 5f-iv: Each sidecar .md's owning JSON field must hold its
+    wikilink, and no other file (or field) may reference that wikilink."""
+    sidecar_paths = [
+        p for p in all_relative if _is_sidecar_path(p) and p.endswith(".md")
+    ]
+    sidecar_path_set = set(sidecar_paths)
+
+    # 5f-iii: each sidecar has the right wikilink at the correct JSON field
+    owner_data_cache: dict[str, object | None] = {}
+
+    def _load_owner(json_path: str) -> object | None:
+        if json_path not in owner_data_cache:
+            f = data_repo / json_path
+            try:
+                owner_data_cache[json_path] = json.loads(f.read_text()) if f.exists() else None
+            except (json.JSONDecodeError, OSError):
+                owner_data_cache[json_path] = None
+        return owner_data_cache[json_path]
+
+    for sidecar_path in sidecar_paths:
+        json_path = json_path_from_sidecar(sidecar_path)
+        data = _load_owner(json_path)
+        if data is None:
+            continue  # already caught by 5f-i
+
+        try:
+            pointer = sidecar_path_to_pointer(sidecar_path, data)
+        except ValueError as e:
+            raise ApplyError(
+                f"Sidecar {sidecar_path!r} has no corresponding field in "
+                f"{json_path!r}: {e}",
+                code="SIDECAR_FIELD_MISSING",
+            ) from e
+
+        actual = _get_at_json_pointer(data, pointer)
+        expected = f"[[{sidecar_path}]]"
+        if actual != expected:
+            raise ApplyError(
+                f"Sidecar {sidecar_path!r}: {json_path!r} at {pointer!r} must be "
+                f"{expected!r}, found {actual!r}",
+                code="SIDECAR_WIKILINK_MISSING",
+            )
+
+    # 5f-iv: sidecar wikilinks appear only in their owning JSON file, once
+    occurrences: dict[str, int] = {}
+    scannable_suffixes = (".json", ".md")
+    for rel in all_relative:
+        if not any(rel.endswith(s) for s in scannable_suffixes):
+            continue
+        f = data_repo / rel
+        if not f.is_file():
+            continue
+        for link_path in WIKILINK_RE.findall(f.read_text()):
+            if link_path not in sidecar_path_set:
+                continue
+            owner = json_path_from_sidecar(link_path)
+            if rel != owner:
+                raise ApplyError(
+                    f"Sidecar wikilink [[{link_path}]] found in {rel!r}; "
+                    f"only {owner!r} may reference it",
+                    code="SIDECAR_WIKILINK_WRONG_FILE",
+                )
+            occurrences[link_path] = occurrences.get(link_path, 0) + 1
+
+    for sidecar_path, count in occurrences.items():
+        if count > 1:
+            owner = json_path_from_sidecar(sidecar_path)
+            raise ApplyError(
+                f"Sidecar wikilink [[{sidecar_path}]] appears {count} times in "
+                f"{owner!r}; only one occurrence is allowed",
+                code="SIDECAR_WIKILINK_DUPLICATE",
+            )
 
 
 def _enforce_index_format(data_repo: Path) -> list[dict] | None:

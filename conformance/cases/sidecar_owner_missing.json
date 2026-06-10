@@ -1,0 +1,19 @@
+{
+  "name": "sidecar directory without owning JSON is rejected",
+  "description": "A .sidecars/ directory requires its <stem>.json file to exist. If the JSON owner is absent, SIDECAR_OWNER_MISSING is raised.",
+  "before": {
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
+    "Notes.json": "{\"summary\": \"short\"}\n"
+  },
+  "commit_message": "Add orphan sidecar",
+  "operations": [
+    {
+      "op": "create_file",
+      "path": "Orphan.sidecars/notes.md",
+      "content": "Content here.\n",
+      "indexed": false,
+      "scope": null
+    }
+  ],
+  "expect": { "error": "SIDECAR_OWNER_MISSING" }
+}

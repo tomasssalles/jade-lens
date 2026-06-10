@@ -74,7 +74,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 5 — Sidecar core logic
 
-- [ ] **5a.** Implement trigger logic: parse a string value with a
+- [x] **5a.** Implement trigger logic: parse a string value with a
   CommonMark-compliant markdown parser and count content blocks (paragraphs,
   headings, fenced code blocks, individual list items, blockquotes). Promote if
   count > 1. Python + JS + conformance cases.

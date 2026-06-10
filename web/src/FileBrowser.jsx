@@ -26,23 +26,22 @@ function parseWikilink(s) {
   return m ? m[1] : null
 }
 
-// Build the tree item list from Index.json when available. Returns null if
-// Index.json is absent or unparseable, so callers can fall back to the raw
-// git tree.
+// Build the tree item list from Index.json. Returns an empty array if
+// Index.json is absent or unparseable — no fallback to the raw git tree.
 function indexItems(contentMap) {
   const content = contentMap?.get('Index.json')
-  if (!content) return null
+  if (!content) return []
   try {
     const entries = JSON.parse(content)
-    if (!Array.isArray(entries)) return null
+    if (!Array.isArray(entries)) return []
     const result = []
     for (const entry of entries) {
       const path = parseWikilink(entry?.File)
       if (path) result.push({ path, type: 'blob' })
     }
-    return result.length > 0 ? result : null
+    return result
   } catch {
-    return null
+    return []
   }
 }
 
@@ -53,7 +52,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
 
   const [status, setStatus] = useState(() => initData ? 'ready' : 'loading')
   const [treeItems, setTreeItems] = useState(
-    () => indexItems(initData?.contentMap) ?? filterItems(initData?.items),
+    () => indexItems(initData?.contentMap),
   )
   const [truncated, setTruncated] = useState(() => initData?.truncated ?? false)
   const [error, setError] = useState(null)
@@ -85,15 +84,8 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
     try { cfg = await getConfig() } catch { return false }
     const wt = await getWorkingTree({ repoUrl: cfg.githubRepoUrl }).catch(() => null)
     if (!wt || !mountedRef.current) return false
-    // Tracked files follow the working map (adds/deletes/renames). Preserve only
-    // files the queue never tracked: in the read cache's item list but absent
-    // from both its content map and the working map (e.g. over the size cap).
-    const view = cacheViewRef.current
-    const untracked = view.items.filter(
-      it => it.type === 'blob' && !view.contentMap.has(it.path) && !wt.contentMap.has(it.path),
-    )
     contentMapRef.current = wt.contentMap
-    setTreeItems(indexItems(wt.contentMap) ?? filterItems([...wt.items, ...untracked]))
+    setTreeItems(indexItems(wt.contentMap))
     setTruncated(false)
     setStatus('ready')
     const jadeCfg = parseJadeConfig(wt.contentMap)
@@ -137,7 +129,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
       setSessionCache({ repoUrl, items: filtered, contentMap, truncated })
       contentMapRef.current = contentMap
       cacheViewRef.current = { items: filtered, contentMap }
-      setTreeItems(indexItems(contentMap) ?? filtered)
+      setTreeItems(indexItems(contentMap))
       setTruncated(truncated)
       setStatus('ready')
       const jadeCfg = parseJadeConfig(contentMap)
@@ -193,7 +185,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
 
         // Only update visible tree state if the structure actually changed
         if (treeStructureChanged) {
-          setTreeItems(indexItems(map) ?? filtered)
+          setTreeItems(indexItems(map))
           setTruncated(truncated)
         }
         // Notify jade config only if content (hence config) could have changed
@@ -213,7 +205,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
         if (session?.repoUrl === cfg.githubRepoUrl) {
           contentMapRef.current = session.contentMap
           cacheViewRef.current = { items: session.items, contentMap: session.contentMap }
-          setTreeItems(indexItems(session.contentMap) ?? session.items)
+          setTreeItems(indexItems(session.contentMap))
           setTruncated(session.truncated)
           setStatus('ready')
           const jadeCfg = parseJadeConfig(session.contentMap)

@@ -446,6 +446,10 @@ def _post_apply_sidecar_propagation_pass(
     6c: When a json_patch contains a ``move`` sub-op, rename the sidecar
         file (and any nested sidecar subtree) from the source pointer's
         path to the destination pointer's path.
+    6d: When a json_patch contains a ``remove`` sub-op (or the ``from``
+        of a ``move``), delete the sidecar file/subtree for any sidecar
+        wikilink held by the removed field (directly or nested), and
+        prune empty parent directories inside ``.sidecars/``.
     """
     for op in operations:
         # 6b
@@ -534,6 +538,70 @@ def _post_apply_sidecar_propagation_pass(
                             f"{to_base!r}: {e.stderr.strip()}"
                         ) from e
                     rewrite_references_under(data_repo, from_base, to_base)
+
+            # 6d: delete sidecar files orphaned by remove/move sub-ops
+            if any(p.get("op") in ("remove", "move") for p in op.patch):
+                _delete_orphaned_sidecars(data_repo, op.path)
+
+
+def _delete_orphaned_sidecars(data_repo: Path, json_path: str) -> None:
+    """6d: Delete sidecar files that are no longer referenced in json_path."""
+    sidecar_dir = sidecar_dir_for_json(json_path)
+    sidecar_dir_path = data_repo / sidecar_dir
+    if not sidecar_dir_path.is_dir():
+        return
+
+    result = subprocess.run(
+        ["git", "-C", str(data_repo), "ls-files",
+         "--cached", "--others", "--exclude-standard"],
+        capture_output=True, text=True, check=True,
+    )
+    all_relative = set(result.stdout.splitlines())
+
+    json_file = data_repo / json_path
+    if not json_file.is_file():
+        return
+    try:
+        json_data = json.loads(json_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return
+
+    prefix = sidecar_dir + "/"
+    orphaned = [
+        p for p in all_relative
+        if p.startswith(prefix) and p.endswith(".md")
+        and _is_sidecar_orphaned(json_data, p)
+    ]
+    for sidecar_path in orphaned:
+        try:
+            subprocess.run(
+                ["git", "-C", str(data_repo), "rm", "--force", "--", sidecar_path],
+                capture_output=True, text=True, check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise ApplyError(
+                f"Failed to delete orphaned sidecar {sidecar_path!r}: {e.stderr.strip()}"
+            ) from e
+
+    # Prune empty subdirectories inside the sidecar dir
+    for d in sorted(sidecar_dir_path.rglob("*"), reverse=True):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+    try:
+        if sidecar_dir_path.is_dir() and not any(sidecar_dir_path.iterdir()):
+            sidecar_dir_path.rmdir()
+    except OSError:
+        pass
+
+
+def _is_sidecar_orphaned(json_data: object, sidecar_path: str) -> bool:
+    """Return True if sidecar_path is no longer correctly referenced in json_data."""
+    try:
+        pointer = sidecar_path_to_pointer(sidecar_path, json_data)
+    except ValueError:
+        return True
+    actual = _get_at_json_pointer(json_data, pointer)
+    return actual != f"[[{sidecar_path}]]"
 
 
 def _post_apply_index_pass(data_repo: Path, operations: list[Operation]) -> None:

@@ -117,7 +117,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   a sidecar subtree in `.sidecars/`, rename that subtree to match the
   destination path. *Partial skill update: moving a JSON field also moves its
   sidecars — no need to do this manually.*
-- [ ] **6d.** RFC 6902 `remove` op within a `json_patch`: if the field being
+- [x] **6d.** RFC 6902 `remove` op within a `json_patch`: if the field being
   removed holds a sidecar wikilink (directly or nested), auto-delete the sidecar file (or subtree) (and prune
   now-empty parent directories inside `.sidecars/`). *Partial skill update:
   removing a JSON field also deletes its sidecar — no need to do this

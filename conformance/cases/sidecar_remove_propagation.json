@@ -1,0 +1,29 @@
+{
+  "name": "json_patch remove op deletes the orphaned sidecar file",
+  "description": "6d: When a json_patch removes a JSON field that held a sidecar wikilink, the sidecar file is automatically deleted and empty sidecar parent directories are pruned.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+    "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Remove notes field",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Garden.json",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/notes"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "after": {
+      "Garden.json": "{}\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove notes field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/notes\"}]}]}\n"
+    }
+  }
+}

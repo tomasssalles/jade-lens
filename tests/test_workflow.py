@@ -978,6 +978,44 @@ def test_6c_json_patch_move_renames_sidecar(data_repo: Path):
     assert (data_repo / "Garden.sidecars" / "summary.md").read_text() == "Para one.\n\nPara two.\n"
 
 
+def test_6d_json_patch_remove_deletes_orphaned_sidecar(data_repo: Path):
+    (data_repo / "Garden.json").write_text('{\n  "notes": "[[Garden.sidecars/notes.md]]"\n}\n')
+    (data_repo / "Garden.sidecars").mkdir()
+    (data_repo / "Garden.sidecars" / "notes.md").write_text("Para one.\n\nPara two.\n")
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [{"op": "json_patch", "path": "Garden.json",
+          "patch": [{"op": "remove", "path": "/notes"}]}],
+        "Remove notes field",
+    )
+
+    garden = json.loads((data_repo / "Garden.json").read_text())
+    assert garden == {}
+    assert not (data_repo / "Garden.sidecars" / "notes.md").exists()
+    assert not (data_repo / "Garden.sidecars").exists()
+
+
+def test_6d_json_patch_remove_no_sidecar_is_ok(data_repo: Path):
+    """Removing a JSON field that has no sidecar succeeds without error."""
+    (data_repo / "Garden.json").write_text('{"notes": "short", "title": "Garden"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [{"op": "json_patch", "path": "Garden.json",
+          "patch": [{"op": "remove", "path": "/notes"}]}],
+        "Remove notes field",
+    )
+
+    garden = json.loads((data_repo / "Garden.json").read_text())
+    assert garden == {"title": "Garden"}
+    assert not (data_repo / "Garden.sidecars").exists()
+
+
 def test_6c_json_patch_move_no_sidecar_is_ok(data_repo: Path):
     """Moving a JSON field that has no sidecar succeeds without error."""
     (data_repo / "Garden.json").write_text('{"title": "Garden", "notes": "short"}\n')

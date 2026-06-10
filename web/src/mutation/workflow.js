@@ -464,6 +464,14 @@ function postApplyEnforcementPass(tree) {
 
 // ---------- Post-apply sidecar propagation pass ----------
 
+function isSidecarOrphaned(sidecarPath, jsonData) {
+  let pointer;
+  try { pointer = sidecarPathToPointer(sidecarPath, jsonData); }
+  catch { return true; }
+  const actual = getAtJsonPointer(jsonData, pointer);
+  return actual !== `[[${sidecarPath}]]`;
+}
+
 function postApplySidecarPropagationPass(tree, operations) {
   for (const op of operations) {
     // 6b: delete_path on .json also deletes its .sidecars/ directory
@@ -508,6 +516,25 @@ function postApplySidecarPropagationPass(tree, operations) {
             tree.delete(k);
           }
           rewriteReferencesUnder(tree, fromBase, toBase);
+        }
+      }
+
+      // 6d: delete sidecar files orphaned by remove/move sub-ops
+      if (op.patch.some((p) => p.op === 'remove' || p.op === 'move')) {
+        const sidecarDir = sidecarDirForJson(op.path);
+        const prefix = sidecarDir + '/';
+        const content = tree.get(op.path);
+        if (content !== undefined) {
+          let jsonData = null;
+          try { jsonData = JSON.parse(content); } catch { /* treat as null */ }
+          if (jsonData !== null) {
+            for (const k of [...tree.keys()]) {
+              if (k.startsWith(prefix) && k.endsWith('.md') &&
+                  isSidecarOrphaned(k, jsonData)) {
+                tree.delete(k);
+              }
+            }
+          }
         }
       }
     }

@@ -171,6 +171,12 @@ function postApplyWikilinkPass(tree, operations) {
 
 const INDEX_ENTRY_WIKILINK_RE = /^\[\[(.+)\]\]$/;
 const INDEX_EXCLUDED_PATHS = new Set(['Index.json', 'CLAUDE.md']);
+const SIDECARS_SUFFIX = '.sidecars';
+
+/** Return true if path is inside a .sidecars directory. */
+function isSidecarPath(path) {
+  return path.split('/').some((part) => part.endsWith(SIDECARS_SUFFIX));
+}
 
 function fileStem(filename) {
   const dot = filename.lastIndexOf('.');
@@ -182,6 +188,7 @@ function userFiles(tree) {
   const files = [];
   for (const path of tree.keys()) {
     if (path.split('/')[0].startsWith('.')) continue;
+    if (isSidecarPath(path)) continue;
     if (!path.endsWith('.json') && !path.endsWith('.md')) continue;
     if (ig.ignores(path)) continue;
     files.push(path);
@@ -223,7 +230,7 @@ function enforceIndexFormat(tree) {
         'INDEX_MALFORMED',
       );
     }
-    if (INDEX_EXCLUDED_PATHS.has(linkedPath)) {
+    if (INDEX_EXCLUDED_PATHS.has(linkedPath) || isSidecarPath(linkedPath)) {
       throw new ApplyError(
         `Index.json entry ${i}: 'File' ${JSON.stringify(fileVal)} is not allowed in the index`,
         'INDEX_MALFORMED',

@@ -1,0 +1,24 @@
+{
+  "name": "sidecar path in Index.json is rejected",
+  "description": "Attempting to add a .sidecars/ path to Index.json fails the format check with INDEX_MALFORMED.",
+  "before": {
+    "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\"\n}\n",
+    "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Wrongly index a sidecar",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Index.json",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/-",
+          "value": { "File": "[[Notes.sidecars/summary.md]]", "Scope": "Summary" }
+        }
+      ]
+    }
+  ],
+  "expect": { "error": "INDEX_MALFORMED" }
+}

@@ -360,6 +360,12 @@ def _post_apply_wikilink_pass(data_repo: Path, operations: list[Operation]) -> N
 
 _INDEX_ENTRY_WIKILINK_RE = re.compile(r"^\[\[(.+)\]\]$")
 _INDEX_EXCLUDED_PATHS = frozenset({"Index.json", "CLAUDE.md"})
+_SIDECARS_SUFFIX = ".sidecars"
+
+
+def _is_sidecar_path(path: str) -> bool:
+    """Return True if *path* is inside a .sidecars directory."""
+    return any(part.endswith(_SIDECARS_SUFFIX) for part in PurePosixPath(path).parts)
 
 
 def _post_apply_enforcement_pass(data_repo: Path) -> None:
@@ -385,6 +391,7 @@ def _post_apply_enforcement_pass(data_repo: Path) -> None:
     user_relative = [
         p for p in all_relative
         if not PurePosixPath(p).parts[0].startswith(".")
+        and not _is_sidecar_path(p)
     ]
 
     index_entries = _enforce_index_format(data_repo)
@@ -441,7 +448,7 @@ def _enforce_index_format(data_repo: Path) -> list[dict] | None:
                 f"protected path; excluded paths cannot be indexed",
                 code="INDEX_MALFORMED",
             )
-        if linked_path in _INDEX_EXCLUDED_PATHS:
+        if linked_path in _INDEX_EXCLUDED_PATHS or _is_sidecar_path(linked_path):
             raise ApplyError(
                 f"Index.json entry {i}: 'File' {file_val!r} is not allowed "
                 f"in the index",

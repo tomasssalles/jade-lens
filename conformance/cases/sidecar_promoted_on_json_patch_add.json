@@ -1,0 +1,30 @@
+{
+  "name": "json_patch add with multi-block string promotes to sidecar",
+  "description": "A json_patch add op whose value has more than one CommonMark content block is automatically promoted: the runtime creates a .md sidecar and replaces the patch value with the wikilink. The log entry records the original (pre-promotion) operations.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"short\"\n}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Add notes",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Garden.json",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/notes",
+          "value": "Para one.\n\nPara two.\n"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "after": {
+      "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+      "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/notes\", \"value\": \"Para one.\\n\\nPara two.\\n\"}]}]}\n"
+    }
+  }
+}

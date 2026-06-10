@@ -1,0 +1,29 @@
+{
+  "name": "json_patch with single-block string is not promoted",
+  "description": "A json_patch op whose string value has only one CommonMark content block is left as-is — no sidecar is created.",
+  "before": {
+    "Notes.json": "{\"summary\": \"short\"}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Update summary",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Notes.json",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/summary",
+          "value": "Just one paragraph."
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "after": {
+      "Notes.json": "{\n  \"summary\": \"Just one paragraph.\"\n}\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Update summary\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Notes.json\", \"patch\": [{\"op\": \"replace\", \"path\": \"/summary\", \"value\": \"Just one paragraph.\"}]}]}\n"
+    }
+  }
+}

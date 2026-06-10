@@ -630,3 +630,154 @@ def test_run_rejects_invalid_batch(data_repo: Path):
         )
     # No commit was created.
     assert not (data_repo / "x.json").exists()
+
+
+# ====================================================================
+# _resolve_json_pointer
+# ====================================================================
+
+from jadelens.workflow import _resolve_json_pointer  # noqa: E402
+
+
+def test_resolve_json_pointer_plain_segment():
+    assert _resolve_json_pointer("/notes", {"notes": "short"}) == "/notes"
+
+
+def test_resolve_json_pointer_array_append_empty():
+    assert _resolve_json_pointer("/items/-", {"items": []}) == "/items/0"
+
+
+def test_resolve_json_pointer_array_append_nonempty():
+    assert _resolve_json_pointer("/items/-", {"items": ["a", "b"]}) == "/items/2"
+
+
+def test_resolve_json_pointer_nested():
+    data = {"comparisons": [{"description": "x"}]}
+    assert _resolve_json_pointer("/comparisons/0/description", data) == "/comparisons/0/description"
+
+
+def test_resolve_json_pointer_no_slash_returns_as_is():
+    assert _resolve_json_pointer("notapointer", {}) == "notapointer"
+
+
+def test_resolve_json_pointer_nested_dash():
+    data = {"items": [{"sub": []}]}
+    assert _resolve_json_pointer("/items/0/sub/-", data) == "/items/0/sub/0"
+
+
+# ====================================================================
+# run — sidecar promotion
+# ====================================================================
+
+
+def test_run_promotes_multi_block_string(data_repo: Path):
+    (data_repo / "Garden.json").write_text('{"notes": "short"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {
+                "op": "json_patch",
+                "path": "Garden.json",
+                "patch": [{"op": "add", "path": "/notes", "value": "Para one.\n\nPara two.\n"}],
+            }
+        ],
+        "Promote notes",
+    )
+
+    garden = json.loads((data_repo / "Garden.json").read_text())
+    assert garden["notes"] == "[[Garden.sidecars/notes.md]]"
+    sidecar = data_repo / "Garden.sidecars" / "notes.md"
+    assert sidecar.read_text() == "Para one.\n\nPara two.\n"
+
+
+def test_run_no_promotion_single_block(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"summary": "short"}\n')
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {
+                "op": "json_patch",
+                "path": "Notes.json",
+                "patch": [{"op": "replace", "path": "/summary", "value": "Just one paragraph."}],
+            }
+        ],
+        "Update summary",
+    )
+
+    notes = json.loads((data_repo / "Notes.json").read_text())
+    assert notes["summary"] == "Just one paragraph."
+    assert not (data_repo / "Notes.sidecars").exists()
+
+
+def test_run_promotes_array_append(data_repo: Path):
+    (data_repo / "Projects.json").write_text('{"items": []}\n')
+    _write_index(data_repo, [("Projects.json", "Projects")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {
+                "op": "json_patch",
+                "path": "Projects.json",
+                "patch": [{"op": "add", "path": "/items/-", "value": "Step one.\n\nStep two.\n"}],
+            }
+        ],
+        "Promote item",
+    )
+
+    projects = json.loads((data_repo / "Projects.json").read_text())
+    assert projects["items"] == ["[[Projects.sidecars/items/0.md]]"]
+    sidecar = data_repo / "Projects.sidecars" / "items" / "0.md"
+    assert sidecar.read_text() == "Step one.\n\nStep two.\n"
+
+
+def test_run_no_promotion_existing_wikilink(data_repo: Path):
+    (data_repo / "Notes.json").write_text('{"notes": "[[Notes.sidecars/notes.md]]"}\n')
+    (data_repo / "Notes.sidecars").mkdir()
+    (data_repo / "Notes.sidecars" / "notes.md").write_text("Para one.\n\nPara two.\n")
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    workflow.run(
+        data_repo,
+        [
+            {
+                "op": "json_patch",
+                "path": "Notes.json",
+                "patch": [{"op": "replace", "path": "/notes", "value": "[[Notes.sidecars/notes.md]]"}],
+            }
+        ],
+        "Keep wikilink",
+    )
+
+    notes = json.loads((data_repo / "Notes.json").read_text())
+    assert notes["notes"] == "[[Notes.sidecars/notes.md]]"
+    assert (data_repo / "Notes.sidecars" / "notes.md").read_text() == "Para one.\n\nPara two.\n"
+
+
+def test_run_log_records_original_ops_before_promotion(data_repo: Path):
+    """The operations log must contain the pre-promotion raw ops, not the wikilinks."""
+    (data_repo / "Garden.json").write_text('{"notes": "short"}\n')
+    _write_index(data_repo, [("Garden.json", "Garden")])
+    commit(data_repo)
+
+    raw_ops = [
+        {
+            "op": "json_patch",
+            "path": "Garden.json",
+            "patch": [{"op": "add", "path": "/notes", "value": "Para one.\n\nPara two.\n"}],
+        }
+    ]
+    workflow.run(data_repo, raw_ops, "Promote notes")
+
+    data_version = __supported_data_format_version__
+    log = data_repo / ".jade" / "operations-log" / f"{data_version}.jsonl"
+    entry = json.loads(log.read_text())
+    assert entry["operations"] == raw_ops

@@ -18,6 +18,7 @@ import {
 } from "./operations.js";
 import { findDeadWikilinks, rewriteReferencesUnder } from "./wikilinks.js";
 import { makeIgnoreMatcher } from "./gitignore.js";
+import { isPromotable, pointerToSidecarPath } from "./sidecar.js";
 import { normpath } from "./posixPath.js";
 
 // ---------- Batch validation ----------
@@ -330,6 +331,76 @@ function postApplyEnforcementPass(tree) {
   }
 }
 
+// ---------- Pre-apply sidecar promotion pass ----------
+
+function resolveJsonPointer(pointer, data) {
+  if (!pointer.startsWith('/')) return pointer;
+  const segments = pointer.slice(1).split('/');
+  const resolved = [];
+  let node = data;
+  for (const seg of segments) {
+    if (seg === '-' && Array.isArray(node)) {
+      resolved.push(String(node.length));
+      node = null;
+    } else {
+      const key = seg.replace(/~1/g, '/').replace(/~0/g, '~');
+      resolved.push(seg);
+      if (Array.isArray(node)) {
+        const idx = parseInt(key, 10);
+        node = !isNaN(idx) && idx >= 0 && idx < node.length ? node[idx] : null;
+      } else if (node !== null && typeof node === 'object') {
+        node = Object.prototype.hasOwnProperty.call(node, key) ? node[key] : null;
+      } else {
+        node = null;
+      }
+    }
+  }
+  return '/' + resolved.join('/');
+}
+
+function preApplySidecarPromotionPass(tree, operations) {
+  const promotedOps = [];
+  const newSidecars = [];
+
+  for (let op of operations) {
+    if (op instanceof JsonPatch) {
+      let current = null;
+      if (tree.has(op.path)) {
+        try { current = JSON.parse(tree.get(op.path)); } catch { /* treat as null */ }
+      }
+
+      const newPatch = [...op.patch];
+      let changed = false;
+      for (let j = 0; j < newPatch.length; j++) {
+        const patchOp = newPatch[j];
+        if (patchOp.op !== 'add' && patchOp.op !== 'replace') continue;
+        const value = patchOp.value;
+        if (typeof value !== 'string') continue;
+        if (value.startsWith('[[') && value.endsWith(']]')) continue;
+        if (!isPromotable(value)) continue;
+
+        const pointer = patchOp.path ?? '';
+        const resolved = current !== null ? resolveJsonPointer(pointer, current) : pointer;
+        let sidecarPath;
+        try {
+          sidecarPath = pointerToSidecarPath(op.path, resolved);
+        } catch {
+          continue;
+        }
+
+        newPatch[j] = { ...patchOp, value: `[[${sidecarPath}]]` };
+        newSidecars.push({ path: sidecarPath, content: value });
+        changed = true;
+      }
+
+      if (changed) op = new JsonPatch(op.path, newPatch);
+    }
+    promotedOps.push(op);
+  }
+
+  return { promotedOps, newSidecars };
+}
+
 // ---------- Orchestration ----------
 
 /**
@@ -348,7 +419,9 @@ export function run(tree, rawOperations, commitMessage, opts = {}) {
   const effective = mergeUnifiedDiffs(operations);
 
   const work = new Map(tree); // values are immutable strings; shallow clone is safe
-  for (const op of effective) op.apply(work);
+  const { promotedOps, newSidecars } = preApplySidecarPromotionPass(work, effective);
+  for (const { path, content } of newSidecars) work.set(path, content);
+  for (const op of promotedOps) op.apply(work);
   postApplyWikilinkPass(work, effective);
   postApplyIndexPass(work, effective);
   postApplyEnforcementPass(work);

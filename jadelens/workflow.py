@@ -23,6 +23,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
+from dataclasses import replace as _dc_replace
+
 from jadelens import __supported_data_format_version__
 from jadelens.operations import (
     ApplyError,
@@ -37,6 +39,7 @@ from jadelens.operations import (
     dumps_js_canonical_compact,
     parse_operation,
 )
+from jadelens.sidecar import is_promotable, pointer_to_sidecar_path
 from jadelens.wikilinks import find_dead_wikilinks, rewrite_references_under
 
 
@@ -293,6 +296,11 @@ def run(
     effective = merge_unified_diffs(operations)
 
     try:
+        effective, promoted_sidecars = _pre_apply_sidecar_promotion_pass(data_repo, effective)
+        for sidecar_path, content in promoted_sidecars:
+            full = data_repo / sidecar_path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content)
         for op in effective:
             op.apply(data_repo)
         _post_apply_wikilink_pass(data_repo, effective)
@@ -304,6 +312,94 @@ def run(
     except Exception:
         revert(data_repo)
         raise
+
+
+def _resolve_json_pointer(pointer: str, data: object) -> str:
+    """Resolve '/-' array-append tokens to concrete indices using *data*."""
+    if not pointer.startswith("/"):
+        return pointer
+    segments = pointer[1:].split("/")
+    resolved: list[str] = []
+    node: object = data
+    for seg in segments:
+        if seg == "-" and isinstance(node, list):
+            resolved.append(str(len(node)))
+            node = None
+        else:
+            # RFC 6901 unescape for traversal
+            key = seg.replace("~1", "/").replace("~0", "~")
+            resolved.append(seg)  # keep escaped form in output pointer
+            if isinstance(node, list):
+                try:
+                    node = node[int(key)]
+                except (ValueError, IndexError):
+                    node = None
+            elif isinstance(node, dict):
+                node = node.get(key)
+            else:
+                node = None
+    return "/" + "/".join(resolved)
+
+
+def _pre_apply_sidecar_promotion_pass(
+    data_repo: Path, operations: list[Operation]
+) -> tuple[list[Operation], list[tuple[str, str]]]:
+    """Scan json_patch ops and promote promotable string values to sidecars.
+
+    For each ``add``/``replace`` patch op whose value is a promotable string
+    (and not already a wikilink), derive the sidecar path, rewrite the patch
+    value to the wikilink, and collect the sidecar content.
+
+    Returns ``(modified_ops, [(sidecar_path, content), ...])``.
+    Callers write the sidecar files before applying the modified ops.
+    """
+    new_ops: list[Operation] = []
+    new_sidecars: list[tuple[str, str]] = []
+
+    for op in operations:
+        if isinstance(op, JsonPatch):
+            json_file = data_repo / op.path
+            try:
+                current: object = (
+                    json.loads(json_file.read_text()) if json_file.exists() else None
+                )
+            except (json.JSONDecodeError, OSError):
+                current = None
+
+            new_patch = list(op.patch)
+            changed = False
+            for j, patch_op in enumerate(new_patch):
+                if patch_op.get("op") not in ("add", "replace"):
+                    continue
+                value = patch_op.get("value")
+                if not isinstance(value, str):
+                    continue
+                if value.startswith("[[") and value.endswith("]]"):
+                    continue  # already a wikilink
+                if not is_promotable(value):
+                    continue
+
+                pointer = patch_op.get("path", "")
+                resolved = (
+                    _resolve_json_pointer(pointer, current)
+                    if current is not None
+                    else pointer
+                )
+                try:
+                    sidecar_path = pointer_to_sidecar_path(op.path, resolved)
+                except ValueError:
+                    continue
+
+                new_patch[j] = {**patch_op, "value": f"[[{sidecar_path}]]"}
+                new_sidecars.append((sidecar_path, value))
+                changed = True
+
+            if changed:
+                op = _dc_replace(op, patch=new_patch)
+
+        new_ops.append(op)
+
+    return new_ops, new_sidecars
 
 
 def _post_apply_index_pass(data_repo: Path, operations: list[Operation]) -> None:

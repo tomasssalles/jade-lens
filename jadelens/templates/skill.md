@@ -3,7 +3,7 @@ name: {{ASSISTANT_NAME}}
 description: JADE LENS — your personal AI assistant. Use to log new information, query existing data, or chat about anything in your life (todos, calendar, projects, notes, preferences).
 ---
 
-<!-- jade-lens-skill template-version=v0.1.0 -->
+<!-- jade-lens-skill cli-version={{CLI_VERSION}} -->
 
 # {{ASSISTANT_NAME}} — JADE LENS
 

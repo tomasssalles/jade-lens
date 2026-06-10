@@ -14,7 +14,7 @@ from jadelens import __supported_data_format_version__, sync
 from jadelens.apply import do_apply
 from jadelens.config import Config
 from jadelens.operations import dumps_js_canonical
-from jadelens.skill import parse_marker, render_skill
+from jadelens.skill import render_skill
 from jadelens.stash import describe_operation
 
 
@@ -471,12 +471,8 @@ def do_render_skill(data_repo: Path) -> None:
     if skill_path.exists():
         return  # no-op; delete to force a re-render
 
-    template_text = latest_template_text()
-    version = parse_marker(template_text)
-    if version is None:
-        sys.exit("BUG: latest bundled template is missing its marker. Please report.")
-
-    rendered = render_skill(config, version, template_text)
+    template_text = files("jadelens").joinpath("templates", "skill.md").read_text()
+    rendered = render_skill(config, template_text)
     skill_path.parent.mkdir(parents=True, exist_ok=True)
     skill_path.write_text(rendered)
     print(f"✓ Rendered skill at {skill_path}")
@@ -519,27 +515,3 @@ def do_stash_resolve(data_repo: Path, stash_id: str) -> None:
     except sync.SyncError as e:
         sys.exit(f"Could not resolve stash entry: {e}")
     print(f"✓ Resolved stash entry {stash_id}")
-
-
-def latest_template_text() -> str:
-    """Return the text of the highest-version bundled template.
-
-    Templates live as package resources under ``jadelens/templates/skill/``
-    so ``uv tool install`` ships them with the code; ``importlib.resources``
-    reads them whether the install is editable or from a built wheel.
-
-    Filenames are ``v<X>.Y.Z.md``. For v0.1.0 there is only one template,
-    so any deterministic pick works; a proper semver-aware sort will be
-    added when multiple templates ship.
-    """
-    skill_dir = files("jadelens").joinpath("templates", "skill")
-    candidates = [
-        f
-        for f in skill_dir.iterdir()
-        if f.name.startswith("v") and f.name.endswith(".md")
-    ]
-    if not candidates:
-        sys.exit("BUG: no templates found in jadelens.templates.skill. Please report.")
-    # TODO: when more than one template ships, sort by semver (vX.Y.Z).
-    latest = max(candidates, key=lambda f: f.name)
-    return latest.read_text()

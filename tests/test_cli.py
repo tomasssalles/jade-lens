@@ -32,7 +32,7 @@ def test_render_skill_writes_file(tmp_path: Path):
     content = skill_path.read_text()
     assert "Test User" in content
     assert "Test" in content
-    assert "<!-- jade-lens-skill template-version=v" in content
+    assert "<!-- jade-lens-skill cli-version=" in content
 
 
 def test_render_skill_noop_if_exists(tmp_path: Path):

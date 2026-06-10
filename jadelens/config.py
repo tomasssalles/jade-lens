@@ -1,16 +1,4 @@
-"""Config dataclass for an installed jade-lens skill, and helpers to build it
-from an extracted placeholder-mapping for any known template version.
-
-Config holds the values that drive skill rendering: assistant name, data
-repo path, and how to refer to the user. All of them come from
-``<data-repo>/.jade/config.json`` (user-edited) and from the data repo's
-own location.
-
-Fields here are the union across all template versions. Older template
-versions may not include all fields; ``config_from_mapping`` is responsible
-for filling in version-specific defaults so a Config can always be
-constructed from any supported template version's extracted mapping.
-"""
+"""Config dataclass for an installed jade-lens skill."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,50 +22,3 @@ class Config:
             raise ValueError("user_full_name must not be empty")
         if not self.user_short_name:
             raise ValueError("user_short_name must not be empty")
-
-
-class ConfigBuildError(Exception):
-    """Base for errors building a Config from an extracted mapping."""
-
-
-class UnknownVersion(ConfigBuildError):
-    """The template version is not recognized by this code version."""
-
-
-class MissingField(ConfigBuildError):
-    """The mapping is missing a field required by the template version."""
-
-
-def config_from_mapping(mapping: dict[str, str], version: str) -> Config:
-    """Build a Config from a placeholder-value mapping and a template version.
-
-    The version determines which placeholders the mapping is expected to
-    contain. Fields added in template versions later than ``version`` are
-    populated with defaults defined here, so older installs remain buildable
-    after the schema evolves.
-
-    Raises:
-        UnknownVersion: ``version`` is not a template version this code
-            recognises.
-        MissingField: the mapping is missing a field required by ``version``.
-        ValueError: the resulting Config fails post-init validation
-            (e.g. a path is not absolute).
-    """
-    if version == "v0.1.0":
-        return _from_mapping_v0_1_0(mapping)
-    raise UnknownVersion(f"Unknown template version: {version!r}")
-
-
-def _from_mapping_v0_1_0(mapping: dict[str, str]) -> Config:
-    try:
-        return Config(
-            assistant_name=mapping["ASSISTANT_NAME"],
-            data_repo_path=Path(mapping["DATA_REPO_PATH"]),
-            user_full_name=mapping["USER_FULL_NAME"],
-            user_short_name=mapping["USER_SHORT_NAME"],
-        )
-    except KeyError as e:
-        raise MissingField(
-            f"Mapping for template version v0.1.0 is missing required "
-            f"field: {e.args[0]!r}"
-        ) from e

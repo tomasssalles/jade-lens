@@ -1,0 +1,14 @@
+{
+  "name": "create_file with indexed=false and scope=null succeeds",
+  "before": {},
+  "commit_message": "Add sidecar file",
+  "operations": [
+    { "op": "create_file", "path": "notes.md", "content": "Long content.\n", "indexed": false, "scope": null }
+  ],
+  "expect": {
+    "after": {
+      "notes.md": "Long content.\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add sidecar file\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"Long content.\\n\", \"indexed\": false, \"scope\": null}]}\n"
+    }
+  }
+}

@@ -172,6 +172,67 @@ def test_create_file_with_md_path_allows_arbitrary_content():
     parse_operation(raw)  # must not raise
 
 
+# ---------------------- indexed / scope validation ----------------------
+
+
+def test_create_file_defaults_to_not_indexed():
+    """Omitting indexed and scope is fine — defaults to (False, None)."""
+    op = parse_operation({"op": "create_file", "path": "notes.md", "content": "hi\n"})
+    assert isinstance(op, CreateFile)
+    assert op.indexed is False
+    assert op.scope is None
+
+
+def test_create_file_indexed_true_with_scope():
+    raw = {
+        "op": "create_file",
+        "path": "notes.md",
+        "content": "# notes\n",
+        "indexed": True,
+        "scope": "My notes",
+    }
+    op = parse_operation(raw)
+    assert op.indexed is True
+    assert op.scope == "My notes"
+
+
+def test_create_file_indexed_false_explicit():
+    raw = {
+        "op": "create_file",
+        "path": "notes.md",
+        "content": "# notes\n",
+        "indexed": False,
+        "scope": None,
+    }
+    op = parse_operation(raw)
+    assert op.indexed is False
+    assert op.scope is None
+
+
+def test_create_file_indexed_true_requires_non_empty_scope():
+    with pytest.raises(ValidationError, match="'scope' must be a non-empty string"):
+        parse_operation({
+            "op": "create_file", "path": "notes.md", "content": "x",
+            "indexed": True, "scope": None,
+        })
+
+
+def test_create_file_indexed_true_rejects_empty_scope():
+    with pytest.raises(ValidationError, match="'scope' must be a non-empty string"):
+        parse_operation({
+            "op": "create_file", "path": "notes.md", "content": "x",
+            "indexed": True, "scope": "",
+        })
+
+
+def test_create_file_indexed_false_rejects_non_null_scope():
+    with pytest.raises(ValidationError, match="'scope' must be null"):
+        parse_operation({
+            "op": "create_file", "path": "notes.md", "content": "x",
+            "indexed": False, "scope": "something",
+        })
+
+
 # ---------------------- Protected-path rejection ----------------------
 # Top-level dot-prefixed paths (.claude/, .git/, .gitignore, .jade/, …)
 # are reserved for tooling. The bot must not touch them via any op.

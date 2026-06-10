@@ -123,6 +123,8 @@ def dumps_js_canonical_compact(obj: Any) -> str:
 class CreateFile:
     path: str
     content: str
+    indexed: bool = False
+    scope: str | None = None
 
     def apply(self, data_repo: Path) -> None:
         target = data_repo / self.path
@@ -295,7 +297,19 @@ def parse_operation(raw: Any) -> Operation:
 
 
 def _parse_create_file(raw: dict) -> CreateFile:
-    _require_exact_keys(raw, {"op", "path", "content"})
+    _REQUIRED = {"op", "path", "content"}
+    _ALLOWED = _REQUIRED | {"indexed", "scope"}
+    keys = set(raw.keys())
+    if missing := _REQUIRED - keys:
+        raise ValidationError(
+            f"Operation {raw.get('op')!r} missing required keys: {sorted(missing)}",
+            code="OP_MISSING_KEYS",
+        )
+    if extra := keys - _ALLOWED:
+        raise ValidationError(
+            f"Operation {raw.get('op')!r} has unexpected keys: {sorted(extra)}",
+            code="OP_UNEXPECTED_KEYS",
+        )
     path = _require_str(raw, "path")
     _reject_protected_path(path)
     if not path.endswith(EDITABLE_FILE_SUFFIXES):
@@ -313,7 +327,29 @@ def _parse_create_file(raw: dict) -> CreateFile:
                 f"create_file content for {path!r} is not valid JSON: {e}",
                 code="CREATE_FILE_INVALID_JSON",
             ) from e
-    return CreateFile(path=path, content=content)
+    indexed = raw.get("indexed", False)
+    if not isinstance(indexed, bool):
+        raise ValidationError(
+            f"Field 'indexed' must be a boolean, got {type(indexed).__name__}",
+            code="OP_WRONG_FIELD_TYPE",
+        )
+    scope = raw.get("scope", None)
+    if scope is not None and not isinstance(scope, str):
+        raise ValidationError(
+            f"Field 'scope' must be a string or null, got {type(scope).__name__}",
+            code="OP_WRONG_FIELD_TYPE",
+        )
+    if indexed and not scope:
+        raise ValidationError(
+            "create_file: 'scope' must be a non-empty string when 'indexed' is true",
+            code="CREATE_FILE_BAD_INDEXED_SCOPE",
+        )
+    if not indexed and scope is not None:
+        raise ValidationError(
+            "create_file: 'scope' must be null when 'indexed' is false",
+            code="CREATE_FILE_BAD_INDEXED_SCOPE",
+        )
+    return CreateFile(path=path, content=content, indexed=indexed, scope=scope)
 
 
 def _parse_delete_path(raw: dict) -> DeletePath:

@@ -1,0 +1,8 @@
+{
+  "name": "create_file rejects indexed=false with a non-null scope",
+  "before": {},
+  "operations": [
+    { "op": "create_file", "path": "notes.md", "content": "# test\n", "indexed": false, "scope": "Should not be here" }
+  ],
+  "expect": { "error": "CREATE_FILE_BAD_INDEXED_SCOPE" }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "create_file with indexed=true and a non-empty scope succeeds",
+  "before": {},
+  "commit_message": "Add notes",
+  "operations": [
+    { "op": "create_file", "path": "notes.md", "content": "# notes\n", "indexed": true, "scope": "My notes" }
+  ],
+  "expect": {
+    "after": {
+      "notes.md": "# notes\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"My notes\"}]}\n"
+    }
+  }
+}

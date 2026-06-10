@@ -35,9 +35,11 @@ function pathExists(tree, path) {
 // --- operation types ---
 
 export class CreateFile {
-  constructor(path, content) {
+  constructor(path, content, indexed = false, scope = null) {
     this.path = path;
     this.content = content;
+    this.indexed = indexed;
+    this.scope = scope;
   }
 
   apply(tree) {
@@ -225,7 +227,23 @@ export function parseOperation(raw) {
 }
 
 function parseCreateFile(raw) {
-  requireExactKeys(raw, ['op', 'path', 'content']);
+  const REQUIRED = ['op', 'path', 'content'];
+  const ALLOWED = new Set([...REQUIRED, 'indexed', 'scope']);
+  const keys = Object.keys(raw);
+  const missing = REQUIRED.filter((k) => !Object.hasOwn(raw, k));
+  const extra = keys.filter((k) => !ALLOWED.has(k));
+  if (missing.length) {
+    throw new ValidationError(
+      `Operation ${JSON.stringify(raw.op)} missing required keys: ${JSON.stringify(missing.sort())}`,
+      'OP_MISSING_KEYS',
+    );
+  }
+  if (extra.length) {
+    throw new ValidationError(
+      `Operation ${JSON.stringify(raw.op)} has unexpected keys: ${JSON.stringify(extra.sort())}`,
+      'OP_UNEXPECTED_KEYS',
+    );
+  }
   const path = requireStr(raw, 'path');
   rejectProtectedPath(path);
   if (!EDITABLE_FILE_SUFFIXES.some((s) => path.endsWith(s))) {
@@ -245,7 +263,33 @@ function parseCreateFile(raw) {
       );
     }
   }
-  return new CreateFile(path, content);
+  const indexed = Object.hasOwn(raw, 'indexed') ? raw.indexed : false;
+  if (typeof indexed !== 'boolean') {
+    throw new ValidationError(
+      `Field "indexed" must be a boolean, got ${jsType(indexed)}`,
+      'OP_WRONG_FIELD_TYPE',
+    );
+  }
+  const scope = Object.hasOwn(raw, 'scope') ? raw.scope : null;
+  if (scope !== null && typeof scope !== 'string') {
+    throw new ValidationError(
+      `Field "scope" must be a string or null, got ${jsType(scope)}`,
+      'OP_WRONG_FIELD_TYPE',
+    );
+  }
+  if (indexed && !scope) {
+    throw new ValidationError(
+      "create_file: 'scope' must be a non-empty string when 'indexed' is true",
+      'CREATE_FILE_BAD_INDEXED_SCOPE',
+    );
+  }
+  if (!indexed && scope !== null) {
+    throw new ValidationError(
+      "create_file: 'scope' must be null when 'indexed' is false",
+      'CREATE_FILE_BAD_INDEXED_SCOPE',
+    );
+  }
+  return new CreateFile(path, content, indexed, scope);
 }
 
 function parseDeletePath(raw) {

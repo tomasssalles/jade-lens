@@ -3,7 +3,10 @@
  * Both suites must agree on every case (cross-client conformance).
  */
 import { describe, it, expect } from 'vitest';
-import { countContentBlocks, isPromotable } from './sidecar.js';
+import {
+  countContentBlocks, isPromotable,
+  pointerToSidecarPath, jsonPathFromSidecar, sidecarPathToPointer,
+} from './sidecar.js';
 
 // ---------------------------------------------------------------------------
 // Cases: 0 or 1 block (not promotable)
@@ -66,5 +69,77 @@ describe('edge cases', () => {
   it('wikilink string parses as a single paragraph (not promotable)', () => {
     expect(countContentBlocks('[[notes.md]]')).toBe(1);
     expect(isPromotable('[[notes.md]]')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b: JSON Pointer ↔ sidecar filepath mapping
+// ---------------------------------------------------------------------------
+
+describe('pointerToSidecarPath', () => {
+  it('simple key', () => {
+    expect(pointerToSidecarPath('Garden.json', '/notes')).toBe('Garden.sidecars/notes.md');
+  });
+  it('nested object path', () => {
+    expect(pointerToSidecarPath('Garden.json', '/phases/research/summary'))
+      .toBe('Garden.sidecars/phases/research/summary.md');
+  });
+  it('array index', () => {
+    expect(pointerToSidecarPath('Garden.json', '/comparisons/0/description'))
+      .toBe('Garden.sidecars/comparisons/0/description.md');
+  });
+  it('subdirectory json', () => {
+    expect(pointerToSidecarPath('a/b/Work.json', '/tasks/2/summary'))
+      .toBe('a/b/Work.sidecars/tasks/2/summary.md');
+  });
+  it('RFC6901 tilde escape', () => {
+    // Key with ~ is escaped as ~0 in pointer, unescaped in filename
+    expect(pointerToSidecarPath('F.json', '/key~0name')).toBe('F.sidecars/key~name.md');
+  });
+  it('throws on pointer without leading slash', () => {
+    expect(() => pointerToSidecarPath('F.json', 'notes')).toThrow();
+  });
+});
+
+describe('jsonPathFromSidecar', () => {
+  it('root level', () => {
+    expect(jsonPathFromSidecar('Garden.sidecars/notes.md')).toBe('Garden.json');
+  });
+  it('nested sidecar', () => {
+    expect(jsonPathFromSidecar('Garden.sidecars/comparisons/0/description.md')).toBe('Garden.json');
+  });
+  it('subdirectory json', () => {
+    expect(jsonPathFromSidecar('a/b/Work.sidecars/tasks/2/summary.md')).toBe('a/b/Work.json');
+  });
+  it('throws when no .sidecars component', () => {
+    expect(() => jsonPathFromSidecar('Garden/notes.md')).toThrow();
+  });
+});
+
+describe('sidecarPathToPointer', () => {
+  it('simple key', () => {
+    const data = { notes: 'some text' };
+    expect(sidecarPathToPointer('Garden.sidecars/notes.md', data)).toBe('/notes');
+  });
+  it('array index', () => {
+    const data = { comparisons: [{ description: 'text' }] };
+    expect(sidecarPathToPointer('Garden.sidecars/comparisons/0/description.md', data))
+      .toBe('/comparisons/0/description');
+  });
+  it('object key "0" treated as string key not array index', () => {
+    const data = { '0': 'value' };
+    expect(sidecarPathToPointer('F.sidecars/0.md', data)).toBe('/0');
+  });
+  it('array index for nested array', () => {
+    const data = { items: [{ name: 'x' }] };
+    expect(sidecarPathToPointer('F.sidecars/items/0/name.md', data)).toBe('/items/0/name');
+  });
+  it('RFC6901 tilde in key is escaped in pointer', () => {
+    const data = { 'key~name': 'value' };
+    expect(sidecarPathToPointer('F.sidecars/key~name.md', data)).toBe('/key~0name');
+  });
+  it('throws on missing key', () => {
+    const data = { other: 'value' };
+    expect(() => sidecarPathToPointer('Garden.sidecars/notes.md', data)).toThrow();
   });
 });

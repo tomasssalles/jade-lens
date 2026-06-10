@@ -37,7 +37,7 @@ function indexItems(contentMap) {
     const result = []
     for (const entry of entries) {
       const path = parseWikilink(entry?.File)
-      if (path) result.push({ path, type: 'blob' })
+      if (path) result.push({ path, type: 'blob', scope: entry.Scope ?? '' })
     }
     return result
   } catch {

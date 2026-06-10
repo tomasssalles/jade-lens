@@ -39,6 +39,52 @@
   flex-shrink: 0;
 }
 
+/* Scope tooltip (desktop hover) */
+.scope-tooltip {
+  position: fixed;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  color: #444;
+  max-width: 220px;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+/* Scope sheet (mobile long-press) */
+.scope-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+}
+
+.scope-sheet {
+  background: #fff;
+  width: 100%;
+  padding: 1.2rem 1rem 1.6rem;
+  border-radius: 12px 12px 0 0;
+}
+
+.scope-sheet-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.scope-sheet-text {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* File content view */
 .file-view {
   display: flex;

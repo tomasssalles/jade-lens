@@ -32,7 +32,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [x] **2a.** Replace the file tree with an index-driven list built from
   `Index.json`. Excludes `Index.json` itself naturally. Should also remove the special handling built into the code for displaying the Index at the top of the file tree. Files not in the index are not
   shown.
-- [ ] **2b.** Show the `Scope` description on hover (desktop tooltip) /
+- [x] **2b.** Show the `Scope` description on hover (desktop tooltip) /
   long-press (mobile sheet) on each file entry.
 
 ---

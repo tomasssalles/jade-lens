@@ -7,3 +7,5 @@
   an empty tree when `Index.json` is absent — no fallback to the raw git tree.
 - Removed the special pinned-and-emphasized display of `Index.json` at the top
   of the file tree.
+- Hovering a file entry (desktop) shows its `Scope` description as a tooltip.
+  Long-pressing (mobile, 500 ms) shows it in a bottom sheet.

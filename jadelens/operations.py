@@ -135,29 +135,6 @@ class CreateFile:
             )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(self.content)
-        if self.indexed:
-            _append_index_entry(data_repo, self.path, self.scope)  # type: ignore[arg-type]
-
-
-def _append_index_entry(data_repo: Path, path: str, scope: str) -> None:
-    """Append {"File": "[[<path>]]", "Scope": "<scope>"} to Index.json.
-
-    Creates Index.json if absent. If the file exists but is malformed
-    (not a JSON array), treats it as empty.
-    """
-    index_path = data_repo / "Index.json"
-    normalized = str(PurePosixPath(path))
-    entry = {"File": f"[[{normalized}]]", "Scope": scope}
-    if index_path.exists():
-        try:
-            parsed = json.loads(index_path.read_text())
-            entries: list = parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError:
-            entries = []
-    else:
-        entries = []
-    entries.append(entry)
-    index_path.write_text(dumps_js_canonical(entries))
 
 
 @dataclass(slots=True, frozen=True)

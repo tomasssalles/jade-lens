@@ -48,24 +48,7 @@ export class CreateFile {
       throw new ApplyError(`create_file: target already exists: ${this.path}`, 'TARGET_EXISTS');
     }
     tree.set(key, this.content);
-    if (this.indexed) {
-      _appendIndexEntry(tree, this.path, this.scope);
-    }
   }
-}
-
-function _appendIndexEntry(tree, path, scope) {
-  const normalized = normpath(path);
-  const entry = { File: `[[${normalized}]]`, Scope: scope };
-  let entries = [];
-  if (tree.has('Index.json')) {
-    try {
-      const parsed = JSON.parse(tree.get('Index.json'));
-      if (Array.isArray(parsed)) entries = parsed;
-    } catch { /* treat malformed as empty */ }
-  }
-  entries.push(entry);
-  tree.set('Index.json', JSON.stringify(entries, null, 2) + '\n');
 }
 
 export class DeletePath {

@@ -73,12 +73,36 @@ The batch is applied as a single transaction (`workflow.run`):
    / value mismatches.
 4. **Post-apply wikilink pass** ([wikilinks.md](wikilinks.md)) — rename-rewrites and
    delete-reference checks run once, against the end-state.
-5. **One log entry + one git commit** ([audit-and-correction.md](audit-and-correction.md)).
+5. **Post-apply index pass** — for every `create_file` with `indexed: true`, the
+   runtime appends `{"File": "[[<path>]]", "Scope": "<scope>"}` to `Index.json`.
+   Creating `Index.json` if absent.
+6. **One log entry + one git commit** ([audit-and-correction.md](audit-and-correction.md)).
 
 **Atomicity:** if any step fails, the whole batch is reverted (`git reset --hard
 HEAD && git clean -fd`) and reported as a single failure — no partial application
 ever lands. The repo is left exactly as it was, so the bot can simply retry with a
 corrected batch.
+
+## Design invariant: operations are pure
+
+The five operation types (`json_patch`, `unified_diff`, `create_file`,
+`delete_path`, `rename_path`) are **stable and pure**: each `apply` method
+performs exactly and only the structural change the operation names. No hidden
+side effects, no version-gated logic, no secondary writes.
+
+This matters for the operations log: every log entry is fully self-describing —
+you can read what happened from the operations alone, without knowing which CLI
+version wrote them. Operations written years apart are directly comparable.
+
+Runtime automations (wikilink rewrites on rename, index-entry creation on
+`create_file`, and any future additions like sidecar promotion) live in **post-apply
+passes** that run after all ops have been applied. They appear in the skill
+documentation as system behaviour but do NOT appear in the operations log — the
+log records only what the bot explicitly requested.
+
+**Corollary:** when adding automation in the future, the question is not "which op
+should trigger this?" but "which post-apply pass should own it?" The five ops
+themselves should not grow new side effects.
 
 ## One pipeline, two clients, byte-identical
 

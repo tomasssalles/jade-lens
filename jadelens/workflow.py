@@ -16,10 +16,11 @@ Pulls together the per-op apply logic into a single atomic transaction:
    commits everything with the bot's commit message. Returns the new SHA.
 """
 
+import json
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from jadelens import __supported_data_format_version__
 from jadelens.operations import (
@@ -31,6 +32,7 @@ from jadelens.operations import (
     Operation,
     RenamePath,
     UnifiedDiff,
+    dumps_js_canonical,
     dumps_js_canonical_compact,
     parse_operation,
 )
@@ -293,12 +295,49 @@ def run(
         for op in effective:
             op.apply(data_repo)
         _post_apply_wikilink_pass(data_repo, effective)
+        _post_apply_index_pass(data_repo, effective)
         timestamp = datetime.now(timezone.utc).isoformat()
         append_log_entry(data_repo, raw_operations, commit_message, timestamp)
         return git_commit(data_repo, commit_message)
     except Exception:
         revert(data_repo)
         raise
+
+
+def _post_apply_index_pass(data_repo: Path, operations: list[Operation]) -> None:
+    """Run after every op and the wikilink pass have completed.
+
+    For each ``create_file`` op that has ``indexed=True``, append an entry to
+    ``Index.json``. Running this as a post-apply pass (rather than inside
+    ``CreateFile.apply``) keeps the five operation types pure: their
+    ``apply`` methods only perform the single structural change described by
+    the operation. Runtime automations like this one happen here, after all
+    ops have landed, and are therefore never recorded in the operations log.
+    """
+    for op in operations:
+        if isinstance(op, CreateFile) and op.indexed:
+            _append_index_entry(data_repo, op.path, op.scope)  # type: ignore[arg-type]
+
+
+def _append_index_entry(data_repo: Path, path: str, scope: str) -> None:
+    """Append ``{"File": "[[<path>]]", "Scope": "<scope>"}`` to ``Index.json``.
+
+    Creates ``Index.json`` if absent. If the file exists but is not a JSON
+    array, treats it as empty (defensive; should not occur in a healthy repo).
+    """
+    index_path = data_repo / "Index.json"
+    normalized = str(PurePosixPath(path))
+    entry = {"File": f"[[{normalized}]]", "Scope": scope}
+    if index_path.exists():
+        try:
+            parsed = json.loads(index_path.read_text())
+            entries: list = parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            entries = []
+    else:
+        entries = []
+    entries.append(entry)
+    index_path.write_text(dumps_js_canonical(entries))
 
 
 def _post_apply_wikilink_pass(data_repo: Path, operations: list[Operation]) -> None:

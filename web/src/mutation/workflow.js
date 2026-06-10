@@ -17,6 +17,7 @@ import {
   parseOperation,
 } from "./operations.js";
 import { findReferences, rewriteReferencesUnder } from "./wikilinks.js";
+import { normpath } from "./posixPath.js";
 
 // ---------- Batch validation ----------
 
@@ -129,6 +130,30 @@ function appendLogEntry(tree, rawOperations, commitMessage, timestamp) {
   tree.set(logPath, existing + JSON.stringify(entry) + "\n");
 }
 
+// ---------- Post-apply index pass ----------
+
+function appendIndexEntry(tree, path, scope) {
+  const normalized = normpath(path);
+  const entry = { File: `[[${normalized}]]`, Scope: scope };
+  let entries = [];
+  if (tree.has('Index.json')) {
+    try {
+      const parsed = JSON.parse(tree.get('Index.json'));
+      if (Array.isArray(parsed)) entries = parsed;
+    } catch { /* treat malformed as empty */ }
+  }
+  entries.push(entry);
+  tree.set('Index.json', JSON.stringify(entries, null, 2) + '\n');
+}
+
+function postApplyIndexPass(tree, operations) {
+  for (const op of operations) {
+    if (op instanceof CreateFile && op.indexed) {
+      appendIndexEntry(tree, op.path, op.scope);
+    }
+  }
+}
+
 // ---------- Post-apply wikilink pass ----------
 
 function postApplyWikilinkPass(tree, operations) {
@@ -176,6 +201,7 @@ export function run(tree, rawOperations, commitMessage, opts = {}) {
   const work = new Map(tree); // values are immutable strings; shallow clone is safe
   for (const op of effective) op.apply(work);
   postApplyWikilinkPass(work, effective);
+  postApplyIndexPass(work, effective);
 
   const timestamp = opts.timestamp ?? new Date().toISOString();
   appendLogEntry(work, rawOperations, commitMessage, timestamp);

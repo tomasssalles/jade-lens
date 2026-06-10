@@ -475,6 +475,43 @@ function postApplySidecarPropagationPass(tree, operations) {
       }
     }
 
+    // 6c: json_patch move ops also move their sidecar subtrees
+    if (op instanceof JsonPatch) {
+      for (const patchOp of op.patch) {
+        if (patchOp.op !== 'move') continue;
+        const fromPtr = patchOp.from ?? '';
+        const toPtr = patchOp.path ?? '';
+        if (!fromPtr.startsWith('/') || !toPtr.startsWith('/')) continue;
+        if (fromPtr.slice(1).split('/').includes('-') ||
+            toPtr.slice(1).split('/').includes('-')) continue;
+        let fromSidecar, toSidecar;
+        try {
+          fromSidecar = pointerToSidecarPath(op.path, fromPtr);
+          toSidecar = pointerToSidecarPath(op.path, toPtr);
+        } catch { continue; }
+        if (fromSidecar === toSidecar) continue;
+        const fromBase = fromSidecar.slice(0, -3); // strip .md
+        const toBase = toSidecar.slice(0, -3);
+        // Move the .md sidecar file (overwrite target if it exists)
+        if (tree.has(fromSidecar)) {
+          tree.set(toSidecar, tree.get(fromSidecar));
+          tree.delete(fromSidecar);
+          rewriteReferencesUnder(tree, fromSidecar, toSidecar);
+        }
+        // Move nested sidecar subtree (object/array fields)
+        const fromDir = fromBase + '/';
+        const toDir = toBase + '/';
+        const subKeys = [...tree.keys()].filter((k) => k.startsWith(fromDir));
+        if (subKeys.length > 0) {
+          for (const k of subKeys) {
+            tree.set(toDir + k.slice(fromDir.length), tree.get(k));
+            tree.delete(k);
+          }
+          rewriteReferencesUnder(tree, fromBase, toBase);
+        }
+      }
+    }
+
     // 6a: rename_path on .json also renames its .sidecars/ directory
     if (op instanceof RenamePath && op.fromPath.endsWith('.json')) {
       const fromSidecarDir = sidecarDirForJson(op.fromPath);

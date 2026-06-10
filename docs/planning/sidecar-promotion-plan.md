@@ -113,7 +113,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   (if it exists). Sidecar wikilinks are forbidden outside their owner field, so
   no wikilink reference check can block this. *Partial skill update: deleting a
   JSON file also deletes its sidecars — no need to do this manually.*
-- [ ] **6c.** RFC 6902 `move` op within a `json_patch`: if the source path has
+- [x] **6c.** RFC 6902 `move` op within a `json_patch`: if the source path has
   a sidecar subtree in `.sidecars/`, rename that subtree to match the
   destination path. *Partial skill update: moving a JSON field also moves its
   sidecars — no need to do this manually.*

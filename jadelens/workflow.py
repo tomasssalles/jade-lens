@@ -443,6 +443,9 @@ def _post_apply_sidecar_propagation_pass(
     6b: When delete_path deletes <stem>.json, also delete <stem>.sidecars/
         (if it exists). Sidecar wikilinks are forbidden outside the owning
         field, so no dangling reference can block this.
+    6c: When a json_patch contains a ``move`` sub-op, rename the sidecar
+        file (and any nested sidecar subtree) from the source pointer's
+        path to the destination pointer's path.
     """
     for op in operations:
         # 6b
@@ -479,6 +482,58 @@ def _post_apply_sidecar_propagation_pass(
                     f"{to_sidecar_dir!r}: {e.stderr.strip()}"
                 ) from e
             rewrite_references_under(data_repo, from_sidecar_dir, to_sidecar_dir)
+
+        # 6c
+        if isinstance(op, JsonPatch):
+            for patch_op in op.patch:
+                if patch_op.get("op") != "move":
+                    continue
+                from_ptr = patch_op.get("from", "")
+                to_ptr = patch_op.get("path", "")
+                if not from_ptr.startswith("/") or not to_ptr.startswith("/"):
+                    continue
+                # Skip /-: array-append is undefined as a move source/target
+                if "-" in from_ptr[1:].split("/") or "-" in to_ptr[1:].split("/"):
+                    continue
+                try:
+                    from_sidecar = pointer_to_sidecar_path(op.path, from_ptr)
+                    to_sidecar = pointer_to_sidecar_path(op.path, to_ptr)
+                except ValueError:
+                    continue
+                if from_sidecar == to_sidecar:
+                    continue
+                from_base = from_sidecar[:-3]  # strip .md suffix
+                to_base = to_sidecar[:-3]
+                # Move the .md sidecar file (--force handles existing target)
+                if (data_repo / from_sidecar).is_file():
+                    (data_repo / to_sidecar).parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        subprocess.run(
+                            ["git", "-C", str(data_repo), "mv", "--force", "--",
+                             from_sidecar, to_sidecar],
+                            capture_output=True, text=True, check=True,
+                        )
+                    except subprocess.CalledProcessError as e:
+                        raise ApplyError(
+                            f"Failed to move sidecar {from_sidecar!r} → "
+                            f"{to_sidecar!r}: {e.stderr.strip()}"
+                        ) from e
+                    rewrite_references_under(data_repo, from_sidecar, to_sidecar)
+                # Move nested sidecar subtree (object/array fields)
+                if (data_repo / from_base).is_dir() and not (data_repo / to_base).exists():
+                    (data_repo / to_base).parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        subprocess.run(
+                            ["git", "-C", str(data_repo), "mv", "--",
+                             from_base, to_base],
+                            capture_output=True, text=True, check=True,
+                        )
+                    except subprocess.CalledProcessError as e:
+                        raise ApplyError(
+                            f"Failed to move sidecar subtree {from_base!r} → "
+                            f"{to_base!r}: {e.stderr.strip()}"
+                        ) from e
+                    rewrite_references_under(data_repo, from_base, to_base)
 
 
 def _post_apply_index_pass(data_repo: Path, operations: list[Operation]) -> None:

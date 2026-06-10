@@ -1,0 +1,31 @@
+{
+  "name": "json_patch move op also renames its sidecar file",
+  "description": "6c: When a json_patch contains a move sub-op, the sidecar file at the source pointer path is renamed to match the destination pointer path, and all wikilinks are updated.",
+  "before": {
+    "Garden.json": "{\n  \"notes\": \"[[Garden.sidecars/notes.md]]\"\n}\n",
+    "Garden.sidecars/notes.md": "Para one.\n\nPara two.\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n"
+  },
+  "commit_message": "Rename notes field to summary",
+  "operations": [
+    {
+      "op": "json_patch",
+      "path": "Garden.json",
+      "patch": [
+        {
+          "op": "move",
+          "from": "/notes",
+          "path": "/summary"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "after": {
+      "Garden.json": "{\n  \"summary\": \"[[Garden.sidecars/summary.md]]\"\n}\n",
+      "Garden.sidecars/summary.md": "Para one.\n\nPara two.\n",
+      "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
+      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename notes field to summary\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"move\", \"from\": \"/notes\", \"path\": \"/summary\"}]}]}\n"
+    }
+  }
+}

@@ -16,9 +16,7 @@ This is a to-do list, not JIRA. Keep it light.
 
 ## Contents
 
-- [Inline-vs-sidecar promotion](#inline-vs-sidecar-promotion)
 - [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
-- [Seed version tracks and changelog layout](#seed-version-tracks-and-changelog-layout)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Versioning and version comparison](#versioning-and-version-comparison)
 - [Update tool](#update-tool)
@@ -32,43 +30,11 @@ This is a to-do list, not JIRA. Keep it light.
 - [Date/time localization and travel behavior](#datetime-localization-and-travel-behavior)
 - [Raw JSON structural editor](#raw-json-structural-editor)
 - [Create file](#create-file)
-- [Index-driven navigation](#index-driven-navigation)
 - [Search and filter](#search-and-filter)
-- [Data-repo bootstrap](#data-repo-bootstrap)
 - [Onboarding an existing data repo on a new device](#onboarding-an-existing-data-repo-on-a-new-device)
 - [Codex compatibility](#codex-compatibility)
 - [Credential storage and trust](#credential-storage-and-trust)
 - [Bot in the web app](#bot-in-the-web-app)
-
----
-
-## Inline-vs-sidecar promotion
-
-**Scope:** pipeline (web + /jade).
-
-Runtime auto-migrates an inline JSON string into a `.md` sidecar + a wikilink when
-it grows (≥3 lines, or markdown-structured), per DESIGN §4.4. Lives in the shared
-mutation pipeline (`jadelens/` + `web/src/mutation/`), so it must be
-byte-identical across clients and needs new `conformance/cases/`. Reuses the
-existing wikilink post-pass for references. Forward-only (hysteresis: a sidecar
-that shrinks stays a file). Auto-promoted sidecars are **not** indexed; the manual
-`create_file` path stays for content that deserves a primary-file slot.
-
-Good first build for the cloud env — pure logic, fully conformance-testable, no
-browser. Also sets up a natural first migration (retroactively promoting existing
-oversized inline strings — see Data migration framework).
-
-**Blockers:** none — but lock the design first (open questions below).
-
-**Open questions:**
-- Filename convention (§4.5): confirm the sidecar-directory shape
-  (`projects/leasing.json` → `projects/leasing/<key>.md`); how nested key-paths
-  and name collisions map.
-- Exact triggers, precise enough for byte-parity: the "≥3 lines" counting rule;
-  the markdown-marker set (headings / list bullets / fenced code / multi-paragraph)
-  as concrete regexes.
-- Scope guards: only inline strings via `json_patch` add/replace; never re-promote
-  a value that's already a wikilink; unified diffs to existing `.md` pass through.
 
 ---
 
@@ -80,6 +46,11 @@ Currently, post-apply passes (wikilink rewrites on `rename_path`, index-entry
 appending on `create_file` with `indexed: true`, and any future automations) are
 invisible: they don't appear in the `jadelens apply` output and aren't recorded in
 the operations log. Only the bot's original operations appear in both places.
+
+The situation is also inconsistent: sidecar promotions (5e) *are* reported in the
+apply output, while the other automations above are not. So the current state is
+partially transparent — worse in some ways than full opacity, because it's hard to
+reason about which automations are visible and which aren't.
 
 This is a transparency gap in both directions:
 
@@ -110,27 +81,6 @@ is permanent.
   bot to re-query state when it needs to know? (Contrast: the wikilink rewrite is
   unlikely to affect a subsequent op in the same session; the index append might
   matter if the bot queries the index soon after.)
-
----
-
-## Seed version tracks and changelog layout
-
-**Scope:** cross-cutting / housekeeping.
-
-Adopt the three-track versioning system (`docs/versioning.md`): set the initial
-Python-tooling and web-app semver versions, set `.jade/version` to an integer, and
-split the current flat `changelogs/v0.1.0.md` into the per-track layout
-(`changelogs/{python,web,data}/`). This supersedes the old "expand v0.1.0 vs. cut
-v0.2.0" question — with three independent tracks there's no single "the version" to
-bump. Phases 1–4 already shipped behavior beyond what the flat v0.1.0 changelog
-scopes, so the split also reconciles the record with reality.
-
-**Blockers:** none. (Mostly a docs/changelog reorganization; the live version
-*checks* are the Versioning item.)
-
-**Open questions:**
-- Starting numbers for each track (py/web semver; data `1`).
-- How to map the existing `changelogs/v0.1.0.md` content across the three tracks.
 
 ---
 
@@ -406,27 +356,6 @@ created by opening an editor on it.
 
 ---
 
-## Index-driven navigation
-
-**Scope:** web.
-
-Use `Index.json` as the UI's table of contents (DESIGN §9.3): primary files grouped
-by the index's groupings, records expandable, sidecar wikilinks followable —
-instead of the current raw file tree, which won't scale as the data grows. The bot
-maintains the index; the UI just reads it.
-
-**Blockers:** none. (The index already exists as data; this is UI. Needs a browser
-to verify.)
-
-**Open questions:**
-- Replace the raw file tree, or offer both (index view + a "show all files"
-  fallback)?
-- How orphan files (present but not in the index) are surfaced.
-- Confirm how groupings/ordering are expressed in `Index.json` (§4.6) and how much
-  the UI should infer.
-
----
-
 ## Search and filter
 
 **Scope:** web.
@@ -441,26 +370,6 @@ content authority), likely spanning filenames, content, and index descriptions.
 - Search scope: filenames only, full content, index descriptions/tags?
 - Presentation: filter the navigation in place, or a separate results list?
 - Substring vs. fuzzy matching.
-
----
-
-## Data-repo bootstrap
-
-**Scope:** /jade (CLI tooling).
-
-A `jadelens init <data-repo>` console command that scaffolds the bootstrap files
-that are manual today (`changelogs/v0.1.0.md` parks this; see
-`docs/data-repo-setup.md`): `.jade/config.json`, `Index.json`, `.gitignore`,
-`.claude/settings.json`, `.claude/hooks/session-start`. Removes hand-assembly so
-onboarding isn't error-prone — worth having before the app reaches more people (or
-the bot).
-
-**Blockers:** none.
-
-**Open questions:**
-- Interactive prompts (user names, assistant name, repo URL) vs. flags.
-- Whether it also `git init`s and makes the first commit.
-- Idempotency: refuse / merge when run on a dir that already has `.jade/`.
 
 ---
 

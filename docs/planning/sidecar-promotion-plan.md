@@ -53,19 +53,19 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 4 — End-of-apply enforcement (index and integrity)
 
-- [ ] **4a.** Enforce `Index.json` format: must be a JSON array; each entry is
+- [x] **4a.** Enforce `Index.json` format: must be a JSON array; each entry is
   an object with at minimum `File` (string) and `Scope` (string); `File` must
   be a wikilink of the form `[[<path>]]`. `Scope` must be non-empty. Additional annotation keys are
   permitted.
-- [ ] **4b.** Enforce: no file-stem / directory-name collision in the same
+- [x] **4b.** Enforce: no file-stem / directory-name collision in the same
   parent directory anywhere in the repo (general rule, not sidecar-specific).
-- [ ] **4c.** Enforce: `Index.json` entries have no duplicate `File` values.
-- [ ] **4d.** Enforce: every file has an index entry. Excluded are obviously dot-files at the root level, files (recursively) inside dot-dirs at the root level, and CLAUDE.md. Excluded files not only _don't have to be_ in the index, but actually _cannot be_ in the index. (Later we'll add sidecars to the exclusion list.)
-- [ ] **4e.** Enforce: every wikilink in every file in the repo resolves to an
+- [x] **4c.** Enforce: `Index.json` entries have no duplicate `File` values.
+- [x] **4d.** Enforce: every file has an index entry. Excluded are obviously dot-files at the root level, files (recursively) inside dot-dirs at the root level, and CLAUDE.md. Excluded files not only _don't have to be_ in the index, but actually _cannot be_ in the index. (Later we'll add sidecars to the exclusion list.)
+- [x] **4e.** Enforce: every wikilink in every file in the repo resolves to an
   existing file. *Note: once this is in place, the existing `delete_path`
   dangling-reference check becomes redundant (the integrity scan covers it) and
   can be removed.*
-- [ ] **4f.** Update skill: never create a file whose stem matches an existing
+- [x] **4f.** Update skill: never create a file whose stem matches an existing
   directory name in the same parent (or vice-versa); never use forbidden
   characters (`/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, null byte) in
   filenames, directory names, or JSON object keys.

@@ -34,6 +34,18 @@ from jadelens.operations import EDITABLE_FILE_SUFFIXES
 WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
+def find_dead_wikilinks(data_repo: Path) -> list[tuple[Path, str]]:
+    """Return ``(file, link_path)`` for every wikilink that points to a
+    nonexistent file in the data repo."""
+    dead: list[tuple[Path, str]] = []
+    for f in _scannable_files(data_repo):
+        for link_path in WIKILINK_RE.findall(f.read_text()):
+            target = data_repo / link_path
+            if not target.exists():
+                dead.append((f, link_path))
+    return dead
+
+
 def find_references(data_repo: Path, target: str) -> list[tuple[Path, str]]:
     """Return every wikilink pointing to ``target`` or anything under it.
 

@@ -80,6 +80,17 @@ export function rewriteReferencesUnder(tree, fromPath, toPath) {
   return modified;
 }
 
+/** Return [file, linkPath] pairs for every wikilink that resolves to a nonexistent file. */
+export function findDeadWikilinks(tree) {
+  const dead = [];
+  for (const path of scannableFiles(tree)) {
+    for (const linkPath of wikilinkPaths(tree.get(path))) {
+      if (!tree.has(normpath(linkPath))) dead.push([path, linkPath]);
+    }
+  }
+  return dead;
+}
+
 /** Return every wikilink pointing at `target` or anything under it. */
 export function findReferences(tree, target) {
   const refs = [];

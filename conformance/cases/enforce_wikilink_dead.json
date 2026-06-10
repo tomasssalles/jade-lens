@@ -1,0 +1,14 @@
+{
+  "name": "enforcement rejects a batch that leaves a dead wikilink in a pre-existing file",
+  "description": "Hub.md has [[ghost.md]] which does not exist; an unrelated json_patch on data.json triggers enforcement.",
+  "before": {
+    "Hub.md": "See [[ghost.md]] for details.\n",
+    "data.json": "{}\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[Hub.md]]\",\n    \"Scope\": \"Hub\"\n  },\n  {\n    \"File\": \"[[data.json]]\",\n    \"Scope\": \"Data\"\n  }\n]\n"
+  },
+  "commit_message": "Patch data",
+  "operations": [
+    { "op": "json_patch", "path": "data.json", "patch": [{ "op": "add", "path": "/key", "value": "val" }] }
+  ],
+  "expect": { "error": "WIKILINK_DEAD" }
+}

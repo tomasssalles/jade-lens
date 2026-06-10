@@ -1,6 +1,6 @@
 {
   "name": "delete rejected when a wikilink still points at the deleted path",
-  "description": "After the batch, Hub.md still references [[old.md]], so the batch fails and reverts.",
+  "description": "After the batch, Hub.md still references [[old.md]], so the enforcement pass fails and the batch reverts.",
   "before": {
     "Hub.md": "See [[old.md]] for details.\n",
     "old.md": "# Old\n"
@@ -8,5 +8,5 @@
   "operations": [
     { "op": "delete_path", "path": "old.md" }
   ],
-  "expect": { "error": "DELETE_DANGLING_WIKILINK" }
+  "expect": { "error": "WIKILINK_DEAD" }
 }

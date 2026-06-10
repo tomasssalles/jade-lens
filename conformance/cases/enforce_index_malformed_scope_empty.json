@@ -1,0 +1,12 @@
+{
+  "name": "enforcement rejects Index.json entry with empty Scope",
+  "before": {
+    "notes.md": "# notes\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"\"\n  }\n]\n"
+  },
+  "commit_message": "Patch data",
+  "operations": [
+    { "op": "unified_diff", "path": "notes.md", "diff": "@@ -1 +1 @@\n-# notes\n+# updated notes\n" }
+  ],
+  "expect": { "error": "INDEX_MALFORMED" }
+}

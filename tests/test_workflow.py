@@ -488,6 +488,7 @@ def test_rename_then_explicit_diff_clobbers_auto_rewrite(data_repo: Path):
     explicit rewrite is honoured and the auto-rewrite doesn't trample it."""
     (data_repo / "old.md").write_text("# original\n")
     (data_repo / "ref.md").write_text("see [[old.md]] for details\n")
+    (data_repo / "something_else.md").write_text("# something else\n")
     commit(data_repo)
     workflow.run(
         data_repo,
@@ -516,7 +517,7 @@ def test_delete_rejects_when_external_references_remain(data_repo: Path):
     (data_repo / "doomed.md").write_text("# delete me\n")
     (data_repo / "ref.md").write_text("see [[doomed.md]] still here\n")
     commit(data_repo)
-    with pytest.raises(ApplyError, match="still referenced by wikilinks"):
+    with pytest.raises(ApplyError, match="nonexistent"):
         workflow.run(
             data_repo,
             [{"op": "delete_path", "path": "doomed.md"}],
@@ -558,7 +559,7 @@ def test_delete_rejects_when_new_file_references_deleted(data_repo: Path):
     later op of the same batch — the scan catches it at the end."""
     (data_repo / "doomed.md").write_text("# delete me\n")
     commit(data_repo)
-    with pytest.raises(ApplyError, match="still referenced by wikilinks"):
+    with pytest.raises(ApplyError, match="nonexistent"):
         workflow.run(
             data_repo,
             [

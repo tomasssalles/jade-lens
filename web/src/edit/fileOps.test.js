@@ -54,7 +54,7 @@ describe('buildDelete', () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown?.code).toBe('DELETE_DANGLING_WIKILINK');
+    expect(thrown?.code).toBe('WIKILINK_DEAD');
     const msg = describeDeleteRejection(thrown);
     expect(msg).toContain('notes.md');
     expect(msg).toContain('other.md');
@@ -70,7 +70,7 @@ describe('describeDeleteRejection', () => {
   });
 
   it('dedupes multiple links from the same file', () => {
-    const err = { code: 'DELETE_DANGLING_WIKILINK', references: [['a.md', 'x'], ['a.md', 'x/y']] };
+    const err = { code: 'WIKILINK_DEAD', references: [['a.md', 'x'], ['a.md', 'x/y']] };
     const msg = describeDeleteRejection(err);
     expect(msg).toContain('1 file:');
     expect(msg).toContain('a.md');

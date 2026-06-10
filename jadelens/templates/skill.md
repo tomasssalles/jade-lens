@@ -47,6 +47,11 @@ Directory names, file names, and JSON keys are part of the user-facing experienc
 
 Capitalise the way you would in a short heading or label: title-case for top-level section names (directories, top-level keys), sentence-case for more descriptive sub-fields.
 
+Two hard constraints the runtime enforces at the end of every `apply`:
+
+- **No stem/directory collision.** A file `Foo.json` and a directory `Foo/` in the same parent confuse the UI (which strips extensions). Never create a file whose name-without-extension matches an existing directory name in the same parent, or vice-versa. (`Foo.json` and `Foo.sidecars/` are fine — `.sidecars` distinguishes the directory name.)
+- **No forbidden characters** in file names, directory names, or JSON object keys: `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, or the null byte. These break filesystem portability and sidecar path mapping.
+
 ## Dates and times
 
 Store all dates and datetimes as ISO 8601 strings in JSON.

@@ -16,7 +16,8 @@ import {
   UnifiedDiff,
   parseOperation,
 } from "./operations.js";
-import { findReferences, rewriteReferencesUnder } from "./wikilinks.js";
+import { findDeadWikilinks, rewriteReferencesUnder } from "./wikilinks.js";
+import { makeIgnoreMatcher } from "./gitignore.js";
 import { normpath } from "./posixPath.js";
 
 // ---------- Batch validation ----------
@@ -162,22 +163,164 @@ function postApplyWikilinkPass(tree, operations) {
       rewriteReferencesUnder(tree, op.fromPath, op.toPath);
     }
   }
-  for (const op of operations) {
-    if (op instanceof DeletePath) {
-      const refs = findReferences(tree, op.path);
-      if (refs.length) {
-        const detail = refs.map(([f, p]) => `${f}: [[${p}]]`).join("; ");
-        const err = new ApplyError(
-          `delete_path: ${JSON.stringify(op.path)} is still referenced by wikilinks after the batch completed — ` +
-            `clean these up in the same batch:\n  ${detail}`,
-          "DELETE_DANGLING_WIKILINK",
+  // Dead-wikilink checking (including after deletes) is handled by
+  // the subsequent enforcement pass.
+}
+
+// ---------- Post-apply enforcement pass ----------
+
+const INDEX_ENTRY_WIKILINK_RE = /^\[\[(.+)\]\]$/;
+const INDEX_EXCLUDED_PATHS = new Set(['Index.json', 'CLAUDE.md']);
+
+function fileStem(filename) {
+  const dot = filename.lastIndexOf('.');
+  return dot > 0 ? filename.slice(0, dot) : filename;
+}
+
+function userFiles(tree) {
+  const ig = makeIgnoreMatcher(tree.get('.gitignore'));
+  const files = [];
+  for (const path of tree.keys()) {
+    if (path.split('/')[0].startsWith('.')) continue;
+    if (!path.endsWith('.json') && !path.endsWith('.md')) continue;
+    if (ig.ignores(path)) continue;
+    files.push(path);
+  }
+  return files;
+}
+
+function enforceIndexFormat(tree) {
+  if (!tree.has('Index.json')) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(tree.get('Index.json'));
+  } catch (e) {
+    throw new ApplyError(`Index.json is not valid JSON: ${e.message}`, 'INDEX_MALFORMED');
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ApplyError('Index.json must be a JSON array', 'INDEX_MALFORMED');
+  }
+  for (let i = 0; i < parsed.length; i++) {
+    const entry = parsed[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new ApplyError(`Index.json entry ${i} is not an object`, 'INDEX_MALFORMED');
+    }
+    const fileVal = entry.File;
+    if (typeof fileVal !== 'string') {
+      throw new ApplyError(`Index.json entry ${i}: 'File' must be a string`, 'INDEX_MALFORMED');
+    }
+    const m = INDEX_ENTRY_WIKILINK_RE.exec(fileVal);
+    if (!m) {
+      throw new ApplyError(
+        `Index.json entry ${i}: 'File' must be a wikilink [[...]], got ${JSON.stringify(fileVal)}`,
+        'INDEX_MALFORMED',
+      );
+    }
+    const linkedPath = m[1];
+    if (linkedPath.split('/')[0].startsWith('.')) {
+      throw new ApplyError(
+        `Index.json entry ${i}: 'File' ${JSON.stringify(fileVal)} references a protected path; excluded paths cannot be indexed`,
+        'INDEX_MALFORMED',
+      );
+    }
+    if (INDEX_EXCLUDED_PATHS.has(linkedPath)) {
+      throw new ApplyError(
+        `Index.json entry ${i}: 'File' ${JSON.stringify(fileVal)} is not allowed in the index`,
+        'INDEX_MALFORMED',
+      );
+    }
+    const scopeVal = entry.Scope;
+    if (typeof scopeVal !== 'string' || !scopeVal.trim()) {
+      throw new ApplyError(
+        `Index.json entry ${i}: 'Scope' must be a non-empty string`,
+        'INDEX_MALFORMED',
+      );
+    }
+  }
+  return parsed;
+}
+
+function enforceIndexNoDuplicates(entries) {
+  const seen = new Set();
+  for (const entry of entries) {
+    const fileVal = entry.File;
+    if (seen.has(fileVal)) {
+      throw new ApplyError(
+        `Index.json has duplicate File entry: ${JSON.stringify(fileVal)}`,
+        'INDEX_DUPLICATE_FILE',
+      );
+    }
+    seen.add(fileVal);
+  }
+}
+
+function enforceIndexCompleteness(files, entries) {
+  const indexedPaths = new Set(
+    entries.map((e) => normpath(INDEX_ENTRY_WIKILINK_RE.exec(e.File)[1])),
+  );
+  for (const path of files) {
+    const p = normpath(path);
+    if (INDEX_EXCLUDED_PATHS.has(p)) continue;
+    if (!indexedPaths.has(p)) {
+      throw new ApplyError(
+        `File ${JSON.stringify(path)} is not listed in Index.json`,
+        'INDEX_MISSING_ENTRY',
+      );
+    }
+  }
+}
+
+function enforceNoStemDirCollision(files) {
+  const parentFileStems = new Map(); // parent -> Set of file stems
+  const parentDirNames = new Map();  // parent -> Set of subdir names
+
+  const addToMap = (map, key, val) => {
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key).add(val);
+  };
+
+  for (const path of files) {
+    const parts = path.split('/');
+    const filename = parts[parts.length - 1];
+    const parent = parts.length > 1 ? parts.slice(0, -1).join('/') : '.';
+    addToMap(parentFileStems, parent, fileStem(filename));
+    for (let i = 0; i < parts.length - 1; i++) {
+      const grandparent = i > 0 ? parts.slice(0, i).join('/') : '.';
+      addToMap(parentDirNames, grandparent, parts[i]);
+    }
+  }
+
+  for (const [parent, stems] of parentFileStems) {
+    const dirs = parentDirNames.get(parent);
+    if (!dirs) continue;
+    for (const stem of stems) {
+      if (dirs.has(stem)) {
+        throw new ApplyError(
+          `File stem collides with directory name in ${JSON.stringify(parent)}: ${JSON.stringify(stem)}`,
+          'STEM_DIR_COLLISION',
         );
-        // Structured referrer list for UI surfacing ([file, linkPath] pairs).
-        // Doesn't affect the conformance-checked `code`.
-        err.references = refs;
-        throw err;
       }
     }
+  }
+}
+
+function postApplyEnforcementPass(tree) {
+  const files = userFiles(tree);
+  const indexEntries = enforceIndexFormat(tree);
+  if (indexEntries !== null) {
+    enforceIndexNoDuplicates(indexEntries);
+    enforceIndexCompleteness(files, indexEntries);
+  }
+  enforceNoStemDirCollision(files);
+  const dead = findDeadWikilinks(tree);
+  if (dead.length) {
+    const detail = dead.map(([f, p]) => `${f}: [[${p}]]`).join('; ');
+    const err = new ApplyError(
+      `Wikilinks resolve to nonexistent files:\n  ${detail}`,
+      'WIKILINK_DEAD',
+    );
+    err.references = dead; // structured list for UI surfacing ([file, linkPath] pairs)
+    throw err;
   }
 }
 
@@ -202,6 +345,7 @@ export function run(tree, rawOperations, commitMessage, opts = {}) {
   for (const op of effective) op.apply(work);
   postApplyWikilinkPass(work, effective);
   postApplyIndexPass(work, effective);
+  postApplyEnforcementPass(work);
 
   const timestamp = opts.timestamp ?? new Date().toISOString();
   appendLogEntry(work, rawOperations, commitMessage, timestamp);

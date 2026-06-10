@@ -17,6 +17,7 @@ Pulls together the per-op apply logic into a single atomic transaction:
 """
 
 import json
+import re
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -36,7 +37,7 @@ from jadelens.operations import (
     dumps_js_canonical_compact,
     parse_operation,
 )
-from jadelens.wikilinks import find_references, rewrite_references_under
+from jadelens.wikilinks import find_dead_wikilinks, rewrite_references_under
 
 
 class WorkflowError(Exception):
@@ -296,6 +297,7 @@ def run(
             op.apply(data_repo)
         _post_apply_wikilink_pass(data_repo, effective)
         _post_apply_index_pass(data_repo, effective)
+        _post_apply_enforcement_pass(data_repo)
         timestamp = datetime.now(timezone.utc).isoformat()
         append_log_entry(data_repo, raw_operations, commit_message, timestamp)
         return git_commit(data_repo, commit_message)
@@ -341,29 +343,172 @@ def _append_index_entry(data_repo: Path, path: str, scope: str) -> None:
 
 
 def _post_apply_wikilink_pass(data_repo: Path, operations: list[Operation]) -> None:
-    """Run after every op has applied. For each rename, rewrite remaining
-    wikilinks pointing at the old path. For each delete, verify no
-    wikilinks still point at the deleted path — if any do, raise.
+    """Rewrite wikilinks after renames.
 
-    Deferring this work to here (rather than doing it inside RenamePath /
-    DeletePath ``apply``) lets the bot interleave clean-up ops freely:
-    e.g. a ``delete_path foo.md`` followed by a ``unified_diff`` that
-    removes the only ``[[foo.md]]`` reference is a valid batch — the
-    scan only sees what survived to the end.
+    For each ``rename_path``, rewrite every wikilink in the repo pointing at
+    the old path so it points at the new location. Runs against the end-state
+    so the bot can freely interleave rename and cleanup ops in any order.
+    Dead-wikilink checking (including after deletes) is handled by the
+    subsequent enforcement pass.
     """
     for op in operations:
         if isinstance(op, RenamePath):
             rewrite_references_under(data_repo, op.from_path, op.to_path)
-    for op in operations:
-        if isinstance(op, DeletePath):
-            refs = find_references(data_repo, op.path)
-            if refs:
-                detail = "; ".join(
-                    f"{f.relative_to(data_repo)}: [[{p}]]" for f, p in refs
-                )
-                raise ApplyError(
-                    f"delete_path: {op.path!r} is still referenced by "
-                    f"wikilinks after the batch completed — clean these up "
-                    f"in the same batch:\n  {detail}",
-                    code="DELETE_DANGLING_WIKILINK",
-                )
+
+
+# ---------- Post-apply enforcement pass ----------
+
+_INDEX_ENTRY_WIKILINK_RE = re.compile(r"^\[\[(.+)\]\]$")
+_INDEX_EXCLUDED_PATHS = frozenset({"Index.json", "CLAUDE.md"})
+
+
+def _post_apply_enforcement_pass(data_repo: Path) -> None:
+    """Format, completeness, and integrity checks after all ops and automation
+    passes have completed. Any failure reverts the entire batch.
+
+    4a — Index.json format: a JSON array; each entry an object with 'File'
+         (a ``[[wikilink]]``) and a non-empty 'Scope' string; no entry may
+         reference an excluded path.
+    4b — No file stem equals a directory name in the same parent anywhere in
+         the repo (would cause UI collisions when extensions are stripped).
+    4c — No duplicate 'File' values in Index.json.
+    4d — Every non-excluded file has an index entry (only enforced when
+         Index.json exists).
+    4e — Every wikilink in every file resolves to an existing file.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(data_repo), "ls-files",
+         "--cached", "--others", "--exclude-standard"],
+        capture_output=True, text=True, check=True,
+    )
+    all_relative = [p for p in result.stdout.splitlines() if p]
+    user_relative = [
+        p for p in all_relative
+        if not PurePosixPath(p).parts[0].startswith(".")
+    ]
+
+    index_entries = _enforce_index_format(data_repo)
+    if index_entries is not None:
+        _enforce_index_no_duplicates(index_entries)
+        _enforce_index_completeness(user_relative, index_entries)
+
+    _enforce_no_stem_dir_collision(user_relative)
+
+    dead = find_dead_wikilinks(data_repo)
+    if dead:
+        detail = "; ".join(
+            f"{f.relative_to(data_repo)}: [[{p}]]" for f, p in dead
+        )
+        raise ApplyError(
+            f"Wikilinks resolve to nonexistent files:\n  {detail}",
+            code="WIKILINK_DEAD",
+        )
+
+
+def _enforce_index_format(data_repo: Path) -> list[dict] | None:
+    """Load and validate Index.json format. Returns entries or None if absent."""
+    index_path = data_repo / "Index.json"
+    if not index_path.exists():
+        return None
+    try:
+        parsed = json.loads(index_path.read_text())
+    except json.JSONDecodeError as e:
+        raise ApplyError(f"Index.json is not valid JSON: {e}", code="INDEX_MALFORMED")
+    if not isinstance(parsed, list):
+        raise ApplyError("Index.json must be a JSON array", code="INDEX_MALFORMED")
+    for i, entry in enumerate(parsed):
+        if not isinstance(entry, dict):
+            raise ApplyError(
+                f"Index.json entry {i} is not an object", code="INDEX_MALFORMED"
+            )
+        file_val = entry.get("File")
+        if not isinstance(file_val, str):
+            raise ApplyError(
+                f"Index.json entry {i}: 'File' must be a string", code="INDEX_MALFORMED"
+            )
+        m = _INDEX_ENTRY_WIKILINK_RE.match(file_val)
+        if not m:
+            raise ApplyError(
+                f"Index.json entry {i}: 'File' must be a wikilink [[...]], "
+                f"got {file_val!r}",
+                code="INDEX_MALFORMED",
+            )
+        linked_path = m.group(1)
+        linked_parts = PurePosixPath(linked_path).parts
+        if linked_parts and linked_parts[0].startswith("."):
+            raise ApplyError(
+                f"Index.json entry {i}: 'File' {file_val!r} references a "
+                f"protected path; excluded paths cannot be indexed",
+                code="INDEX_MALFORMED",
+            )
+        if linked_path in _INDEX_EXCLUDED_PATHS:
+            raise ApplyError(
+                f"Index.json entry {i}: 'File' {file_val!r} is not allowed "
+                f"in the index",
+                code="INDEX_MALFORMED",
+            )
+        scope_val = entry.get("Scope")
+        if not isinstance(scope_val, str) or not scope_val.strip():
+            raise ApplyError(
+                f"Index.json entry {i}: 'Scope' must be a non-empty string",
+                code="INDEX_MALFORMED",
+            )
+    return parsed
+
+
+def _enforce_index_no_duplicates(entries: list[dict]) -> None:
+    seen: set[str] = set()
+    for entry in entries:
+        file_val = entry["File"]
+        if file_val in seen:
+            raise ApplyError(
+                f"Index.json has duplicate File entry: {file_val!r}",
+                code="INDEX_DUPLICATE_FILE",
+            )
+        seen.add(file_val)
+
+
+def _enforce_index_completeness(
+    user_relative: list[str], entries: list[dict]
+) -> None:
+    """Every non-excluded user file must appear in Index.json."""
+    indexed_paths: set[str] = set()
+    for entry in entries:
+        m = _INDEX_ENTRY_WIKILINK_RE.match(entry["File"])
+        if m:
+            indexed_paths.add(str(PurePosixPath(m.group(1))))
+    for rel in user_relative:
+        path_str = str(PurePosixPath(rel))
+        if path_str in _INDEX_EXCLUDED_PATHS:
+            continue
+        if path_str not in indexed_paths:
+            raise ApplyError(
+                f"File {rel!r} is not listed in Index.json",
+                code="INDEX_MISSING_ENTRY",
+            )
+
+
+def _enforce_no_stem_dir_collision(user_relative: list[str]) -> None:
+    """No file stem may equal a directory name in the same parent directory."""
+    parent_file_stems: dict[str, set[str]] = defaultdict(set)
+    parent_dir_names: dict[str, set[str]] = defaultdict(set)
+
+    for rel in user_relative:
+        p = PurePosixPath(rel)
+        parts = p.parts
+        parent_file_stems[str(p.parent)].add(p.stem)
+        for i in range(len(parts) - 1):
+            dir_name = parts[i]
+            grandparent = str(PurePosixPath(*parts[:i])) if i > 0 else "."
+            parent_dir_names[grandparent].add(dir_name)
+
+    for parent_str in set(parent_file_stems) | set(parent_dir_names):
+        stems = parent_file_stems.get(parent_str, set())
+        dirs = parent_dir_names.get(parent_str, set())
+        collision = stems & dirs
+        if collision:
+            raise ApplyError(
+                f"File stem collides with directory name in "
+                f"{parent_str!r}: {sorted(collision)}",
+                code="STEM_DIR_COLLISION",
+            )

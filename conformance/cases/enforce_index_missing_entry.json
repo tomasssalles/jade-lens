@@ -1,0 +1,13 @@
+{
+  "name": "enforcement rejects batch that leaves a file without an index entry",
+  "description": "Index.json exists and lists notes.md, but the batch creates new.md with indexed=false — enforcement catches the missing entry.",
+  "before": {
+    "notes.md": "# notes\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n"
+  },
+  "commit_message": "Add unindexed file",
+  "operations": [
+    { "op": "create_file", "path": "new.md", "content": "# new\n", "indexed": false, "scope": null }
+  ],
+  "expect": { "error": "INDEX_MISSING_ENTRY" }
+}

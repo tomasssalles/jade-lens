@@ -54,7 +54,7 @@ export function buildDelete(path) {
  * @returns {string | null}
  */
 export function describeDeleteRejection(err) {
-  if (!err || err.code !== 'DELETE_DANGLING_WIKILINK') return null;
+  if (!err || err.code !== 'WIKILINK_DEAD') return null;
   const refs = Array.isArray(err.references) ? err.references : [];
   const files = [...new Set(refs.map(([file]) => file))];
   if (files.length === 0) {

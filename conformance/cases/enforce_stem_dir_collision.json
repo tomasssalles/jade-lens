@@ -1,0 +1,13 @@
+{
+  "name": "enforcement rejects a file stem that collides with a directory name",
+  "description": "notes.json (stem 'notes') and notes/details.md (directory 'notes') in the same parent cause a collision.",
+  "before": {
+    "notes/details.md": "# details\n",
+    "Index.json": "[\n  {\n    \"File\": \"[[notes/details.md]]\",\n    \"Scope\": \"Details\"\n  }\n]\n"
+  },
+  "commit_message": "Add notes.json",
+  "operations": [
+    { "op": "create_file", "path": "notes.json", "content": "{}\n", "indexed": true, "scope": "Notes" }
+  ],
+  "expect": { "error": "STEM_DIR_COLLISION" }
+}

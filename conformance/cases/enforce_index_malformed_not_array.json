@@ -1,0 +1,12 @@
+{
+  "name": "enforcement rejects Index.json that is not a JSON array",
+  "before": {
+    "notes.md": "# notes\n",
+    "Index.json": "{\"File\": \"[[notes.md]]\", \"Scope\": \"Notes\"}\n"
+  },
+  "commit_message": "Patch data",
+  "operations": [
+    { "op": "unified_diff", "path": "notes.md", "diff": "@@ -1 +1 @@\n-# notes\n+# updated notes\n" }
+  ],
+  "expect": { "error": "INDEX_MALFORMED" }
+}

@@ -82,7 +82,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   mapping. Forward: derive sidecar path from `<stem>.json` + RFC 6901 pointer
   segments. Reverse: strip `.md`, split on `/`, traverse actual JSON to resolve
   int vs. string at each level. Python + JS + conformance cases.
-- [ ] **5c.** Add sidecars to the list of files excluded from the index.
+- [x] **5c.** Add sidecars to the list of files excluded from the index.
 - [ ] **5d.** Implement sidecar promotion in the pipeline (between validation
   and apply): when a `json_patch` `add`/`replace` results in a promotable
   string value, write the `.md` sidecar (using `indexed=false`) and rewrite the

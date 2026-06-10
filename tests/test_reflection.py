@@ -1,6 +1,7 @@
 """Tests for jadelens.reflection.format_reflection."""
 
 from jadelens.reflection import format_reflection
+from jadelens.workflow import PromotedSidecar
 
 
 SHA = "abc123def4567890abc123def4567890abc12345"
@@ -115,3 +116,33 @@ def test_mixed_batch_renders_each_section():
         "[5/5] unified_diff on z.md",
     ]:
         assert header in out
+
+def test_no_promoted_sidecars_section_when_none():
+    out = format_reflection(SHA, "No sidecars", [{"op": "delete_path", "path": "a.json"}])
+    assert "Sidecar" not in out
+
+
+def test_no_promoted_sidecars_section_when_empty_list():
+    out = format_reflection(SHA, "No sidecars", [], promoted_sidecars=[])
+    assert "Sidecar" not in out
+
+
+def test_promoted_sidecars_section_appears():
+    ps = PromotedSidecar(
+        sidecar_path="Garden.sidecars/notes.md",
+        json_path="Garden.json",
+        pointer="/notes",
+    )
+    out = format_reflection(SHA, "Promote", [], promoted_sidecars=[ps])
+    assert "Sidecar promotions (runtime-created):" in out
+    assert "  Garden.json/notes → Garden.sidecars/notes.md" in out
+
+
+def test_promoted_sidecars_multiple():
+    sidecars = [
+        PromotedSidecar("A.sidecars/x.md", "A.json", "/x"),
+        PromotedSidecar("A.sidecars/y.md", "A.json", "/y"),
+    ]
+    out = format_reflection(SHA, "Two promotions", [], promoted_sidecars=sidecars)
+    assert "  A.json/x → A.sidecars/x.md" in out
+    assert "  A.json/y → A.sidecars/y.md" in out

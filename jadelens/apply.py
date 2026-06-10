@@ -61,7 +61,7 @@ def do_apply(data_repo: Path) -> None:
         pass
 
     try:
-        commit_sha = workflow.run(data_repo, raw_ops, commit_message)
+        result = workflow.run(data_repo, raw_ops, commit_message)
     except (
         ValidationError,
         workflow.BatchValidationError,
@@ -70,7 +70,10 @@ def do_apply(data_repo: Path) -> None:
     ) as e:
         sys.exit(f"{type(e).__name__}: {e}")
 
-    print(format_reflection(commit_sha, commit_message, raw_ops), end="")
+    print(
+        format_reflection(result.sha, commit_message, raw_ops, result.promoted_sidecars),
+        end="",
+    )
 
     # Auto-sync, push side: push the new commit; reconcile a remote that advanced
     # under us (rebase if disjoint, stash on a same-file conflict). The change is

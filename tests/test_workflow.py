@@ -324,11 +324,12 @@ def test_git_commit_returns_sha(data_repo: Path):
 
 
 def test_run_happy_path_create_file(data_repo: Path):
-    sha = workflow.run(
+    result = workflow.run(
         data_repo,
         [{"op": "create_file", "path": "todos.json", "content": "[]\n", "indexed": True, "scope": "Todo list"}],
         "Add empty todo list",
     )
+    sha = result.sha
     assert (data_repo / "todos.json").read_text() == "[]\n"
     # Log entry exists with the commit message inlined.
     data_version = __supported_data_format_version__
@@ -675,7 +676,7 @@ def test_run_promotes_multi_block_string(data_repo: Path):
     _write_index(data_repo, [("Garden.json", "Garden")])
     commit(data_repo)
 
-    workflow.run(
+    result = workflow.run(
         data_repo,
         [
             {
@@ -692,13 +693,19 @@ def test_run_promotes_multi_block_string(data_repo: Path):
     sidecar = data_repo / "Garden.sidecars" / "notes.md"
     assert sidecar.read_text() == "Para one.\n\nPara two.\n"
 
+    assert len(result.promoted_sidecars) == 1
+    ps = result.promoted_sidecars[0]
+    assert ps.sidecar_path == "Garden.sidecars/notes.md"
+    assert ps.json_path == "Garden.json"
+    assert ps.pointer == "/notes"
+
 
 def test_run_no_promotion_single_block(data_repo: Path):
     (data_repo / "Notes.json").write_text('{"summary": "short"}\n')
     _write_index(data_repo, [("Notes.json", "Notes")])
     commit(data_repo)
 
-    workflow.run(
+    result = workflow.run(
         data_repo,
         [
             {
@@ -713,6 +720,7 @@ def test_run_no_promotion_single_block(data_repo: Path):
     notes = json.loads((data_repo / "Notes.json").read_text())
     assert notes["summary"] == "Just one paragraph."
     assert not (data_repo / "Notes.sidecars").exists()
+    assert result.promoted_sidecars == []
 
 
 def test_run_promotes_array_append(data_repo: Path):

@@ -23,7 +23,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
-from dataclasses import replace as _dc_replace
+from dataclasses import dataclass, field, replace as _dc_replace
 
 from jadelens import __supported_data_format_version__
 from jadelens.operations import (
@@ -41,6 +41,23 @@ from jadelens.operations import (
 )
 from jadelens.sidecar import is_promotable, pointer_to_sidecar_path
 from jadelens.wikilinks import find_dead_wikilinks, rewrite_references_under
+
+
+@dataclass
+class PromotedSidecar:
+    """Metadata about a sidecar file created automatically by the promotion pass."""
+
+    sidecar_path: str  # e.g. "Garden.sidecars/notes.md"
+    json_path: str     # owning JSON file, e.g. "Garden.json"
+    pointer: str       # resolved RFC 6901 pointer, e.g. "/notes"
+
+
+@dataclass
+class RunResult:
+    """Return value of :func:`run`."""
+
+    sha: str
+    promoted_sidecars: list[PromotedSidecar] = field(default_factory=list)
 
 
 class WorkflowError(Exception):
@@ -279,14 +296,15 @@ def run(
     data_repo: Path,
     raw_operations: list[dict],
     commit_message: str,
-) -> str:
+) -> RunResult:
     """Execute the full jadelens-apply workflow.
 
     Parses ``raw_operations`` into typed ``Operation`` objects, validates
     the batch, ensures the data repo is clean, applies each op, appends a
     log entry, and commits everything with ``commit_message``.
 
-    Returns the new commit SHA on success. On any failure, reverts the data
+    Returns a :class:`RunResult` with the new commit SHA and metadata about
+    any sidecars the promotion pass created. On any failure, reverts the data
     repo to its pre-call HEAD and re-raises (``ValidationError``,
     ``BatchValidationError``, ``WorkflowError``, or ``ApplyError``).
     """
@@ -296,8 +314,8 @@ def run(
     effective = merge_unified_diffs(operations)
 
     try:
-        effective, promoted_sidecars = _pre_apply_sidecar_promotion_pass(data_repo, effective)
-        for sidecar_path, content in promoted_sidecars:
+        effective, sidecar_records = _pre_apply_sidecar_promotion_pass(data_repo, effective)
+        for sidecar_path, content, _json_path, _pointer in sidecar_records:
             full = data_repo / sidecar_path
             full.parent.mkdir(parents=True, exist_ok=True)
             full.write_text(content)
@@ -308,7 +326,12 @@ def run(
         _post_apply_enforcement_pass(data_repo)
         timestamp = datetime.now(timezone.utc).isoformat()
         append_log_entry(data_repo, raw_operations, commit_message, timestamp)
-        return git_commit(data_repo, commit_message)
+        sha = git_commit(data_repo, commit_message)
+        promoted = [
+            PromotedSidecar(sidecar_path=sp, json_path=jp, pointer=ptr)
+            for sp, _content, jp, ptr in sidecar_records
+        ]
+        return RunResult(sha=sha, promoted_sidecars=promoted)
     except Exception:
         revert(data_repo)
         raise
@@ -343,18 +366,18 @@ def _resolve_json_pointer(pointer: str, data: object) -> str:
 
 def _pre_apply_sidecar_promotion_pass(
     data_repo: Path, operations: list[Operation]
-) -> tuple[list[Operation], list[tuple[str, str]]]:
+) -> tuple[list[Operation], list[tuple[str, str, str, str]]]:
     """Scan json_patch ops and promote promotable string values to sidecars.
 
     For each ``add``/``replace`` patch op whose value is a promotable string
     (and not already a wikilink), derive the sidecar path, rewrite the patch
     value to the wikilink, and collect the sidecar content.
 
-    Returns ``(modified_ops, [(sidecar_path, content), ...])``.
+    Returns ``(modified_ops, [(sidecar_path, content, json_path, pointer), ...])``.
     Callers write the sidecar files before applying the modified ops.
     """
     new_ops: list[Operation] = []
-    new_sidecars: list[tuple[str, str]] = []
+    new_sidecars: list[tuple[str, str, str, str]] = []
 
     for op in operations:
         if isinstance(op, JsonPatch):
@@ -391,7 +414,7 @@ def _pre_apply_sidecar_promotion_pass(
                     continue
 
                 new_patch[j] = {**patch_op, "value": f"[[{sidecar_path}]]"}
-                new_sidecars.append((sidecar_path, value))
+                new_sidecars.append((sidecar_path, value, op.path, resolved))
                 changed = True
 
             if changed:

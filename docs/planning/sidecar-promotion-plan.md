@@ -21,7 +21,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 1 — Groundwork
 
-- [ ] **1a.** Read the versioning design doc to confirm the mechanics for
+- [x] **1a.** Read the versioning design doc to confirm the mechanics for
   seeding the v2 data-format requirement in both codebases before implementing
   anything that depends on it.
 
@@ -62,7 +62,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [ ] **4c.** Enforce: `Index.json` entries have no duplicate `File` values.
 - [ ] **4d.** Enforce: every file has an index entry. Excluded are obviously dot-files at the root level, files (recursively) inside dot-dirs at the root level, and CLAUDE.md. Excluded files not only _don't have to be_ in the index, but actually _cannot be_ in the index. (Later we'll add sidecars to the exclusion list.)
 - [ ] **4e.** Enforce: every wikilink in every file in the repo resolves to an
-  existing file.
+  existing file. *Note: once this is in place, the existing `delete_path`
+  dangling-reference check becomes redundant (the integrity scan covers it) and
+  can be removed.*
 - [ ] **4f.** Update skill: never create a file whose stem matches an existing
   directory name in the same parent (or vice-versa); never use forbidden
   characters (`/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`, null byte) in
@@ -161,7 +163,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [ ] **9c.** Write migration runbook for v2 (markdown instructions
   interleaving natural-language steps with calls to the helper(s)).
 - [ ] **9d.** Add data-format version check to the web app: if data version < supported (2, in this case), warn to use the CLI/skill to migrate the data (even though this is a lie for now, because that's not implemented yet). If data version > supported (2, in this case), warn the user they should reload (and if needed clear the cache and reload again). In both cases, switch to read-only mode (best-effort, might be broken).
-- [ ] **9e.** Implement `jadelens update` (or `jadelens upgrade`?). This probably deserves a few subitems here...
+- [ ] **9e.** Implement `jadelens update` (or `jadelens upgrade`?). This probably deserves a few subitems here... *Note: the backlog already has an "Update tool" item with context — read it before designing this.*
 - [ ] **9f.** Add data-format version check to `workflow.run` in the CLI: if
   data version < 2, tell the user to run the migration and abort; if data
   version > current, tell the user to update and abort. Confirm check location
@@ -181,7 +183,8 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   file (`cli/v0.2.0.md`, `web/v0.2.0.md`, `data-format/v2.md`); create new
   empty `unreleased.md` files.
 - [ ] **10d.** Final doc pass: update design docs with anything clarified during
-  implementation.
+  implementation. Move all future-work items from the top of this file to the
+  backlog.
 - [ ] **10e.** Clean up planning: delete `sidecar-promotion-decisions.md`; remove completed backlog entries (sidecar promotion, versioning,
   migration items).
 - [ ] **10f.** Delete this file. Push tags: `cli-v0.2.0`, `web-v0.2.0`; move `cli-latest` and

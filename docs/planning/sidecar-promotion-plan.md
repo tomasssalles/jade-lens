@@ -78,7 +78,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   CommonMark-compliant markdown parser and count content blocks (paragraphs,
   headings, fenced code blocks, individual list items, blockquotes). Promote if
   count > 1. Python + JS + conformance cases.
-- [ ] **5b.** Implement JSON Pointer ↔ `.sidecars/` filepath bidirectional
+- [x] **5b.** Implement JSON Pointer ↔ `.sidecars/` filepath bidirectional
   mapping. Forward: derive sidecar path from `<stem>.json` + RFC 6901 pointer
   segments. Reverse: strip `.md`, split on `/`, traverse actual JSON to resolve
   int vs. string at each level. Python + JS + conformance cases.

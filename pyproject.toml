@@ -13,6 +13,7 @@ authors = [
 ]
 dependencies = [
     "jsonpatch>=1.33",
+    "markdown-it-py>=3.0",
 ]
 
 [project.scripts]

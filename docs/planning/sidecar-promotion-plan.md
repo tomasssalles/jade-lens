@@ -150,7 +150,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [x] **8d.** Sidecar top bar: when viewing a sidecar file, show
   `dir1 / dir2 / <stem>[<json-path>]` (e.g. `Projects / Garden[comparisons/0/description]`) instead of
   the path of the real sidecar file.
-- [ ] **8e.** Sidecar files are hidden from the file tree automatically once
+- [x] **8e.** Sidecar files are hidden from the file tree automatically once
   Phase 2a is done (they have no index entry). Verify this works and no special
   handling is needed.
 

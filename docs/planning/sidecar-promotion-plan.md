@@ -167,15 +167,16 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
   - [ ] **9e-i.** Add a `post-update` stub subcommand to `jadelens`. Unlike all other subcommands it takes no positional `data_repo` argument; instead it accepts a single optional keyword argument `--data-repo <path>`. For now the handler just prints "post-update: not yet implemented" and exits. Then add the `update` subcommand: no arguments, no logic beyond two sequential `subprocess.run` calls — first `uv tool install --reinstall <package-source>@cli-latest` (the exact uv invocation that reinstalls from the moving git tag; settle the precise command at implementation), second `jadelens post-update`. Add a prominent comment that this function must stay a thin shell-out forever and must never grow additional logic. Add a pytest test that mocks `subprocess.run` and asserts exactly two calls are made with the expected arguments and that no other side effects occur (no file I/O, no other subprocess calls).
 
-  - [ ] **9e-ii.** Extract reusable file-writing helpers from `do_init()`. Both `init` and `post-update` need to write the same set of files; extract a helper for each that can be called from both commands:
-    - `_write_session_start_hook(data_repo, assistant_name)` — writes `.claude/hooks/session-start` (executable).
-    - `_write_settings_json(data_repo, assistant_name)` — writes `.claude/settings.json`.
-    - `_write_claude_md(data_repo, config)` — writes `CLAUDE.md` from template + config values.
-    - `_write_gitignore(data_repo)` — writes `.gitignore`.
-    - `_write_config(data_repo, config_dict)` — writes `.jade/config.json`.
-    - `do_render_skill()` already exists; verify it is usable as-is.
+  - [ ] **9e-ii.** Extract a single `_write_common_files(data_repo, config_dict) -> list[Path]` helper from `do_init()`. It unconditionally writes every file that both `init` and `post-update` need to produce, and returns the list of written paths for the caller to stage in a commit:
+    - `.jade/config.json` — from `config_dict`.
+    - `.claude/hooks/session-start` — from template + config values (must be written executable).
+    - `.claude/settings.json` — from template + config values.
+    - `CLAUDE.md` — from template + config values.
+    - `.gitignore`.
 
-    All helpers must **unconditionally overwrite** (not write-if-not-exists). Refactor `do_init()` to call them; since init already creates the directory structure first, the behaviour is unchanged. The helpers work correctly for post-update's "existing repo" case too.
+    The rendered skill is **not** written here; it is written after commit and push (9e-iii step 8 / `do_init` already does this last).
+
+    Refactor `do_init()` to call `_write_common_files()` and extend the returned list with the two init-only files (`Index.json`, `.jade/version`) before staging and committing. `post-update` calls `_write_common_files()` and uses the returned list directly with no additions.
 
   - [ ] **9e-iii.** Implement `post-update --data-repo=<path>`: single-repo update. The subcommand handler calls `_update_repo(data_repo: Path)`:
     1. **Idempotency check.** Derive the skill file path from the data repo (it lives at `<data_repo>/.claude/skills/<assistant_name>/SKILL.md`, where `assistant_name` comes from `.jade/config.json`). Read the skill marker version. If it matches `jadelens.__version__`, print "Already up to date." and return immediately.

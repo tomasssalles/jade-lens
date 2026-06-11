@@ -167,24 +167,27 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
   - [ ] **9e-i.** Add a `post-update` stub subcommand to `jadelens`. Unlike all other subcommands it takes no positional `data_repo` argument; instead it accepts a single optional keyword argument `--data-repo <path>`. For now the handler just prints "post-update: not yet implemented" and exits. Then add the `update` subcommand: no arguments, no logic beyond two sequential `subprocess.run` calls — first `uv tool install --reinstall <package-source>@cli-latest` (the exact uv invocation that reinstalls from the moving git tag; settle the precise command at implementation), second `jadelens post-update`. Add a prominent comment that this function must stay a thin shell-out forever and must never grow additional logic. Add a pytest test that mocks `subprocess.run` and asserts exactly two calls are made with the expected arguments and that no other side effects occur (no file I/O, no other subprocess calls).
 
-  - [ ] **9e-ii.** Extract a single `_write_common_files(data_repo, config_dict) -> list[Path]` helper from `do_init()`. It unconditionally writes every file that both `init` and `post-update` need to produce, and returns the list of written paths for the caller to stage in a commit:
+  - [ ] **9e-ii.** Extract two helpers from `do_init()`:
+
+    **`_collect_config(known: dict) -> dict`** — given a dict of already-known field values (from CLI args in `init`, from the existing `.jade/config.json` in `post-update`), prompt the user interactively for every required config field that is absent from `known`, and return the complete config dict. This is the single place where config prompting lives; both commands call it. The policy: existing keys keep the same path across versions (backwards-compatibility contract), so values from an older config are always valid for their fields; only genuinely new fields require prompting. All prompting must complete before any filesystem writes, so in `init` this is called before cloning, and in `post-update` before any file is touched.
+
+    **`_write_common_files(data_repo, config_dict) -> list[Path]`** — unconditionally writes every file both `init` and `post-update` produce, returns the written paths for the caller to stage:
     - `.jade/config.json` — from `config_dict`.
-    - `.claude/hooks/session-start` — from template + config values (must be written executable).
+    - `.claude/hooks/session-start` — from template + config values (written executable).
     - `.claude/settings.json` — from template + config values.
     - `CLAUDE.md` — from template + config values.
     - `.gitignore`.
 
-    The rendered skill is **not** written here; it is written after commit and push (9e-iii step 8 / `do_init` already does this last).
+    The rendered skill is **not** written here; it is written after commit and push.
 
-    Refactor `do_init()` to call `_write_common_files()` and extend the returned list with the two init-only files (`Index.json`, `.jade/version`) before staging and committing. `post-update` calls `_write_common_files()` and uses the returned list directly with no additions.
+    Refactor `do_init()` to call `_collect_config()` (with CLI args as `known`) before cloning, then `_write_common_files()` after cloning, extending the returned list with the two init-only files (`Index.json`, `.jade/version`) before staging and committing. `post-update` calls `_collect_config()` (with the existing config as `known`) then `_write_common_files()`, using the returned list directly with no additions.
 
   - [ ] **9e-iii.** Implement `post-update --data-repo=<path>`: single-repo update. The subcommand handler calls `_update_repo(data_repo: Path)`:
     1. **Idempotency check.** Derive the skill file path from the data repo (it lives at `<data_repo>/.claude/skills/<assistant_name>/SKILL.md`, where `assistant_name` comes from `.jade/config.json`). Read the skill marker version. If it matches `jadelens.__version__`, print "Already up to date." and return immediately.
     2. **Dirty-tree check.** Run `git -C <data_repo> status --porcelain`. If there is any output, print a clear warning that names the repo and aborts. Do not touch anything. (On claude.ai, hook stderr surfaces in Claude's context even if invisible to the human user; the apply version guard — 9e-vi — is the fallback signal to the user.)
     3. **Branch switch.** Record the current branch (`git -C <data_repo> rev-parse --abbrev-ref HEAD`). Run `git -C <data_repo> checkout main`. This is necessary because on claude.ai the feature branch may already be checked out when the session-start hook fires.
-    4. **Config update.** Read `.jade/config.json`. Compare its keys against the set of keys the current code version requires. For each required key that is absent, prompt the user interactively (same style as `init` prompts). Call `_write_config()` with the updated dict. The config must be written before the skill is re-rendered, because the skill template uses config values.
-    5. **File updates.** Call `_write_session_start_hook()`, `_write_settings_json()`, `_write_claude_md()`, `_write_gitignore()` with values from the (now up-to-date) config.
-    6. **Commit.** Stage all modified tracked files (`git add -u`) and commit: `jadelens update: update repo files to cli-v<version>`. Handle "nothing to commit" gracefully — some files may be identical after the rewrite, which is fine; the subsequent push may still be needed for a previous un-pushed commit.
+    4. **Collect config and write common files.** Read `.jade/config.json` and pass its contents as `known` to `_collect_config()`, which prompts for any new required fields and returns the complete config dict. Then call `_write_common_files(data_repo, config_dict)` and capture the returned path list for staging. Config is always written before the skill is re-rendered because the skill template uses config values, and `_write_common_files` writes config first.
+    5. **Commit.** Stage the paths returned by `_write_common_files` (`git add -- <paths>`) and commit: `jadelens update: update repo files to cli-v<version>`. Handle "nothing to commit" gracefully — some files may be byte-identical after the rewrite; the push may still be needed to deliver a previously committed but un-pushed update.
     7. **Push.** `git push origin main`. Retry up to 4× with exponential backoff (2 s, 4 s, 8 s, 16 s) on network failure.
     8. **Re-render skill.** Call `do_render_skill(data_repo)`. The skill file is gitignored and is therefore not part of the commit. A correct skill marker version is the completion sentinel: if the process crashes before this step, the next invocation sees the old marker version and reruns from step 1.
     9. Print a success summary: repo path, assistant name, new version.

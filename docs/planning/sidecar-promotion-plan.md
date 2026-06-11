@@ -145,7 +145,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   inline code, bold, etc.).
 - [x] **8b.** Add a ↗ icon to the truncated preview card that navigates to the
   full sidecar view.
-- [ ] **8c.** Navigating back from the sidecar view to the parent JSON file
+- [x] **8c.** Navigating back from the sidecar view to the parent JSON file
   restores the scroll offset. This should already be true, we just need to check.
 - [ ] **8d.** Sidecar top bar: when viewing a sidecar file, show
   `dir1 / dir2 / <stem>[<json-path>]` (e.g. `Projects / Garden[comparisons/0/description]`) instead of

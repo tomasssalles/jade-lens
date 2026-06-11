@@ -3,6 +3,10 @@ import { getCardColor, getTextColor, getBorderColor, getTitleColor, getUnlockedL
 import { appendPointer } from './edit/jsonPointer'
 import { resolveDecimalSeparator, formatNumberForDisplay, parseNumberInput, isPartialNumberInput, mapToSeparator } from './edit/numberFormat'
 import { classifyStringValue, wikilinkTarget, toWikilink, toDateInputValue, datetimeHasSeconds, fromDateInputValue } from './edit/valueType'
+import { isSidecarPath, truncateMarkdownPreview } from './mutation/sidecar'
+import { getContentFromCache } from './repoCache'
+import { getConfig } from './config'
+import { getFileContent } from './github'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
 import DateNode from './nodes/DateNode'
@@ -495,6 +499,56 @@ function NumRow({ value, pointer, keyLabel, s }) {
   )
 }
 
+// Renders a truncated inline preview of a sidecar .md file (8a).
+// Fetches content from the in-memory cache first; falls back to the GitHub API.
+// Shows a loading placeholder until content is available.
+function SidecarPreview({ sidecarPath }) {
+  const [state, setState] = useState(() => {
+    const cached = getContentFromCache(sidecarPath)
+    return cached !== undefined ? { loading: false, text: cached } : { loading: true }
+  })
+
+  useEffect(() => {
+    const cached = getContentFromCache(sidecarPath)
+    if (cached !== undefined) {
+      setState({ loading: false, text: cached })
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        const cfg = await getConfig()
+        const text = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, sidecarPath)
+        if (!cancelled) setState({ loading: false, text })
+      } catch {
+        if (!cancelled) setState({ loading: false, text: null })
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [sidecarPath])
+
+  if (state.loading) {
+    return <span style={{ opacity: 0.4 }}>…</span>
+  }
+  if (!state.text) return null
+
+  const { segments, truncated } = truncateMarkdownPreview(state.text, 100)
+  if (segments.length === 0) return null
+
+  return (
+    <span style={{ opacity: 0.75, fontStyle: 'italic' }}>
+      {segments.map((seg, i) => {
+        if (seg.type === 'strong') return <strong key={i}>{seg.content}</strong>
+        if (seg.type === 'em') return <em key={i}>{seg.content}</em>
+        if (seg.type === 'code') return <code key={i}>{seg.content}</code>
+        return seg.content
+      })}
+      {truncated && '…'}
+    </span>
+  )
+}
+
 // A string leaf. Read-only it renders as inline markdown (links, dates, etc.).
 // In edit mode, if the whole string is exactly one date / datetime / wikilink it
 // gains a pencil opening the matching editor; any other string stays plain (full
@@ -502,8 +556,28 @@ function NumRow({ value, pointer, keyLabel, s }) {
 function StringRow({ value, pointer, keyLabel, s, onWikilinkClick }) {
   const { editing, onValueEdit, repoFiles } = useContext(EditModeContext)
   const editable = editing && !!onValueEdit
-  const type = editable ? classifyStringValue(value) : 'plain'
   const label = keyLabel && <span style={{ fontWeight: s.keyFontWeight }}>{keyLabel}: </span>
+
+  // Sidecar wikilinks render a truncated content preview regardless of edit mode.
+  const wikilinkPath = wikilinkTarget(value)
+  if (wikilinkPath && isSidecarPath(wikilinkPath)) {
+    const preview = <SidecarPreview sidecarPath={wikilinkPath} />
+    if (editable) {
+      return (
+        <EditableLeaf
+          display={<>{label}{preview}</>}
+          editing
+          s={s}
+          renderPopover={(close) => (
+            <WikilinkEditor value={value.trim()} repoFiles={repoFiles} s={s} onCommit={(v) => { close(); onValueEdit(pointer, v) }} />
+          )}
+        />
+      )
+    }
+    return <>{label}{preview}</>
+  }
+
+  const type = editable ? classifyStringValue(value) : 'plain'
 
   if (type === 'date' || type === 'datetime') {
     return (

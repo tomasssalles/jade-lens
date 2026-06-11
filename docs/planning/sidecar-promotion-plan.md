@@ -140,7 +140,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ## Phase 8 — Web UI: sidecar display
 
-- [ ] **8a.** In the JSON card view, when a field value is a sidecar wikilink,
+- [x] **8a.** In the JSON card view, when a field value is a sidecar wikilink,
   render a truncated preview instead: max 1 rendered line, max 100 characters, + `...`. Truncation must respect inline span boundaries (no cutting inside
   inline code, bold, etc.).
 - [ ] **8b.** Add a ↗ icon to the truncated preview card that navigates to the

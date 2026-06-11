@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   countContentBlocks, isPromotable,
   pointerToSidecarPath, jsonPathFromSidecar, sidecarPathToPointer,
+  isSidecarPath, truncateMarkdownPreview,
 } from './sidecar.js';
 
 // ---------------------------------------------------------------------------
@@ -141,5 +142,100 @@ describe('sidecarPathToPointer', () => {
   it('throws on missing key', () => {
     const data = { other: 'value' };
     expect(() => sidecarPathToPointer('Garden.sidecars/notes.md', data)).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isSidecarPath
+// ---------------------------------------------------------------------------
+
+describe('isSidecarPath', () => {
+  it('detects a top-level sidecar directory', () => {
+    expect(isSidecarPath('Garden.sidecars/notes.md')).toBe(true);
+  });
+  it('detects a nested sidecar directory', () => {
+    expect(isSidecarPath('a/b/Work.sidecars/field.md')).toBe(true);
+  });
+  it('returns false for a regular .md file', () => {
+    expect(isSidecarPath('notes.md')).toBe(false);
+  });
+  it('returns false for a .json file', () => {
+    expect(isSidecarPath('Garden.json')).toBe(false);
+  });
+  it('returns false for a path that merely contains "sidecars" without the dot', () => {
+    expect(isSidecarPath('mysidecars/notes.md')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// truncateMarkdownPreview
+// ---------------------------------------------------------------------------
+
+describe('truncateMarkdownPreview', () => {
+  it('short single paragraph — not truncated', () => {
+    const { segments, truncated } = truncateMarkdownPreview('Hello world.\n', 100);
+    expect(segments).toEqual([{ type: 'text', content: 'Hello world.' }]);
+    expect(truncated).toBe(false);
+  });
+
+  it('plain text exceeding limit — truncated at char boundary', () => {
+    const { segments, truncated } = truncateMarkdownPreview('ABCDE', 3);
+    expect(segments).toEqual([{ type: 'text', content: 'ABC' }]);
+    expect(truncated).toBe(true);
+  });
+
+  it('bold span fits — included in full', () => {
+    const { segments, truncated } = truncateMarkdownPreview('**bold**\n', 100);
+    expect(segments).toEqual([{ type: 'strong', content: 'bold' }]);
+    expect(truncated).toBe(false);
+  });
+
+  it('bold span does not fit — excluded, truncated flag set', () => {
+    const { segments, truncated } = truncateMarkdownPreview('AB **bold**\n', 6);
+    // "AB " fits (3 chars), bold (4 chars) would exceed budget of 3 remaining
+    expect(segments.map((s) => s.content).join('')).toBe('AB ');
+    expect(truncated).toBe(true);
+  });
+
+  it('inline code fits — included', () => {
+    const { segments, truncated } = truncateMarkdownPreview('Use `run`.\n', 100);
+    expect(segments).toEqual([
+      { type: 'text', content: 'Use ' },
+      { type: 'code', content: 'run' },
+      { type: 'text', content: '.' },
+    ]);
+    expect(truncated).toBe(false);
+  });
+
+  it('inline code does not fit — excluded, truncated', () => {
+    // "Use " (4 chars) fits; code_inline "run" (3 chars) would push to 7 > 5 → excluded
+    const { segments, truncated } = truncateMarkdownPreview('Use `run`.\n', 5);
+    expect(segments).toEqual([{ type: 'text', content: 'Use ' }]);
+    expect(truncated).toBe(true);
+  });
+
+  it('multiple blocks — first block only, truncated flag set', () => {
+    const { segments, truncated } = truncateMarkdownPreview('Para one.\n\nPara two.\n', 100);
+    expect(segments).toEqual([{ type: 'text', content: 'Para one.' }]);
+    expect(truncated).toBe(true);
+  });
+
+  it('em span fits', () => {
+    const { segments, truncated } = truncateMarkdownPreview('*italic*\n', 100);
+    expect(segments).toEqual([{ type: 'em', content: 'italic' }]);
+    expect(truncated).toBe(false);
+  });
+
+  it('softbreak replaced with space', () => {
+    const { segments, truncated } = truncateMarkdownPreview('line one\nline two\n', 100);
+    const text = segments.map((s) => s.content).join('');
+    expect(text).toBe('line one line two');
+    expect(truncated).toBe(false);
+  });
+
+  it('empty string — empty segments, not truncated', () => {
+    const { segments, truncated } = truncateMarkdownPreview('', 100);
+    expect(segments).toEqual([]);
+    expect(truncated).toBe(false);
   });
 });

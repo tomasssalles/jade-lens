@@ -58,6 +58,137 @@ export function isPromotable(text) {
 
 const SIDECARS_SUFFIX = '.sidecars';
 
+/**
+ * Return true if path is a sidecar file (any path component ends with .sidecars).
+ *
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function isSidecarPath(path) {
+  return path.split('/').some((p) => p.endsWith(SIDECARS_SUFFIX));
+}
+
+// ---------------------------------------------------------------------------
+// Sidecar preview truncation
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a truncated inline preview of a markdown text (for the JSON card view).
+ *
+ * Returns an array of typed segments (text / strong / em / code) drawn from
+ * the first content block, plus a `truncated` flag.  Truncation respects span
+ * boundaries: plain text is cut at the character limit; spans (bold, em, code)
+ * are included fully only when they fit in the remaining budget, otherwise the
+ * walk stops before the span.
+ *
+ * @param {string} text  - raw markdown content
+ * @param {number} maxChars - character budget (default 100)
+ * @returns {{ segments: Array<{type:'text'|'strong'|'em'|'code', content:string}>, truncated: boolean }}
+ */
+export function truncateMarkdownPreview(text, maxChars = 100) {
+  const tokens = _md.parse(text, {});
+
+  // Find the first inline token and whether there are more blocks after it.
+  let inlineToken = null;
+  let hasMoreBlocks = false;
+  for (const tok of tokens) {
+    if (tok.type === 'inline') {
+      if (inlineToken === null) {
+        inlineToken = tok;
+      } else {
+        hasMoreBlocks = true;
+        break;
+      }
+    }
+  }
+  if (!inlineToken) return { segments: [], truncated: false };
+
+  const children = inlineToken.children || [];
+  const segments = [];
+  let chars = 0;
+  let i = 0;
+  let hitLimit = false;
+
+  while (i < children.length && !hitLimit) {
+    const tok = children[i];
+
+    if (tok.type === 'softbreak' || tok.type === 'hardbreak') {
+      if (chars > 0 && chars < maxChars) {
+        segments.push({ type: 'text', content: ' ' });
+        chars++;
+      }
+      i++;
+    } else if (tok.type === 'text') {
+      const remaining = maxChars - chars;
+      if (tok.content.length === 0) {
+        i++;
+      } else if (tok.content.length <= remaining) {
+        segments.push({ type: 'text', content: tok.content });
+        chars += tok.content.length;
+        i++;
+      } else {
+        segments.push({ type: 'text', content: tok.content.slice(0, remaining) });
+        chars = maxChars;
+        hitLimit = true;
+      }
+    } else if (tok.type === 'code_inline') {
+      if (chars + tok.content.length <= maxChars) {
+        segments.push({ type: 'code', content: tok.content });
+        chars += tok.content.length;
+        i++;
+      } else {
+        hitLimit = true;
+      }
+    } else if (tok.type === 'strong_open') {
+      const inner = _collectSpanText(children, i + 1, 'strong_close');
+      if (chars + inner.text.length <= maxChars) {
+        segments.push({ type: 'strong', content: inner.text });
+        chars += inner.text.length;
+        i = inner.end + 1;
+      } else {
+        hitLimit = true;
+      }
+    } else if (tok.type === 'em_open') {
+      const inner = _collectSpanText(children, i + 1, 'em_close');
+      if (chars + inner.text.length <= maxChars) {
+        segments.push({ type: 'em', content: inner.text });
+        chars += inner.text.length;
+        i = inner.end + 1;
+      } else {
+        hitLimit = true;
+      }
+    } else if (tok.type === 'link_open') {
+      const inner = _collectSpanText(children, i + 1, 'link_close');
+      if (chars + inner.text.length <= maxChars) {
+        segments.push({ type: 'text', content: inner.text });
+        chars += inner.text.length;
+        i = inner.end + 1;
+      } else {
+        hitLimit = true;
+      }
+    } else {
+      i++;
+    }
+  }
+
+  return {
+    segments,
+    truncated: hitLimit || i < children.length || hasMoreBlocks,
+  };
+}
+
+/** Collect text content from inline tokens until the closing type is found.
+ *  Returns { text, end } where end is the index of the closing token. */
+function _collectSpanText(tokens, start, closeType) {
+  let text = '';
+  let j = start;
+  while (j < tokens.length && tokens[j].type !== closeType) {
+    if (tokens[j].type === 'text') text += tokens[j].content;
+    j++;
+  }
+  return { text, end: j };
+}
+
 /** RFC 6901 unescape: ~1 → /, ~0 → ~ */
 function unescapePointerSegment(seg) {
   return seg.replace(/~1/g, '/').replace(/~0/g, '~');

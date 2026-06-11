@@ -182,7 +182,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
     Refactor `do_init()` to call `_collect_config()` (with CLI args as `known`) before cloning, then `_write_common_files()` after cloning, extending the returned list with the two init-only files (`Index.json`, `.jade/version`) before staging and committing. `post-update` calls `_collect_config()` (with the existing config as `known`) then `_write_common_files()`, using the returned list directly with no additions.
 
-  - [ ] **9e-iii.** Implement `post-update --data-repo=<path>`: single-repo update. The subcommand handler calls `_update_repo(data_repo: Path)`:
+  - [x] **9e-iii.** Implement `post-update --data-repo=<path>`: single-repo update. The subcommand handler calls `_update_repo(data_repo: Path)`:
     1. **Idempotency check.** Derive the skill file path from the data repo (it lives at `<data_repo>/.claude/skills/<assistant_name>/SKILL.md`, where `assistant_name` comes from `.jade/config.json`). Read the skill marker version. If it matches `jadelens.__version__`, print "Already up to date." and return immediately.
     2. **Dirty-tree check.** Run `git -C <data_repo> status --porcelain`. If there is any output, print a clear warning that names the repo and aborts. Do not touch anything. (On claude.ai, hook stderr surfaces in Claude's context even if invisible to the human user; the apply version guard — 9e-vi — is the fallback signal to the user.)
     3. **Branch switch.** Record the current branch (`git -C <data_repo> rev-parse --abbrev-ref HEAD`). Run `git -C <data_repo> checkout main`. This is necessary because on claude.ai the feature branch may already be checked out when the session-start hook fires.
@@ -192,7 +192,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
     8. **Re-render skill.** Call `do_render_skill(data_repo)`. The skill file is gitignored and is therefore not part of the commit. A correct skill marker version is the completion sentinel: if the process crashes before this step, the next invocation sees the old marker version and reruns from step 1.
     9. Print a success summary: repo path, assistant name, new version.
 
-  - [ ] **9e-iv.** Implement `post-update` (no `--data-repo`): multi-repo scan. When `--data-repo` is omitted:
+  - [x] **9e-iv.** Implement `post-update` (no `--data-repo`): multi-repo scan. When `--data-repo` is omitted:
     1. List all entries under `~/.claude/skills/`.
     2. For each entry that is a symlink, resolve it to its target path. Skip broken symlinks with a printed warning.
     3. Read the target markdown file and search for the Jade Lens skill marker comment (the same marker that the apply version guard reads — see 9e-vi; the marker-parsing logic should live in one shared helper used by both). If the marker is absent, skip silently (the skill belongs to a different tool).

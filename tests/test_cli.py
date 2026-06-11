@@ -10,7 +10,9 @@ import pytest
 
 from jadelens.cli import (
     _collect_config,
+    _update_repo,
     _write_common_files,
+    do_post_update,
     do_render_skill,
     do_update,
 )
@@ -235,3 +237,205 @@ def test_write_common_files_does_not_write_skill(tmp_path: Path):
     config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
     _write_common_files(tmp_path, config)
     assert not (tmp_path / ".claude" / "skills").exists()
+
+
+# ---------------------- _update_repo ----------------------
+
+VALID_CONFIG = {
+    "user": {"full_name": "Test User", "short_name": "Test"},
+    "assistant": {"name": "testskill"},
+}
+
+
+def _make_git_repo(path: Path) -> None:
+    """Initialise a bare-minimum git repo suitable for _update_repo tests."""
+    subprocess.run(["git", "init", str(path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(path), "config", "user.email", "test@example.com"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(path), "config", "user.name", "Test"],
+        check=True, capture_output=True,
+    )
+    # Add a remote pointing at a local bare repo so push works
+    bare = path.parent / (path.name + "-bare")
+    subprocess.run(["git", "init", "--bare", str(bare)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(path), "remote", "add", "origin", str(bare)],
+        check=True, capture_output=True,
+    )
+
+
+def _seed_repo(path: Path, skill_cli_version: str) -> None:
+    """Write the minimum files needed, commit them, and render the skill."""
+    from jadelens import __version__
+    from jadelens.cli import _write_common_files, do_render_skill
+    from jadelens.operations import dumps_js_canonical
+
+    _make_git_repo(path)
+    _write_common_files(path, VALID_CONFIG)
+    (path / ".jade" / "version").write_text("v1\n")
+    (path / "Index.json").write_text(dumps_js_canonical([]))
+
+    # Render skill then patch the marker to the requested version
+    do_render_skill(path)
+    skill_path = path / ".claude" / "skills" / "testskill" / "SKILL.md"
+    original = skill_path.read_text()
+    patched = original.replace(
+        f"cli-version={__version__}", f"cli-version={skill_cli_version}"
+    )
+    skill_path.write_text(patched)
+
+    subprocess.run(
+        ["git", "-C", str(path), "add", "-A"], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "-C", str(path), "commit", "-m", "initial"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(path), "push", "-u", "origin", "HEAD:main"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(path), "checkout", "-B", "main"],
+        check=True, capture_output=True,
+    )
+
+
+def test_update_repo_idempotent_when_version_matches(tmp_path: Path, capsys):
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, __version__)
+    _update_repo(repo)
+    out = capsys.readouterr().out
+    assert "Already up to date" in out
+
+
+def test_update_repo_aborts_on_dirty_tree(tmp_path: Path):
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, "v0.0.0")  # stale version → not idempotent
+    (repo / "dirty.txt").write_text("uncommitted")
+    with pytest.raises(SystemExit, match="uncommitted changes"):
+        _update_repo(repo)
+
+
+def test_update_repo_updates_files_and_rerenders(tmp_path: Path):
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, "v0.0.0")
+
+    # Verify skill has old marker before update
+    skill = repo / ".claude" / "skills" / "testskill" / "SKILL.md"
+    assert "cli-version=v0.0.0" in skill.read_text()
+
+    _update_repo(repo)
+
+    # Skill should now carry the current version
+    assert f"cli-version={__version__}" in skill.read_text()
+
+
+def test_update_repo_idempotent_on_second_run(tmp_path: Path, capsys):
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, "v0.0.0")
+
+    _update_repo(repo)
+    capsys.readouterr()  # discard first run output
+
+    _update_repo(repo)
+    out = capsys.readouterr().out
+    assert "Already up to date" in out
+
+
+# ---------------------- do_post_update (multi-repo scan) ----------------------
+
+
+def _make_skill_symlink(skills_dir: Path, data_repo: Path, assistant_name: str) -> None:
+    """Create ~/.claude/skills/<name> → <data_repo>/.claude/skills/<name> symlink."""
+    target = data_repo / ".claude" / "skills" / assistant_name
+    target.mkdir(parents=True, exist_ok=True)
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    (skills_dir / assistant_name).symlink_to(target)
+
+
+def test_post_update_no_skills_dir(tmp_path: Path, capsys):
+    do_post_update(None, skills_dir=tmp_path / "nonexistent")
+    assert "Nothing to update" in capsys.readouterr().out
+
+
+def test_post_update_skips_non_symlinks(tmp_path: Path, capsys):
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    (skills_dir / "not-a-symlink").mkdir()  # regular dir, not a symlink
+    do_post_update(None, skills_dir=skills_dir)
+    assert "Nothing to update" in capsys.readouterr().out
+
+
+def test_post_update_skips_broken_symlink(tmp_path: Path, capsys):
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    (skills_dir / "broken").symlink_to(tmp_path / "does-not-exist")
+    do_post_update(None, skills_dir=skills_dir)
+    out = capsys.readouterr().out
+    assert "broken" in out.lower()
+    assert "Nothing to update" in out
+
+
+def test_post_update_skips_non_jade_skill(tmp_path: Path, capsys):
+    skills_dir = tmp_path / "skills"
+    target_dir = tmp_path / "other-skill"
+    target_dir.mkdir(parents=True)
+    (target_dir / "SKILL.md").write_text("# Some other skill\nNo jade marker here.\n")
+    (skills_dir).mkdir()
+    (skills_dir / "other").symlink_to(target_dir)
+    do_post_update(None, skills_dir=skills_dir)
+    assert "Nothing to update" in capsys.readouterr().out
+
+
+def test_post_update_symlink_points_at_directory_not_file(tmp_path: Path):
+    """The multi-repo scan contract: symlink → directory, not SKILL.md.
+
+    Path derivation (target.parents[2]) only works when the symlink target
+    is <data_repo>/.claude/skills/<name> (a directory), not the SKILL.md
+    file inside it. This test encodes that contract explicitly.
+    """
+    skills_dir = tmp_path / "skills"
+    data_repo = tmp_path / "repo"
+    data_repo.mkdir()
+    _seed_repo(data_repo, "v0.0.0")  # creates the skill dir
+
+    skill_dir = data_repo / ".claude" / "skills" / "testskill"
+    skills_dir.mkdir()
+    symlink = skills_dir / "testskill"
+    symlink.symlink_to(skill_dir)
+
+    # The symlink target is a directory
+    assert symlink.resolve().is_dir()
+    # Path derivation from the directory gives back the data_repo
+    assert symlink.resolve().parents[2] == data_repo
+
+
+def test_post_update_multi_repo_updates_all(tmp_path: Path, capsys):
+    from jadelens import __version__
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+
+    for name in ("repo1", "repo2"):
+        repo = tmp_path / name
+        repo.mkdir()
+        _seed_repo(repo, "v0.0.0")
+        skill_dir = repo / ".claude" / "skills" / "testskill"
+        (skills_dir / f"testskill-{name}").symlink_to(skill_dir)
+
+    do_post_update(None, skills_dir=skills_dir)
+
+    for name in ("repo1", "repo2"):
+        skill = tmp_path / name / ".claude" / "skills" / "testskill" / "SKILL.md"
+        assert f"cli-version={__version__}" in skill.read_text(), name

@@ -6,15 +6,16 @@ import re
 import stat
 import subprocess
 import sys
+import time
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 
-from jadelens import __supported_data_format_version__, sync
+from jadelens import __supported_data_format_version__, __version__, sync
 from jadelens.apply import do_apply
 from jadelens.config import Config
 from jadelens.operations import dumps_js_canonical
-from jadelens.skill import render_skill
+from jadelens.skill import is_jade_lens_skill, parse_skill_marker_version, render_skill
 from jadelens.stash import describe_operation
 
 
@@ -377,7 +378,57 @@ def do_post_update(data_repo: Path | None, *, skills_dir: Path | None = None) ->
     If omitted, scans skills_dir (default: ~/.claude/skills/) for all managed repos.
     skills_dir is injectable so tests can substitute a temporary directory.
     """
-    print("post-update: not yet implemented")
+    if data_repo is not None:
+        _update_repo(data_repo)
+        return
+
+    if skills_dir is None:
+        skills_dir = Path.home() / ".claude" / "skills"
+
+    if not skills_dir.is_dir():
+        print("No skills directory found. Nothing to update.")
+        return
+
+    found_any = False
+    for entry in sorted(skills_dir.iterdir()):
+        if not entry.is_symlink():
+            continue
+        if not entry.exists():
+            print(f"Warning: skipping broken symlink: {entry} → {entry.readlink()}")
+            continue
+
+        # The symlink points at the skill directory <data_repo>/.claude/skills/<name>
+        target = entry.resolve()
+        if not target.is_dir():
+            continue
+
+        skill_file = target / "SKILL.md"
+        if not skill_file.is_file():
+            continue
+        if not is_jade_lens_skill(skill_file.read_text()):
+            continue
+
+        # Derive data-repo root: target is <data_repo>/.claude/skills/<name>
+        data_repo_path = target.parents[2]
+
+        try:
+            config_data = json.loads(
+                (data_repo_path / ".jade" / "config.json").read_text()
+            )
+            assistant_name = config_data.get("assistant", {}).get("name", entry.name)
+        except Exception:
+            assistant_name = entry.name
+
+        print(f"\n=== Updating {assistant_name!r} ({data_repo_path}) ===")
+        found_any = True
+        try:
+            _update_repo(data_repo_path)
+        except SystemExit as e:
+            print(f"  Error: {e.code}")
+            continue
+
+    if not found_any:
+        print("No Jade Lens data repos found. Nothing to update.")
 
 
 def _run_git(git_args: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -394,6 +445,85 @@ def _run_git(git_args: list[str], cwd: Path) -> subprocess.CompletedProcess:
         sys.exit(f"git {' '.join(git_args)} failed:\n{e.stderr.strip()}")
     except (subprocess.TimeoutExpired, OSError) as e:
         sys.exit(f"git {' '.join(git_args)} failed: {e!r}")
+
+
+def _run_git_optional(git_args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    """Run git without exiting on failure; returns the result for the caller to inspect."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), *git_args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return subprocess.CompletedProcess(git_args, 1, stdout="", stderr=str(e))
+
+
+def _update_repo(data_repo: Path) -> None:
+    """Perform the full post-update sequence for a single data repo.
+
+    Steps: idempotency check → dirty-tree check → checkout main →
+    collect config + write common files → commit → push → re-render skill.
+
+    The skill marker version is the completion sentinel: if the process is
+    interrupted before the final re-render, the next run re-starts from step 1.
+    """
+    # 1. Idempotency check
+    marker_version = parse_skill_marker_version(data_repo)
+    if marker_version == __version__:
+        print(f"  Already up to date ({__version__}).")
+        return
+
+    # 2. Dirty-tree check
+    status = _run_git_optional(["status", "--porcelain"], data_repo)
+    if status.returncode != 0:
+        sys.exit(
+            f"Failed to check git status in {data_repo}: {status.stderr.strip()}"
+        )
+    if status.stdout.strip():
+        sys.exit(
+            f"Data repo {data_repo} has uncommitted changes.\n"
+            "Commit or stash them before running 'jadelens post-update'."
+        )
+
+    # 3. Switch to main (on claude.ai the feature branch may be pre-checked-out)
+    _run_git(["checkout", "main"], data_repo)
+
+    # 4. Collect config (prompts for new fields if any) and write common files
+    try:
+        existing_config = json.loads((data_repo / ".jade" / "config.json").read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        sys.exit(f"Cannot read config in {data_repo}: {e}")
+    config_dict = _collect_config(existing_config)
+    paths = _write_common_files(data_repo, config_dict)
+
+    # 5. Commit (handle "nothing to commit" gracefully — files may be unchanged)
+    _run_git(["add", "--", *(str(p) for p in paths)], data_repo)
+    commit_result = _run_git_optional(
+        ["commit", "-m", f"jadelens update: update repo files to cli-{__version__}"],
+        data_repo,
+    )
+    if commit_result.returncode != 0:
+        combined = commit_result.stdout + commit_result.stderr
+        if "nothing to commit" not in combined:
+            sys.exit(f"git commit failed:\n{commit_result.stderr.strip()}")
+
+    # 6. Push with exponential backoff retry
+    for i, delay in enumerate([0, 2, 4, 8, 16]):
+        if delay:
+            time.sleep(delay)
+        push_result = _run_git_optional(["push", "origin", "main"], data_repo)
+        if push_result.returncode == 0:
+            break
+        if i == 4:
+            sys.exit(f"git push failed after retries:\n{push_result.stderr.strip()}")
+
+    # 7. Re-render skill — must be last; a correct marker version means the
+    # whole update completed and the next run will skip it.
+    do_render_skill(data_repo, force=True)
+
+    print(f"  ✓ Updated to {__version__}.")
 
 
 _ssh_url_pattern = re.compile(
@@ -494,13 +624,14 @@ def _git_config_user_name(working_dir: Path) -> str:
         return ""
 
 
-def do_render_skill(data_repo: Path) -> None:
+def do_render_skill(data_repo: Path, *, force: bool = False) -> None:
     """Render the bundled skill template into
     ``<data-repo>/.claude/skills/<assistant.name>/SKILL.md``.
 
     Reads ``<data-repo>/.jade/config.json`` for user + assistant fields.
-    Per the hook-based bootstrap design, this is a no-op if the target
-    SKILL.md already exists — refresh-by-delete is the rebuild loop.
+    By default this is a no-op if the target SKILL.md already exists —
+    refresh-by-delete is the rebuild loop. Pass ``force=True`` to delete
+    and re-render an existing file (used by ``post-update``).
 
     Exits with a clear message on missing config, invalid JSON, or
     missing required fields, rather than silently rendering a skill
@@ -542,7 +673,10 @@ def do_render_skill(data_repo: Path) -> None:
 
     skill_path = data_repo / ".claude" / "skills" / assistant_name / "SKILL.md"
     if skill_path.exists():
-        return  # no-op; delete to force a re-render
+        if force:
+            skill_path.unlink()
+        else:
+            return  # no-op; delete to force a re-render (or pass force=True)
 
     template_text = files("jadelens").joinpath("templates", "skill.md").read_text()
     rendered = render_skill(config, template_text)

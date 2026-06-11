@@ -210,7 +210,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
     4. If skill version < code version (skill is stale — CLI was updated but `post-update` did not finish): print *"Installed CLI version Y is ahead of skill version X. Run `jadelens post-update --data-repo=<data_repo_path>` to finish the update, then retry."* Abort.
     5. If equal: continue normally.
 
-  - [ ] **9e-vi.** Update the session-start hook template. Near the end of the hook (after `jadelens` is installed/verified), add:
+  - [x] **9e-vi.** Update the session-start hook template. Near the end of the hook (after `jadelens` is installed/verified), add:
     ```
     git -C "$REPO" checkout main
     jadelens post-update --data-repo="$REPO"

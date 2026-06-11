@@ -439,3 +439,66 @@ def test_post_update_multi_repo_updates_all(tmp_path: Path, capsys):
     for name in ("repo1", "repo2"):
         skill = tmp_path / name / ".claude" / "skills" / "testskill" / "SKILL.md"
         assert f"cli-version={__version__}" in skill.read_text(), name
+
+
+# ---------------------- apply version guard ----------------------
+
+
+import io
+import sys as _sys
+
+from jadelens.apply import do_apply
+
+
+def _make_apply_payload() -> dict:
+    return {
+        "commit_message": "test",
+        "operations": [{"op": "create_file", "path": "foo.md", "content": "hi"}],
+    }
+
+
+def test_apply_version_guard_aborts_if_skill_behind(tmp_path: Path, monkeypatch):
+    """CLI ahead of skill → post-update message."""
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, "v0.0.0")
+
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(json.dumps(_make_apply_payload())))
+    with pytest.raises(SystemExit) as exc_info:
+        do_apply(repo)
+    msg = str(exc_info.value.code)
+    assert "post-update" in msg
+    assert "v0.0.0" in msg
+    assert __version__ in msg
+
+
+def test_apply_version_guard_aborts_if_skill_ahead(tmp_path: Path, monkeypatch):
+    """Skill ahead of CLI → update message."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, "v99.0.0")
+
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(json.dumps(_make_apply_payload())))
+    with pytest.raises(SystemExit) as exc_info:
+        do_apply(repo)
+    msg = str(exc_info.value.code)
+    assert "jadelens update" in msg
+    assert "v99.0.0" in msg
+
+
+def test_apply_version_guard_passes_when_versions_match(tmp_path: Path, monkeypatch):
+    """No abort when skill version == installed CLI version."""
+    from jadelens import __version__
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo, __version__)
+
+    # do_apply will fail past the version guard (no git remote for sync),
+    # but the important thing is the SystemExit is NOT the version-guard one.
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(json.dumps(_make_apply_payload())))
+    with pytest.raises(SystemExit) as exc_info:
+        do_apply(repo)
+    msg = str(exc_info.value.code)
+    assert "post-update" not in msg
+    assert "jadelens update" not in msg

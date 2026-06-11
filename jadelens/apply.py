@@ -18,9 +18,10 @@ import json
 import sys
 from pathlib import Path
 
-from jadelens import sync, workflow
+from jadelens import __version__, sync, workflow
 from jadelens.operations import ApplyError, ValidationError
 from jadelens.reflection import format_reflection
+from jadelens.skill import parse_skill_marker_version
 
 
 def do_apply(data_repo: Path) -> None:
@@ -33,6 +34,25 @@ def do_apply(data_repo: Path) -> None:
     """
     if not data_repo.is_dir():
         sys.exit(f"Data repo path does not exist or is not a directory: {data_repo}")
+
+    # Version guard: the rendered skill must match the installed CLI.
+    # A mismatch means either the CLI was updated without running post-update,
+    # or another device ran jadelens update and this device's CLI is stale.
+    marker_version = parse_skill_marker_version(data_repo)
+    if marker_version is not None and marker_version != __version__:
+        if marker_version < __version__:
+            sys.exit(
+                f"Installed CLI version {__version__!r} is ahead of skill version "
+                f"{marker_version!r}.\n"
+                f"Run 'jadelens post-update --data-repo={data_repo}' to finish the "
+                "update, then retry."
+            )
+        else:
+            sys.exit(
+                f"Skill version {marker_version!r} is ahead of installed CLI version "
+                f"{__version__!r}.\n"
+                "Run 'jadelens update' to update the CLI, then retry."
+            )
 
     try:
         payload = json.load(sys.stdin)

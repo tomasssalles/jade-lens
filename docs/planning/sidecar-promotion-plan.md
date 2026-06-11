@@ -163,7 +163,53 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [ ] **9c.** Write migration runbook for v2 (markdown instructions
   interleaving natural-language steps with calls to the helper(s)).
 - [ ] **9d.** Add data-format version check to the web app: if data version < supported (2, in this case), warn to use the CLI/skill to migrate the data (even though this is a lie for now, because that's not implemented yet). If data version > supported (2, in this case), warn the user they should reload (and if needed clear the cache and reload again). In both cases, switch to read-only mode (best-effort, might be broken).
-- [ ] **9e.** Implement `jadelens update` (or `jadelens upgrade`?). This probably deserves a few subitems here... *Note: the backlog already has an "Update tool" item with context — read it before designing this.*
+- [ ] **9e.** Implement `jadelens update`. Sub-tasks:
+
+  - [ ] **9e-i.** Add a `post-update` stub subcommand to `jadelens`. Unlike all other subcommands it takes no positional `data_repo` argument; instead it accepts a single optional keyword argument `--data-repo <path>`. For now the handler just prints "post-update: not yet implemented" and exits. Then add the `update` subcommand: no arguments, no logic beyond two sequential `subprocess.run` calls — first `uv tool install --reinstall <package-source>@cli-latest` (the exact uv invocation that reinstalls from the moving git tag; settle the precise command at implementation), second `jadelens post-update`. Add a prominent comment that this function must stay a thin shell-out forever and must never grow additional logic. Add a pytest test that mocks `subprocess.run` and asserts exactly two calls are made with the expected arguments and that no other side effects occur (no file I/O, no other subprocess calls).
+
+  - [ ] **9e-ii.** Extract reusable file-writing helpers from `do_init()`. Both `init` and `post-update` need to write the same set of files; extract a helper for each that can be called from both commands:
+    - `_write_session_start_hook(data_repo, assistant_name)` — writes `.claude/hooks/session-start` (executable).
+    - `_write_settings_json(data_repo, assistant_name)` — writes `.claude/settings.json`.
+    - `_write_claude_md(data_repo, config)` — writes `CLAUDE.md` from template + config values.
+    - `_write_gitignore(data_repo)` — writes `.gitignore`.
+    - `_write_config(data_repo, config_dict)` — writes `.jade/config.json`.
+    - `do_render_skill()` already exists; verify it is usable as-is.
+
+    All helpers must **unconditionally overwrite** (not write-if-not-exists). Refactor `do_init()` to call them; since init already creates the directory structure first, the behaviour is unchanged. The helpers work correctly for post-update's "existing repo" case too.
+
+  - [ ] **9e-iii.** Implement `post-update --data-repo=<path>`: single-repo update. The subcommand handler calls `_update_repo(data_repo: Path)`:
+    1. **Idempotency check.** Derive the skill file path from the data repo (it lives at `<data_repo>/.claude/skills/<assistant_name>/SKILL.md`, where `assistant_name` comes from `.jade/config.json`). Read the skill marker version. If it matches `jadelens.__version__`, print "Already up to date." and return immediately.
+    2. **Dirty-tree check.** Run `git -C <data_repo> status --porcelain`. If there is any output, print a clear warning that names the repo and aborts. Do not touch anything. (On claude.ai, hook stderr surfaces in Claude's context even if invisible to the human user; the apply version guard — 9e-vi — is the fallback signal to the user.)
+    3. **Branch switch.** Record the current branch (`git -C <data_repo> rev-parse --abbrev-ref HEAD`). Run `git -C <data_repo> checkout main`. This is necessary because on claude.ai the feature branch may already be checked out when the session-start hook fires.
+    4. **Config update.** Read `.jade/config.json`. Compare its keys against the set of keys the current code version requires. For each required key that is absent, prompt the user interactively (same style as `init` prompts). Call `_write_config()` with the updated dict. The config must be written before the skill is re-rendered, because the skill template uses config values.
+    5. **File updates.** Call `_write_session_start_hook()`, `_write_settings_json()`, `_write_claude_md()`, `_write_gitignore()` with values from the (now up-to-date) config.
+    6. **Commit.** Stage all modified tracked files (`git add -u`) and commit: `jadelens update: update repo files to cli-v<version>`. Handle "nothing to commit" gracefully — some files may be identical after the rewrite, which is fine; the subsequent push may still be needed for a previous un-pushed commit.
+    7. **Push.** `git push origin main`. Retry up to 4× with exponential backoff (2 s, 4 s, 8 s, 16 s) on network failure.
+    8. **Re-render skill.** Call `do_render_skill(data_repo)`. The skill file is gitignored and is therefore not part of the commit. A correct skill marker version is the completion sentinel: if the process crashes before this step, the next invocation sees the old marker version and reruns from step 1.
+    9. Print a success summary: repo path, assistant name, new version.
+
+  - [ ] **9e-iv.** Implement `post-update` (no `--data-repo`): multi-repo scan. When `--data-repo` is omitted:
+    1. List all entries under `~/.claude/skills/`.
+    2. For each entry that is a symlink, resolve it to its target path. Skip broken symlinks with a printed warning.
+    3. Read the target markdown file and search for the Jade Lens skill marker comment (the same marker that the apply version guard reads — see 9e-vi; the marker-parsing logic should live in one shared helper used by both). If the marker is absent, skip silently (the skill belongs to a different tool).
+    4. Derive the data-repo root from the symlink target (the skill lives at `<data_repo>/.claude/skills/<name>/SKILL.md`; strip the trailing three path components).
+    5. Print a clear header: `=== Updating <assistant_name> (<data_repo>) ===`.
+    6. Call `_update_repo(data_repo)`.
+    7. Continue to the next entry regardless of per-repo errors (log the error and move on so one broken repo does not block others).
+
+  - [ ] **9e-v.** Apply version guard. At the top of `do_apply()`, before `workflow.run()` is called:
+    1. Parse the Jade Lens skill marker in the data repo's skill file to extract the embedded CLI version. Use the shared marker-parsing helper from 9e-iv.
+    2. Compare with `jadelens.__version__`.
+    3. If skill version > code version (CLI is stale — another device ran `jadelens update`): print *"Skill version X is ahead of installed CLI version Y. Run `jadelens update` to update the CLI, then retry."* Abort.
+    4. If skill version < code version (skill is stale — CLI was updated but `post-update` did not finish): print *"Installed CLI version Y is ahead of skill version X. Run `jadelens post-update --data-repo=<data_repo_path>` to finish the update, then retry."* Abort.
+    5. If equal: continue normally.
+
+  - [ ] **9e-vi.** Update the session-start hook template. Near the end of the hook (after `jadelens` is installed/verified), add:
+    ```
+    git -C "$REPO" checkout main
+    jadelens post-update --data-repo="$REPO"
+    ```
+    The `git checkout main` is required because on claude.ai the environment may have pre-created a feature branch before the hook fires; `post-update` must commit to `main`. Add a comment in the template explaining this. Because `post-update` may overwrite the hook file itself, it must be the last substantive command in the hook. Update `do_init()` to use the updated template. Existing data repos will receive the new hook on their next `jadelens update`.
 - [ ] **9f.** Add data-format version check to `workflow.run` in the CLI: if
   data version < 2, tell the user to run the migration and abort; if data
   version > current, tell the user to update and abort. Confirm check location

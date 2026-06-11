@@ -14,6 +14,7 @@ import WikilinkNode from './nodes/WikilinkNode'
 import LockClosedIcon from './assets/lock-closed.svg?react'
 import LockOpenIcon from './assets/lock-open.svg?react'
 import PencilIcon from './assets/pencil.svg?react'
+import ArrowUpRightIcon from './assets/arrow-up-right.svg?react'
 
 // Edit-mode context: `{ editing, onValueEdit, repoFiles }`. `editing` is true only
 // when the view is unlocked (docs/web/editing.md "Edit-mode lock");
@@ -499,10 +500,10 @@ function NumRow({ value, pointer, keyLabel, s }) {
   )
 }
 
-// Renders a truncated inline preview of a sidecar .md file (8a).
+// Renders a truncated inline preview of a sidecar .md file (8a) with a ↗ icon
+// that navigates to the full sidecar view (8b).
 // Fetches content from the in-memory cache first; falls back to the GitHub API.
-// Shows a loading placeholder until content is available.
-function SidecarPreview({ sidecarPath }) {
+function SidecarPreview({ sidecarPath, onWikilinkClick }) {
   const [state, setState] = useState(() => {
     const cached = getContentFromCache(sidecarPath)
     return cached !== undefined ? { loading: false, text: cached } : { loading: true }
@@ -528,6 +529,10 @@ function SidecarPreview({ sidecarPath }) {
     return () => { cancelled = true }
   }, [sidecarPath])
 
+  const navigateToSidecar = onWikilinkClick
+    ? (e) => { e.preventDefault(); onWikilinkClick(sidecarPath) }
+    : null
+
   if (state.loading) {
     return <span style={{ opacity: 0.4 }}>…</span>
   }
@@ -537,14 +542,26 @@ function SidecarPreview({ sidecarPath }) {
   if (segments.length === 0) return null
 
   return (
-    <span style={{ opacity: 0.75, fontStyle: 'italic' }}>
-      {segments.map((seg, i) => {
-        if (seg.type === 'strong') return <strong key={i}>{seg.content}</strong>
-        if (seg.type === 'em') return <em key={i}>{seg.content}</em>
-        if (seg.type === 'code') return <code key={i}>{seg.content}</code>
-        return seg.content
-      })}
-      {truncated && '…'}
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+      <span style={{ opacity: 0.75, fontStyle: 'italic' }}>
+        {segments.map((seg, i) => {
+          if (seg.type === 'strong') return <strong key={i}>{seg.content}</strong>
+          if (seg.type === 'em') return <em key={i}>{seg.content}</em>
+          if (seg.type === 'code') return <code key={i}>{seg.content}</code>
+          return seg.content
+        })}
+        {truncated && '…'}
+      </span>
+      {navigateToSidecar && (
+        <a
+          href="#"
+          onClick={navigateToSidecar}
+          aria-label="Open full content"
+          style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.55, flexShrink: 0, color: 'inherit' }}
+        >
+          <ArrowUpRightIcon style={{ width: 13, height: 13 }} />
+        </a>
+      )}
     </span>
   )
 }
@@ -561,7 +578,7 @@ function StringRow({ value, pointer, keyLabel, s, onWikilinkClick }) {
   // Sidecar wikilinks render a truncated content preview regardless of edit mode.
   const wikilinkPath = wikilinkTarget(value)
   if (wikilinkPath && isSidecarPath(wikilinkPath)) {
-    const preview = <SidecarPreview sidecarPath={wikilinkPath} />
+    const preview = <SidecarPreview sidecarPath={wikilinkPath} onWikilinkClick={onWikilinkClick} />
     if (editable) {
       return (
         <EditableLeaf

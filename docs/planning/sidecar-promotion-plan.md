@@ -143,7 +143,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 - [x] **8a.** In the JSON card view, when a field value is a sidecar wikilink,
   render a truncated preview instead: max 1 rendered line, max 100 characters, + `...`. Truncation must respect inline span boundaries (no cutting inside
   inline code, bold, etc.).
-- [ ] **8b.** Add a ↗ icon to the truncated preview card that navigates to the
+- [x] **8b.** Add a ↗ icon to the truncated preview card that navigates to the
   full sidecar view.
 - [ ] **8c.** Navigating back from the sidecar view to the parent JSON file
   restores the scroll offset. This should already be true, we just need to check.

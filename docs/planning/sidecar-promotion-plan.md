@@ -159,9 +159,19 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 ## Phase 9 — Versioning and migration
 
 - [x] **9a.** Read the versioning design doc and existing migration framework code/docs to understand what has already been designed for the v2 migration (not much, actually). The main goal here is to finish designing, implementing and testing the migration framework. The data changes will be done anyway to help make this exercise realistic (so we're ready for more serious migrations in the future). We'll bump the data-format version, promote all relevant string values to sidecars in one batch, look for any breaches of the new rules we're enforcing (e.g. file-stem/dirname collisions) and either handle them automatically or surface them to the bot for intelligent handling, and finish the migration with a check of every rule.
-- [ ] **9b.** Implement Python migration helper script(s) for v2.
-- [ ] **9c.** Write migration runbook for v2 (markdown instructions
-  interleaving natural-language steps with calls to the helper(s)).
+- [ ] **9b.** Implement Python migration helpers for v2. Sub-tasks:
+
+  - [ ] **9b-i.** Create `jadelens/migrations/v2/` package (with `__init__.py`) and `helpers.py`. Implement `promote_sidecars(data_repo: Path, stdin_data: dict | None) -> None`: scans every `.json` file in the data repo (excluding `.jade/`), identifies every string value that qualifies for sidecar promotion (>1 content block per the existing trigger logic in `jadelens/sidecar.py`), and emits a `jadelens apply --unsafe` payload (a `json_patch` with `replace` ops for each qualifying value) so the promotion pipeline handles wikilink creation automatically. Prints a structured result to stdout: counts of files scanned, values promoted, sidecars created.
+  - [ ] **9b-ii.** Add `jadelens run-migration-helper <data_repo> <identifier>` subcommand. `<identifier>` is a `vN/name` string (e.g. `v2/promote-sidecars`). A match block dispatches to the corresponding helper function. The subcommand reads JSON from stdin and passes it to the function. Raises a clear error for unknown identifiers.
+  - [ ] **9b-iii.** Tests for `promote_sidecars`: at least one test with a fixture repo containing promotable strings confirms the correct apply payload is emitted and the strings are promoted. Test `run-migration-helper` dispatch: unknown identifier exits with error; known identifier calls the right function.
+
+- [ ] **9c.** Write migration runbook for v2 at `jadelens/migrations/v2/RUNBOOK.md`. The runbook is output verbatim to stdout by `jadelens migrate` and followed by the bot. It must:
+  - Use `jadelens apply --unsafe` for every data operation.
+  - Call `jadelens run-migration-helper <data_repo> v2/promote-sidecars` to batch-promote qualifying strings (the helper handles the apply call internally).
+  - Instruct the bot to review the promotion output and flag anything unexpected.
+  - Instruct the bot to check for any file-stem/directory-name collisions and resolve them (rename the colliding file, ask the user if intent is unclear).
+  - End by bumping `.jade/version` to `v2` via `apply --unsafe` with a `replace` op on `.jade/version`.
+  - End with a final integrity pass: call `jadelens apply --unsafe` with an empty operations list (or a dedicated check command) to confirm all v2 invariants pass.
 - [ ] **9d.** Add data-format version check to the web app: if data version < supported (2, in this case), warn to use the CLI/skill to migrate the data (even though this is a lie for now, because that's not implemented yet). If data version > supported (2, in this case), warn the user they should reload (and if needed clear the cache and reload again). In both cases, switch to read-only mode (best-effort, might be broken).
 - [x] **9e.** Implement `jadelens update`. Sub-tasks:
 
@@ -216,12 +226,27 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
     jadelens post-update --data-repo="$REPO"
     ```
     The `git checkout main` is required because on claude.ai the environment may have pre-created a feature branch before the hook fires; `post-update` must commit to `main`. Add a comment in the template explaining this. Because `post-update` may overwrite the hook file itself, it must be the last substantive command in the hook. Update `do_init()` to use the updated template. Existing data repos will receive the new hook on their next `jadelens update`.
-- [ ] **9f.** Add data-format version check to `workflow.run` in the CLI: if
-  data version < 2, tell the user to run the migration and abort; if data
-  version > current, tell the user to update and abort. Confirm check location
-  open question first.
-- [ ] **9g.** Wire the v2 migration into the CLI/skill invocation path (how the
-  user triggers it and how progress/errors are reported).
+- [ ] **9f.** Add data-format version check to `workflow.run`. At the start of `workflow.run()`, read `.jade/version`, compare against `__supported_data_format_version__`:
+  - `data < supported` and `--unsafe` not set: abort — *"Data is vN, this CLI requires vM. Run `/<assistant>-migrate` to migrate."*
+  - `data > supported`: abort — *"Data version vN is newer than this CLI supports (vM). Run `jadelens update`."*
+  - `--unsafe` set: skip version check and skip end-of-apply rule enforcement (both suppressed). Still pull. Don't push after committing (leave push to `jadelens migrate`). Print a visually distinct warning line at the start of output (colour + ⚠️ emoji) noting that unsafe mode is active.
+  - `data == supported`: proceed normally.
+  The `--unsafe` flag is added to the `apply` subcommand's argparse definition and threaded through to `workflow.run` via a parameter.
+
+- [ ] **9g.** Implement `jadelens migrate <data_repo>` and the `/<assistant>-migrate` skill. Sub-tasks:
+
+  - [ ] **9g-i.** Add `jadelens migrate <data_repo>` subcommand. On each call:
+    1. Pull from remote.
+    2. Read `data_version` from `.jade/version`.
+    3. If `data_version == __supported_data_format_version__`: find the open migration (start tag with no end tag, if any), create + push its end tag, start a fresh ops-log file for the new version, print `DONE`.
+    4. Otherwise: find the open migration tag for `data_version → data_version+1`.
+       - No start tag: create + push `vN-v(N+1)-migration-start`.
+       - Start tag exists and HEAD is ahead of it (crash recovery): `git reset --hard <start-tag>`, pull, print rollback warning.
+       - Start tag exists, HEAD == start tag: clean resume.
+       - If a previous migration just completed (data version advanced since last call): create + push both the end tag for the completed migration and the start tag for this one.
+    5. Print the contents of `jadelens/migrations/v(N+1)/RUNBOOK.md` to stdout.
+  - [ ] **9g-ii.** Render and symlink the `/<assistant>-migrate` skill alongside the main skill. Add a `migrate-skill.md` template to `jadelens/templates/`. Wire it into `do_render_skill` (renders both skills) and `_write_common_files` / `post-update` (same lifecycle as the main skill). The migrate skill contains the loop described in `docs/design/versioning.md` ("The `/<assistant>-migrate` skill" section).
+  - [ ] **9g-iii.** Tests for `jadelens migrate`: fresh start creates start tag and outputs runbook; crash recovery resets and warns; completion creates end tag and prints DONE; multi-version sequence works end-to-end.
 
 ---
 

@@ -127,70 +127,153 @@ pushed together.
 
 ### Bot-run, Python-assisted
 
-Migrations are **run by the bot**, following a **markdown runbook** for the target
-data version that interleaves two registers:
+Migrations are **run by the bot**, following a **markdown runbook** bundled inside
+the `jadelens` package at `jadelens/migrations/vN/RUNBOOK.md`. The runbook
+interleaves two registers:
 
 - **Natural-language instructions** for work needing intelligence — *"rename files
   so their names never include verbs," "merge duplicate research records on the
   same topic."*
-- **Calls to per-migration Python helper scripts** for everything mechanical —
-  *"run `migrations/v17.py` with the filepaths of all calendar files as args."*
+- **Calls to per-migration Python helpers** for everything mechanical —
+  *"`jadelens run-migration-helper <data_repo> v2/promote-sidecars`"*
 
 Order is whatever the runbook dictates — interleaved, not "all Python then the bot
-finishes up." Guiding principle: **automate in Python whenever possible to save
-tokens; use the bot only where intelligence is genuinely needed.** Renaming a field
-across a year of records via bot-emitted patches would be prohibitively expensive;
-a 10-line script over the same data is free, fast, reliable.
+finishes up." Guiding principle: **automate in Python wherever possible to save
+tokens; use the bot only where intelligence is genuinely needed.**
 
-> Exact file layout (`migrations/vN.md` runbook + `migrations/vN*.py` helpers vs. a
-> `migrations/vN/` dir) and its relationship to `data-format/vN.md` are a detail to
-> finalize at implementation.
+**Helper layout.** Each migration's helpers are Python functions in
+`jadelens/migrations/vN/helpers.py`. The `jadelens run-migration-helper <data_repo>
+<identifier>` subcommand dispatches to the right function via a match block (e.g.
+`v2/promote-sidecars`). Helpers receive `data_repo: Path` and read any
+bot-supplied input from stdin as JSON (same protocol as `apply`). They print a
+structured result to stdout. No helper scripts in PATH; no subprocess spawning.
+
+**File layout.** Each migration lives in `jadelens/migrations/vN/` containing
+`RUNBOOK.md` and `helpers.py` (the latter may be minimal or empty). The
+`docs/changelogs/data-format/vN.md` changelog describes the format change and
+summarises how the migration works (high-level, for humans); the runbook is the
+bot-executable step-by-step.
 
 ### Who runs them
 
-- **Now (planned):** the Python tooling/skill is the sole migration runner (the
-  bot via `/jade`, following the runbook). The web app detects and warns only.
+- **Now:** the bot via the `/<assistant>-migrate` skill (see below), with
+  `jadelens migrate` as the loop-control command. The web app detects version
+  mismatches and warns only.
 - **Future (bot in the web app):** the web app gains the ability to run migrations,
   turning "your data needs upgrading" into a "click to upgrade" button. The Python
   path keeps supporting terminal users.
 
-### Execution flow — keep the safety net
+### The `/<assistant>-migrate` skill
 
-1. **Pre-check.** Ask the user to review the data — especially recent changes — and
-   fix mistakes via correction or manual edits. Their last chance before the shape
-   changes (the one-way door).
-2. **Checkpoint.** On confirmation, create a checkpoint tag in the data repo
-   (e.g. `pre-migration-<from>-to-<to>`).
-3. **Collect.** Gather every migration whose target is in
-   `(data-version, required-version]`, in order.
-4. **Dry-run summary.** Show the user what each migration will do; confirm.
-5. **Apply, per migration in sequence:** run the runbook (bot + Python helpers; all
-   data changes go through the standard pipeline) → bump `.jade/version` → write an
-   operations-log entry describing the migration → commit. One atomic commit per
-   migration = a clean version boundary to resume from.
-6. **Push.**
-7. **Fresh ops-log.** Start a new `.jade/operations-log/<version>.jsonl`; the
-   previous file stays for history ([audit-and-correction.md](audit-and-correction.md)).
+A dedicated rendered skill, separate from the main `/<assistant>` skill, symlinked
+at `~/.claude/skills/<assistant>-migrate/`. It contains a simple loop:
 
-**On failure / interruption:** because the version is bumped only inside each
-migration's own commit, the next run still sees `data < required` and re-engages.
-Recovery: **reset to the pre-migration checkpoint tag and retry from scratch.**
-Individual migrations need **not** be idempotent — subjective bot steps can't
-guarantee it; reset-then-retry sidesteps the problem.
+1. Call `jadelens migrate <data_repo>`.
+2. If the output is `DONE`, tell the user "Migration complete." and stop.
+3. If the output is a runbook, follow it exactly, then go to step 1.
+4. If an error occurs, report it and stop.
+
+The skill is kept separate so the user controls when migration happens (explicit
+`/<assistant>-migrate` invocation), and so migrations run in a clean context
+without unrelated session history.
+
+When `jadelens apply` detects `data < required`, it tells the user: *"Data is vN,
+this CLI requires vM. Run `/<assistant>-migrate` to migrate."* No automatic
+migration; the user invokes it deliberately.
+
+### `jadelens migrate` — loop-control command
+
+Called repeatedly by the bot inside the migration skill's loop. On each call it:
+
+1. **Pulls** from the remote (detects anything pushed from another device; catches
+   the edge case of two sessions running the same migration concurrently).
+2. **Checks completion.** If `data_version == required_version`: create + push the
+   end tag for the last migration (see tags below), output `DONE`, exit.
+3. **Finds the open migration.** Scans tags for a `vN-v(N+1)-migration-start`
+   without a corresponding `vN-v(N+1)-migration-end`. `N` equals the current
+   `data_version`.
+   - **No start tag (fresh start):** create + push `vN-v(N+1)-migration-start`.
+   - **Start tag exists, HEAD is ahead of it (crash recovery):** commits from the
+     failed attempt were never pushed — `git reset --hard <start-tag>` is safe.
+     Reset, then print: *"Rolled back N commits to `vN-v(N+1)-migration-start`.
+     Re-running the runbook from scratch."*
+   - **Start tag exists, HEAD == start tag:** clean resume, no rollback needed.
+4. **If this is not the first migration in the run:** create + push the end tag for
+   the just-completed migration (`v(N-1)-vN-migration-end`) and the start tag for
+   this one (`vN-v(N+1)-migration-start`) together, then push once.
+5. **Output the runbook** for the `vN → v(N+1)` migration to stdout.
+
+The bot reads the runbook and executes it. All data operations use
+`jadelens apply --unsafe` (see below). The runbook's final step bumps
+`.jade/version` to `v(N+1)` via `apply --unsafe`. The bot then loops back to
+`jadelens migrate`.
+
+### `jadelens apply --unsafe`
+
+During migrations the bot must call `apply` while the data is in a transitional
+state that would normally be rejected. `--unsafe` suppresses three things:
+
+1. **Version guard** — the `data < required` check that would otherwise abort.
+2. **End-of-apply rule enforcement** — the new-version invariants that the data
+   doesn't yet satisfy mid-migration.
+3. **Auto-push** — commits are made locally but not pushed. `jadelens migrate`
+   pushes at the end of each migration (after the end tag). This makes crash
+   recovery clean: uncommitted local commits can be dropped with a safe local
+   `reset --hard`, with no force-push needed.
+
+`apply --unsafe` still **pulls** before applying (to detect remote changes).
+The output of any `--unsafe` call is visually distinguished (colour + emoji) so
+it's unambiguous in the session transcript when the guard is bypassed.
+
+### Tags in the data repo
+
+Migration tags live in the data repo (not the code repo):
+
+| Tag pattern | Example | Created when |
+|---|---|---|
+| `vN-v(N+1)-migration-start` | `v1-v2-migration-start` | Before the runbook for N→N+1 is output |
+| `vN-v(N+1)-migration-end` | `v1-v2-migration-end` | After N→N+1 is confirmed complete (data version == N+1) |
+
+Tags are always pushed immediately when created. The presence of a start tag with
+no end tag is the signal that a migration is in progress or was interrupted.
+
+These are **data-repo tags** — they are not code-repo release tags, and their
+format doesn't conflict with `cli-vX.Y.Z` / `web-vX.Y.Z` tags.
+
+### Execution flow
+
+For a data repo at v2 being migrated to v5 (three sequential migrations):
+
+1. User invokes `/<assistant>-migrate`.
+2. Bot calls `jadelens migrate`. Command creates `v2-v3-migration-start`, pushes,
+   outputs v2→v3 runbook.
+3. Bot follows runbook (using `apply --unsafe` for all data ops). Runbook ends with
+   bumping `.jade/version` to `v3`.
+4. Bot loops. `jadelens migrate`: data=v3, no `v2-v3-migration-end` → creates
+   `v2-v3-migration-end` + `v3-v4-migration-start`, pushes, outputs v3→v4 runbook.
+5. Bot follows runbook. `.jade/version` bumped to v4.
+6. Bot loops. Same pattern → `v3-v4-migration-end` + `v4-v5-migration-start`,
+   v4→v5 runbook.
+7. Bot follows runbook. `.jade/version` bumped to v5.
+8. Bot loops. `jadelens migrate`: data=v5 == required → creates
+   `v4-v5-migration-end`, pushes, outputs `DONE`.
+9. Bot tells user "Migration complete." Skill exits.
+
+Fresh ops-log: after the final migration commit, `jadelens migrate` starts a new
+`.jade/operations-log/v5.jsonl`; previous log files stay for history.
 
 ### One-way door
 
 Operations-log entries from before a migration reference shapes that no longer
 exist. They stay readable as history but can't be meaningfully re-applied. The
-pre-check (step 1) is the user's chance to fix things before the door closes.
+checkpoint tags are the rollback mechanism.
 
 ### Testing discipline
 
 Before shipping a migration in a release, run it against a snapshot of pre-version
 data and verify — catch breakage at release time, not at the user's startup.
 Especially important because the bot executes part of it: a migration that worked
-yesterday may behave differently as models/prompts drift. Pinning the model
-version used during a run is worth considering.
+yesterday may behave differently as models/prompts drift.
 
 ## Changelog layout
 
@@ -208,14 +291,25 @@ changelog, now split into the per-track layout (`cli/v0.1.0.md`, `web/v0.1.0.md`
 
 ## Git tags
 
+**Code repo tags** (in `tomasssalles/jade-lens`):
+
 | Tag | Example | Meaning |
 |---|---|---|
 | `cli-vMAJOR.MINOR.PATCH` | `cli-v1.2.3` | Python tooling/skill release |
 | `web-vMAJOR.MINOR.PATCH` | `web-v0.4.0` | Web app deployment |
 
-No tags for the data version. Tags are created at the version-bump commit (for the
-web app, the commit that triggers the Pages deploy). When a code release requires
-a new data version, push the code tag(s) **and** the migration together.
+Tags are created at the version-bump commit (for the web app, the commit that
+triggers the Pages deploy). When a code release requires a new data version, push
+the code tag(s) **and** the migration together.
+
+**Data repo tags** (in the user's private data repo):
+
+| Tag | Example | Meaning |
+|---|---|---|
+| `vN-v(N+1)-migration-start` | `v1-v2-migration-start` | Checkpoint before a migration; rollback point |
+| `vN-v(N+1)-migration-end` | `v1-v2-migration-end` | Migration confirmed complete |
+
+See the Migrations section for how these tags are used.
 
 ## Summary
 
@@ -228,4 +322,4 @@ a new data version, push the code tag(s) **and** the migration together.
 | Update | manual update tool | page reload (always latest) | migration |
 | On `data < code` | run migration | warn + read-only, point to `/jade` | — |
 | On `data > code` | tell user to update, abort | reload (then clear cache) | — |
-| Migration runner | bot via `/jade`, Python-assisted | detects + warns only (for now) | — |
+| Migration runner | bot via `/<name>-migrate` skill + `jadelens migrate` | detects + warns only (for now) | — |

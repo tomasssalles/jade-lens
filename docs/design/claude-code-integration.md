@@ -107,9 +107,10 @@ session start (any surface):
 3. `jadelens render <data-repo>` — reads `.jade/config.json`, picks the
    highest-version bundled template, writes the rendered skill. **No-op if the
    SKILL.md already exists** — refresh-by-delete is the rebuild loop.
-4. On desktop (silent no-op elsewhere): symlink `~/.claude/skills/<name>/` → the
-   data-repo skill dir, so `/<name>` works from any cwd; otherwise print the exact
-   `ln -s` command.
+4. On desktop (silent no-op elsewhere): symlink `~/.claude/skills/<name>` → the
+   data-repo skill **directory** `<data-repo>/.claude/skills/<name>/` (not to
+   `SKILL.md` inside it), so `/<name>` works from any cwd; otherwise print the
+   exact `ln -s` command.
 
 Claude Code auto-discovers skills under `.claude/skills/<name>/` from the repo
 root, so no alias or installer is needed; the symlink just extends reach to any

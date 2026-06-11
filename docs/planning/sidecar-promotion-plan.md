@@ -201,6 +201,8 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
     6. Call `_update_repo(data_repo)`.
     7. Continue to the next entry regardless of per-repo errors (log the error and move on so one broken repo does not block others).
 
+    **Testing notes.** `_update_repo` can be fully tested with `tmp_path` fixtures since it only touches the data-repo path it receives. The multi-repo scan (step 1–7 above) requires a fixture that creates real symlinks under a temporary stand-in for `~/.claude/skills/`; pass that directory as a parameter rather than hardcoding `Path.home()` so tests can substitute it. The scan relies on the symlink pointing at the skill *directory* (not `SKILL.md`) — this is the contract documented in `docs/design/claude-code-integration.md`; include a test asserting that the path derivation in step 4 is correct when given a symlink to a directory.
+
   - [ ] **9e-v.** Apply version guard. At the top of `do_apply()`, before `workflow.run()` is called:
     1. Parse the Jade Lens skill marker in the data repo's skill file to extract the embedded CLI version. Use the shared marker-parsing helper from 9e-iv.
     2. Compare with `jadelens.__version__`.

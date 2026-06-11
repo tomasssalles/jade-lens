@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeWikilinkPath, formatPath } from './pathUtils'
+import { normalizeWikilinkPath, formatPath, formatFileBreadcrumb } from './pathUtils'
 
 describe('normalizeWikilinkPath', () => {
   it('strips a leading ./', () => {
@@ -34,5 +34,25 @@ describe('formatPath', () => {
   })
   it('only strips the final extension segment', () => {
     expect(formatPath('a/b.test.js')).toBe('a / b.test')
+  })
+})
+
+describe('formatFileBreadcrumb', () => {
+  it('non-sidecar path delegates to formatPath', () => {
+    expect(formatFileBreadcrumb('Projects/Garden.json')).toBe('Projects / Garden')
+  })
+  it('top-level sidecar — simple key', () => {
+    expect(formatFileBreadcrumb('Garden.sidecars/notes.md')).toBe('Garden[notes]')
+  })
+  it('sidecar in subdirectory with nested json-path', () => {
+    expect(formatFileBreadcrumb('Projects/Garden.sidecars/comparisons/0/description.md'))
+      .toBe('Projects / Garden[comparisons/0/description]')
+  })
+  it('sidecar with single segment and directory', () => {
+    expect(formatFileBreadcrumb('Work/Tasks.sidecars/summary.md'))
+      .toBe('Work / Tasks[summary]')
+  })
+  it('bare .md non-sidecar file', () => {
+    expect(formatFileBreadcrumb('notes.md')).toBe('notes')
   })
 })

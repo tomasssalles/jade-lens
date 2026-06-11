@@ -1,5 +1,5 @@
 import { getTitleColor, getBorderColor, getCardColor } from './viewerSettings'
-import { formatPath } from './pathUtils'
+import { formatFileBreadcrumb } from './pathUtils'
 import ArrowLeftIcon from './assets/arrow-left.svg?react'
 
 // `right` renders an optional control (e.g. the edit-mode lock) pinned to the far
@@ -47,7 +47,7 @@ export default function FileBreadcrumb({ filePath, s, onBack, right = null, stic
           <ArrowLeftIcon style={{ width: s.fontSize + 4, height: s.fontSize + 4 }} />
         </button>
       )}
-      <span style={{ flex: '1 1 auto', minWidth: 0 }}>{formatPath(filePath)}</span>
+      <span style={{ flex: '1 1 auto', minWidth: 0 }}>{formatFileBreadcrumb(filePath)}</span>
       {right}
     </div>
   )

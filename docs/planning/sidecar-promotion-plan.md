@@ -147,7 +147,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   full sidecar view.
 - [x] **8c.** Navigating back from the sidecar view to the parent JSON file
   restores the scroll offset. This should already be true, we just need to check.
-- [ ] **8d.** Sidecar top bar: when viewing a sidecar file, show
+- [x] **8d.** Sidecar top bar: when viewing a sidecar file, show
   `dir1 / dir2 / <stem>[<json-path>]` (e.g. `Projects / Garden[comparisons/0/description]`) instead of
   the path of the real sidecar file.
 - [ ] **8e.** Sidecar files are hidden from the file tree automatically once

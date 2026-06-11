@@ -464,13 +464,6 @@ function postApplyEnforcementPass(tree) {
 
 // ---------- Post-apply sidecar propagation pass ----------
 
-function isSidecarOrphaned(sidecarPath, jsonData) {
-  let pointer;
-  try { pointer = sidecarPathToPointer(sidecarPath, jsonData); }
-  catch { return true; }
-  const actual = getAtJsonPointer(jsonData, pointer);
-  return actual !== `[[${sidecarPath}]]`;
-}
 
 function postApplySidecarPropagationPass(tree, operations) {
   for (const op of operations) {
@@ -519,22 +512,19 @@ function postApplySidecarPropagationPass(tree, operations) {
         }
       }
 
-      // 6d: delete sidecar files orphaned by remove/move sub-ops
-      if (op.patch.some((p) => p.op === 'remove' || p.op === 'move')) {
-        const sidecarDir = sidecarDirForJson(op.path);
-        const prefix = sidecarDir + '/';
-        const content = tree.get(op.path);
-        if (content !== undefined) {
-          let jsonData = null;
-          try { jsonData = JSON.parse(content); } catch { /* treat as null */ }
-          if (jsonData !== null) {
-            for (const k of [...tree.keys()]) {
-              if (k.startsWith(prefix) && k.endsWith('.md') &&
-                  isSidecarOrphaned(k, jsonData)) {
-                tree.delete(k);
-              }
-            }
-          }
+      // 6d: remove sub-ops delete the corresponding sidecar file/subtree
+      for (const patchOp of op.patch) {
+        if (patchOp.op !== 'remove') continue;
+        const ptr = patchOp.path ?? '';
+        if (!ptr.startsWith('/') || ptr.slice(1).split('/').includes('-')) continue;
+        let sidecarFile;
+        try { sidecarFile = pointerToSidecarPath(op.path, ptr); }
+        catch { continue; }
+        const sidecarBase = sidecarFile.slice(0, -3); // strip .md → dir for nested fields
+        const sidecarBaseDir = sidecarBase + '/';
+        if (tree.has(sidecarFile)) tree.delete(sidecarFile);
+        for (const k of [...tree.keys()]) {
+          if (k.startsWith(sidecarBaseDir)) tree.delete(k);
         }
       }
     }

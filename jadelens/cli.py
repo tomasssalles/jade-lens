@@ -87,14 +87,34 @@ def main() -> None:
         help="Resolve (delete) the stash entry with this id (filename stem), then sync.",
     )
 
+    # jadelens update — thin shell-out only; see do_update()
+    _ = sub.add_parser(
+        "update",
+        help="Update the jadelens CLI and re-write all managed data repos to match.",
+    )
+
+    # jadelens post-update — re-writes repo files to match the installed CLI
+    post_update_parser = sub.add_parser(
+        "post-update",
+        help="Re-write repo files after a CLI update. Normally invoked by 'jadelens update'.",
+    )
+    post_update_parser.add_argument(
+        "--data-repo",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to a specific data repo to update. "
+        "If omitted, scans ~/.claude/skills/ for all managed repos.",
+    )
+
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
         sys.exit(1)
-    data_path = args.data_repo.expanduser().resolve()
 
     match args.command:
         case "init":
+            data_path = args.data_repo.expanduser().resolve()
             do_init(
                 data_path,
                 ssh_url=args.ssh_url,
@@ -103,14 +123,24 @@ def main() -> None:
                 user_short_name=args.user_short_name,
             )
         case "apply":
+            data_path = args.data_repo.expanduser().resolve()
             do_apply(data_path)
         case "render":
+            data_path = args.data_repo.expanduser().resolve()
             do_render_skill(data_path)
         case "stash":
+            data_path = args.data_repo.expanduser().resolve()
             if args.list:
                 do_stash_list(data_path)
             else:
                 do_stash_resolve(data_path, args.resolve)
+        case "update":
+            do_update()
+        case "post-update":
+            data_repo_arg = args.data_repo
+            if data_repo_arg is not None:
+                data_repo_arg = data_repo_arg.expanduser().resolve()
+            do_post_update(data_repo_arg)
 
 
 def do_init(
@@ -305,6 +335,28 @@ def do_init(
 
     print(f"\n✓ Done. Your data repo is ready at {data_repo_path}")
     print(f"  Start a Claude Code session and type /{assistant_name} to begin.")
+
+
+def do_update() -> None:
+    # This function must remain a thin shell-out forever — never add logic here.
+    # All update work belongs in `post-update` so it runs under the freshly
+    # installed code. Tests assert exactly these two subprocess.run calls and
+    # nothing else; any addition will break them intentionally.
+    subprocess.run([
+        "uv", "tool", "install", "--reinstall",
+        "git+https://github.com/tomasssalles/jade-lens.git@cli-latest",
+    ])
+    subprocess.run(["jadelens", "post-update"])
+
+
+def do_post_update(data_repo: Path | None, *, skills_dir: Path | None = None) -> None:
+    """Re-write repo files to match the installed CLI version.
+
+    If data_repo is given, updates only that repo.
+    If omitted, scans skills_dir (default: ~/.claude/skills/) for all managed repos.
+    skills_dir is injectable so tests can substitute a temporary directory.
+    """
+    print("post-update: not yet implemented")
 
 
 def _run_git(git_args: list[str], cwd: Path) -> subprocess.CompletedProcess:

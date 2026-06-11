@@ -1,11 +1,13 @@
 """Tests for jadelens.cli helpers (non-interactive parts)."""
 
 import json
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from jadelens.cli import do_render_skill
+from jadelens.cli import do_render_skill, do_update
 
 
 VALID_CONFIG = {
@@ -110,3 +112,30 @@ def test_render_skill_empty_field_exits(tmp_path: Path):
 
     with pytest.raises(SystemExit, match="Invalid config"):
         do_render_skill(tmp_path)
+
+
+# ---------------------- do_update ----------------------
+
+
+def test_update_is_thin_shim():
+    """update must always be exactly two subprocess.run calls and nothing else.
+
+    This test is intentionally strict: any logic added to do_update() will
+    break it. All update work belongs in post-update, not here.
+    """
+    with patch("jadelens.cli.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        do_update()
+
+    assert mock_run.call_count == 2, (
+        "do_update() must make exactly two subprocess.run calls"
+    )
+    first_cmd = mock_run.call_args_list[0][0][0]
+    second_cmd = mock_run.call_args_list[1][0][0]
+    assert first_cmd[0] == "uv", "first call must invoke uv"
+    assert "install" in first_cmd or "upgrade" in first_cmd, (
+        "first call must be a uv install/upgrade"
+    )
+    assert second_cmd == ["jadelens", "post-update"], (
+        "second call must be 'jadelens post-update' with no extra arguments"
+    )

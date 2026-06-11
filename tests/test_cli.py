@@ -1,13 +1,19 @@
 """Tests for jadelens.cli helpers (non-interactive parts)."""
 
 import json
+import stat
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from jadelens.cli import do_render_skill, do_update
+from jadelens.cli import (
+    _collect_config,
+    _write_common_files,
+    do_render_skill,
+    do_update,
+)
 
 
 VALID_CONFIG = {
@@ -139,3 +145,93 @@ def test_update_is_thin_shim():
     assert second_cmd == ["jadelens", "post-update"], (
         "second call must be 'jadelens post-update' with no extra arguments"
     )
+
+
+# ---------------------- _collect_config ----------------------
+
+
+def test_collect_config_returns_all_known():
+    """When all fields are already known, no prompting occurs."""
+    known = {
+        "user": {"full_name": "Alice Smith", "short_name": "Alice"},
+        "assistant": {"name": "jade"},
+    }
+    result = _collect_config(known)
+    assert result == known
+
+
+def test_collect_config_prompts_for_missing_fields(monkeypatch):
+    """Missing fields trigger the appropriate prompts."""
+    responses = iter(["myassistant", "Alice Smith", "Alice"])
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+    # Suppress git config lookup
+    monkeypatch.setattr("jadelens.cli._git_config_user_name", lambda _: "")
+
+    result = _collect_config({})
+
+    assert result["assistant"]["name"] == "myassistant"
+    assert result["user"]["full_name"] == "Alice Smith"
+    assert result["user"]["short_name"] == "Alice"
+
+
+def test_collect_config_does_not_reprompt_assistant_name(monkeypatch):
+    """assistant.name already in known is not re-prompted."""
+    responses = iter(["Alice Smith", "Alice"])
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+    monkeypatch.setattr("jadelens.cli._git_config_user_name", lambda _: "")
+
+    result = _collect_config({"assistant": {"name": "jade"}})
+
+    assert result["assistant"]["name"] == "jade"
+    assert result["user"]["full_name"] == "Alice Smith"
+
+
+# ---------------------- _write_common_files ----------------------
+
+
+def test_write_common_files_creates_all_files(tmp_path: Path):
+    config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    _write_common_files(tmp_path, config)
+
+    assert (tmp_path / ".jade" / "config.json").is_file()
+    assert (tmp_path / ".claude" / "hooks" / "session-start").is_file()
+    assert (tmp_path / ".claude" / "settings.json").is_file()
+    assert (tmp_path / "CLAUDE.md").is_file()
+    assert (tmp_path / ".gitignore").is_file()
+
+
+def test_write_common_files_returns_five_paths(tmp_path: Path):
+    config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    paths = _write_common_files(tmp_path, config)
+    assert len(paths) == 5
+    assert all(p.is_file() for p in paths)
+
+
+def test_write_common_files_hook_is_executable(tmp_path: Path):
+    config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    _write_common_files(tmp_path, config)
+    hook = tmp_path / ".claude" / "hooks" / "session-start"
+    assert hook.stat().st_mode & stat.S_IXUSR
+
+
+def test_write_common_files_config_json_content(tmp_path: Path):
+    config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    _write_common_files(tmp_path, config)
+    written = json.loads((tmp_path / ".jade" / "config.json").read_text())
+    assert written == config
+
+
+def test_write_common_files_overwrites_existing(tmp_path: Path):
+    """Calling twice with different config overwrites — no-op-if-exists semantics are wrong here."""
+    config1 = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    config2 = {"user": {"full_name": "Bob", "short_name": "Bob"}, "assistant": {"name": "jade"}}
+    _write_common_files(tmp_path, config1)
+    _write_common_files(tmp_path, config2)
+    written = json.loads((tmp_path / ".jade" / "config.json").read_text())
+    assert written["user"]["full_name"] == "Bob"
+
+
+def test_write_common_files_does_not_write_skill(tmp_path: Path):
+    config = {"user": {"full_name": "Alice", "short_name": "Alice"}, "assistant": {"name": "jade"}}
+    _write_common_files(tmp_path, config)
+    assert not (tmp_path / ".claude" / "skills").exists()

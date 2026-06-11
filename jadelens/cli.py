@@ -143,6 +143,99 @@ def main() -> None:
             do_post_update(data_repo_arg)
 
 
+def _collect_config(known: dict) -> dict:
+    """Prompt for any missing config fields and return the complete config dict.
+
+    ``known`` follows the schema:
+      {"user": {"full_name": ..., "short_name": ...}, "assistant": {"name": ...}}
+    Missing or empty values trigger interactive prompts. All prompting is done
+    here so no filesystem writes happen before this function returns — callers
+    can safely rely on having the full config before touching disk.
+    """
+    user = known.get("user") or {}
+    assistant = known.get("assistant") or {}
+
+    assistant_name = assistant.get("name") or None
+    user_full_name = user.get("full_name") or None
+    user_short_name = user.get("short_name") or None
+
+    if not assistant_name:
+        assistant_name = prompt_assistant_name()
+    if not user_full_name:
+        user_full_name = prompt_user_full_name(Path.home())
+    if not user_short_name:
+        user_short_name = prompt_user_short_name(user_full_name)
+
+    return {
+        "user": {"full_name": user_full_name, "short_name": user_short_name},
+        "assistant": {"name": assistant_name},
+    }
+
+
+def _write_common_files(data_repo: Path, config_dict: dict) -> list[Path]:
+    """Write the files shared by both ``init`` and ``post-update``.
+
+    Unconditionally overwrites each file. Returns the list of written paths
+    for the caller to stage in a git commit.
+
+    Files written: .jade/config.json, .claude/hooks/session-start,
+    .claude/settings.json, CLAUDE.md, .gitignore.
+    The rendered skill is NOT written here — it must be written after commit/push.
+    """
+    written: list[Path] = []
+
+    # .jade/config.json
+    jade_dir = data_repo / ".jade"
+    jade_dir.mkdir(parents=True, exist_ok=True)
+    config_path = jade_dir / "config.json"
+    config_path.write_text(dumps_js_canonical(config_dict))
+    written.append(config_path)
+
+    # .claude/hooks/session-start (executable)
+    claude_dir = data_repo / ".claude"
+    hooks_dir = claude_dir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / "session-start"
+    hook_path.write_text(
+        files("jadelens").joinpath("templates", "session-start-hook.sh").read_text()
+    )
+    hook_mode = hook_path.stat().st_mode
+    hook_path.chmod(hook_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    written.append(hook_path)
+
+    # .claude/settings.json
+    claude_settings_path = claude_dir / "settings.json"
+    claude_settings_path.write_text(dumps_js_canonical({
+        "hooks": {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start",
+                        },
+                    ],
+                },
+            ],
+        },
+    }))
+    written.append(claude_settings_path)
+
+    # CLAUDE.md
+    claude_md_path = data_repo / "CLAUDE.md"
+    claude_md_path.write_text(
+        files("jadelens").joinpath("templates", "CLAUDE-template.md").read_text()
+    )
+    written.append(claude_md_path)
+
+    # .gitignore
+    gitignore_path = data_repo / ".gitignore"
+    gitignore_path.write_text("# Rendered skill files\n.claude/skills/\n")
+    written.append(gitignore_path)
+
+    return written
+
+
 def do_init(
     data_repo_path: Path,
     ssh_url: str | None,
@@ -162,7 +255,7 @@ def do_init(
 
     print("\n🟢 Welcome to JADE LENS setup 🟢\n")
 
-    # Prompt for missing args before taking any action on the actual repo
+    # Prompt for assistant name early — needed for the symlink pre-flight check
     if not assistant_name:
         assistant_name = prompt_assistant_name()
 
@@ -194,10 +287,13 @@ def do_init(
 
     if not ssh_url:
         ssh_url = prompt_ssh_url()
-    if not user_full_name:
-        user_full_name = prompt_user_full_name(Path.home())
-    if not user_short_name:
-        user_short_name = prompt_user_short_name(user_full_name)
+
+    # Collect all config (user fields). assistant_name is already resolved above
+    # and passed in known so _collect_config won't re-prompt for it.
+    config_dict = _collect_config({
+        "assistant": {"name": assistant_name},
+        "user": {"full_name": user_full_name, "short_name": user_short_name},
+    })
 
     # Clone and verify the data repo
     data_repo_path.parent.mkdir(parents=True, exist_ok=True)
@@ -225,95 +321,20 @@ def do_init(
     if subpaths:
         sys.exit(f"Data repo is not empty! Found: {subpaths}")
 
-    # Write and commit the necessary files
-    to_add = []
+    # Write the files common to both init and post-update
+    to_add = _write_common_files(data_repo_path, config_dict)
 
-    # .jade/config.json
+    # Init-only files: .jade/version and Index.json (.jade/ was created by _write_common_files)
     jade_dir = data_repo_path / ".jade"
-    jade_dir.mkdir()
-
-    config_dict = {
-        "user": {
-            "full_name": user_full_name,
-            "short_name": user_short_name,
-        },
-        "assistant": {
-            "name": assistant_name,
-        },
-    }
-    config_path = jade_dir / "config.json"
-    config_path.write_text(dumps_js_canonical(config_dict))
-    to_add.append(config_path)
-
-    # .jade/version — the data-format version currently used in the data repo.
     version_path = jade_dir / "version"
     version_path.write_text(f"{__supported_data_format_version__}\n")
     to_add.append(version_path)
 
-    # Index.json
     index_path = data_repo_path / "Index.json"
     index_path.write_text(dumps_js_canonical([]))
     to_add.append(index_path)
 
-    # .gitignore
-    gitignore_path = data_repo_path / ".gitignore"
-    gitignore_path.write_text(
-        "\n".join(
-            (
-                "# Rendered skill files",
-                ".claude/skills/",
-            )
-        )
-        + "\n"
-    )
-    to_add.append(gitignore_path)
-
-    # .claude/settings.json
-    claude_dir = data_repo_path / ".claude"
-    claude_dir.mkdir()
-
-    claude_settings_dict = {
-        "hooks": {
-            "SessionStart": [
-                {
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start",
-                        },
-                    ],
-                },
-            ],
-        },
-    }
-    claude_settings_path = claude_dir / "settings.json"
-    claude_settings_path.write_text(dumps_js_canonical(claude_settings_dict))
-    to_add.append(claude_settings_path)
-
-    # .claude/hooks/session-start
-    hooks_dir = claude_dir / "hooks"
-    hooks_dir.mkdir()
-
-    hook_path = hooks_dir / "session-start"
-    hook_template_path = files("jadelens").joinpath(
-        "templates", "session-start-hook.sh"
-    )
-    hook_path.write_text(hook_template_path.read_text())
-    # Make it executable before git add
-    hook_mode = hook_path.stat().st_mode
-    hook_path.chmod(hook_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    to_add.append(hook_path)
-
-    # CLAUDE.md
-    claude_md_path = data_repo_path / "CLAUDE.md"
-    claude_md_template_path = files("jadelens").joinpath(
-        "templates", "CLAUDE-template.md"
-    )
-    claude_md_path.write_text(claude_md_template_path.read_text())
-    to_add.append(claude_md_path)
-
     # Render the skill in <data-repo>/.claude/skills
-    # Could be more elegant by extracting the really necessary common code...
     do_render_skill(data_repo_path)
 
     # Symlink the skill in ~/.claude/skills so /<name> works from any session.

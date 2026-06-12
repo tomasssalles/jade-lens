@@ -172,8 +172,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   - Call `jadelens run-migration-helper <data_repo> v2/promote-sidecars` to batch-promote qualifying strings (the helper handles the apply call internally).
   - Instruct the bot to review the promotion output and flag anything unexpected.
   - Instruct the bot to check for any file-stem/directory-name collisions and resolve them (rename the colliding file, ask the user if intent is unclear).
-  - End with `jadelens check <data_repo>` to confirm all v2 invariants pass (see 9f for the `check` subcommand). Note: `apply --unsafe` cannot be used for this because `--unsafe` suppresses the enforcement checks; and `apply` in normal mode would reject the call because the data is still at v1.
-  - End by calling `jadelens migrate --finalize=v2 <data_repo>` to bump `.jade/version` to `v2`, commit it, create the migration end tag, and push (see 9g-i for `--finalize`). Note: `apply` cannot do the version bump — it rejects ops on `.jade/` paths (this is outside the scope of `--unsafe`), and `.jade/version` is not a JSON file.
+  - State its own migration identifier (`v1-v2`) near the top, so the bot knows what to pass to `--finalize` after the runbook completes (the migration skill loop uses it — see 9g-i).
+  - End with `jadelens check <data_repo>` to confirm all v2 invariants pass (see 9f for the `check` subcommand). This is the runbook's final action; it then returns control to the skill. Note: `apply --unsafe` cannot be used for this because `--unsafe` suppresses the enforcement checks; and `apply` in normal mode would reject the call because the data is still at v1.
+  - **Not** bump `.jade/version` and **not** call `jadelens migrate --finalize` itself — those are the skill loop's job, run *after* the runbook finishes via `jadelens migrate --finalize=v1-v2` (see 9g-i; it does the version bump, end tag, and push). `apply` could not do the version bump anyway: it rejects ops on `.jade/` paths (outside the scope of `--unsafe`), and `.jade/version` is not a JSON file.
 - [ ] **9d.** Add data-format version check to the web app: if data version < supported (2, in this case), warn to use the CLI/skill to migrate the data (even though this is a lie for now, because that's not implemented yet). If data version > supported (2, in this case), warn the user they should reload (and if needed clear the cache and reload again). In both cases, switch to read-only mode (best-effort, might be broken).
 - [x] **9e.** Implement `jadelens update`. Sub-tasks:
 
@@ -243,27 +244,33 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 - [ ] **9g.** Implement `jadelens migrate <data_repo>` and the `/<assistant>-migrate` skill. Sub-tasks:
 
-  - [ ] **9g-i.** Add `jadelens migrate <data_repo>` subcommand. Accepts an optional `--finalize=vN` argument.
+  - [ ] **9g-i.** Add `jadelens migrate <data_repo>` subcommand, accepting an optional `--finalize=vN-v(N+1)` argument (same identifier format as the git migration tags). A single command drives the whole state machine: the `/<assistant>-migrate` skill calls it repeatedly, and each call advances the migration by at most one step and prints either the next runbook or `DONE`.
 
-    **Without `--finalize`** (called at the start of a migration session, or after a crash):
-    1. Pull from remote.
+    The skill loop (see 9g-ii):
+    1. Call `jadelens migrate <data_repo>` (no `--finalize`).
+    2. If it prints a runbook, follow it. The runbook names its own identifier `vN-v(N+1)`.
+    3. On successful completion, call `jadelens migrate <data_repo> --finalize=vN-v(N+1)`.
+    4. Repeat until a call prints `DONE` instead of a runbook, then tell the user and exit.
+
+    Example: data at v2, CLI supports v4. `migrate` → v2-v3 runbook → `migrate --finalize=v2-v3` → v3-v4 runbook → `migrate --finalize=v3-v4` → `DONE`.
+
+    Each invocation runs two phases:
+
+    **Phase A — finalize (only when `--finalize=vN-v(N+1)` is given).** Completes the migration the bot just finished via the runbook. Operates on the current local HEAD (which holds the runbook's unpushed `--unsafe` commits); does **not** pull first, so the commits being tagged are exactly the ones the runbook produced. All steps idempotent (safe to retry after a crash):
+    1. Verify the start tag `vN-v(N+1)-migration-start` exists; otherwise error (nothing to finalize).
+    2. If `.jade/version` is still `vN`, write `v(N+1)` and commit `migration: bump data format to v(N+1)`. Skip if already `v(N+1)`.
+    3. Create the end tag `vN-v(N+1)-migration-end` at HEAD if absent.
+    4. Push branch + tags, retry with exponential backoff on network failure.
+
+    **Phase B — start / resume / done (always runs, after Phase A if any).**
+    1. Pull from remote (best-effort fast-forward).
     2. Read `data_version` from `.jade/version`.
-    3. If `data_version == __supported_data_format_version__`: print "Already at vN, nothing to migrate." and exit.
-    4. Otherwise: find the open migration tag for `data_version → data_version+1`.
-       - No start tag: create + push `vN-v(N+1)-migration-start`.
-       - Start tag exists and HEAD is ahead of it (crash recovery): `git reset --hard <start-tag>`, pull, print rollback warning ("Rolled back to migration start. Re-run the runbook from the beginning.").
-       - Start tag exists, HEAD == start tag: clean resume (no rollback needed).
-    5. Print the contents of `jadelens/migrations/v(N+1)/RUNBOOK.md` to stdout.
-
-    **With `--finalize=vN`** (called at the end of the runbook, after `jadelens check` passes):
-    1. Pull from remote.
-    2. Read `data_version` from `.jade/version`. If it already equals vN, skip the write + commit (idempotent).
-    3. Write `vN` to `.jade/version` and commit: `migration: bump data format to vN`.
-    4. Find the open start tag for `v(N-1)-vN-migration-start` (must exist). If no matching end tag exists, create + push `v(N-1)-vN-migration-end`.
-    5. Start a fresh ops-log file for vN (create `<data_repo>/.jade/operations-log/vN.jsonl` if absent).
-    6. Push everything (branch + tags). Retry with exponential backoff on network failure.
-    7. Print `DONE`.
-    All steps are idempotent so a crash mid-finalize is safe to retry.
+    3. If `data_version == __supported_data_format_version__`: print `DONE` and exit.
+    4. Otherwise target the migration `vData-v(Data+1)`:
+       - No start tag: create + push `vData-v(Data+1)-migration-start`.
+       - Start tag exists and HEAD is ahead of it (crash mid-runbook): `git reset --hard <start-tag>`, pull, print a rollback warning ("Rolled back unfinished migration work; restarting the runbook from a clean state.").
+       - Start tag exists and HEAD == start tag: clean resume, no rollback.
+    5. Print the contents of `jadelens/migrations/v(Data+1)/RUNBOOK.md` to stdout.
   - [ ] **9g-ii.** Render and symlink the `/<assistant>-migrate` skill alongside the main skill. Add a `migrate-skill.md` template to `jadelens/templates/`. Wire it into `do_render_skill` (renders both skills) and `_write_common_files` / `post-update` (same lifecycle as the main skill). The migrate skill contains the loop described in `docs/design/versioning.md` ("The `/<assistant>-migrate` skill" section).
   - [ ] **9g-iii.** Tests for `jadelens migrate`: fresh start creates start tag and outputs runbook; crash recovery resets and warns; completion creates end tag and prints DONE; multi-version sequence works end-to-end.
 

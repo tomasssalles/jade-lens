@@ -242,9 +242,9 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   - `data == supported`: proceed normally.
   The `--unsafe` flag is added to the `apply` subcommand's argparse definition and threaded through to `workflow.run` via a parameter.
 
-- [ ] **9g.** Implement `jadelens migrate <data_repo>` and the `/<assistant>-migrate` skill. Sub-tasks:
+- [x] **9g.** Implement `jadelens migrate <data_repo>` and the `/<assistant>-migrate` skill. Sub-tasks:
 
-  - [ ] **9g-i.** Add `jadelens migrate <data_repo>` subcommand, accepting an optional `--finalize=vN-v(N+1)` argument (same identifier format as the git migration tags). A single command drives the whole state machine: the `/<assistant>-migrate` skill calls it repeatedly, and each call advances the migration by at most one step and prints either the next runbook or `DONE`.
+  - [x] **9g-i.** Add `jadelens migrate <data_repo>` subcommand, accepting an optional `--finalize=vN-v(N+1)` argument (same identifier format as the git migration tags). A single command drives the whole state machine: the `/<assistant>-migrate` skill calls it repeatedly, and each call advances the migration by at most one step and prints either the next runbook or `DONE`.
 
     The skill loop (see 9g-ii):
     1. Call `jadelens migrate <data_repo>` (no `--finalize`).
@@ -271,8 +271,8 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
        - Start tag exists and HEAD is ahead of it (crash mid-runbook): `git reset --hard <start-tag>`, pull, print a rollback warning ("Rolled back unfinished migration work; restarting the runbook from a clean state.").
        - Start tag exists and HEAD == start tag: clean resume, no rollback.
     5. Print `"Here's the runbook for migration \`vData-v(Data+1)\`:\n\n"` followed by the contents of `jadelens/migrations/vData_v(Data+1)/RUNBOOK.md` to stdout.
-  - [ ] **9g-ii.** Render and symlink the `/<assistant>-migrate` skill alongside the main skill. Add a `migrate-skill.md` template to `jadelens/templates/`. Wire it into `do_render_skill` (renders both skills) and `_write_common_files` / `post-update` (same lifecycle as the main skill). The migrate skill contains the loop described in `docs/design/versioning.md` ("The `/<assistant>-migrate` skill" section).
-  - [ ] **9g-iii.** Tests for `jadelens migrate`: fresh start creates start tag and outputs runbook; crash recovery resets and warns; completion creates end tag and prints DONE; multi-version sequence works end-to-end.
+  - [x] **9g-ii.** Render and symlink the `/<assistant>-migrate` skill alongside the main skill. Add a `migrate-skill.md` template to `jadelens/templates/`. Wire it into `do_render_skill` (renders both skills) and `_write_common_files` / `post-update` (same lifecycle as the main skill). The migrate skill contains the loop described in `docs/design/versioning.md` ("The `/<assistant>-migrate` skill" section).
+  - [x] **9g-iii.** Tests for `jadelens migrate`: fresh start creates start tag and outputs runbook; crash recovery resets and warns; completion creates end tag and prints DONE; multi-version sequence works end-to-end.
 
 ---
 

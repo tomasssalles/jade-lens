@@ -79,6 +79,19 @@ def main() -> None:
         help="Run the enforcement pass against the data repo (integrity check, no writes).",
     )
 
+    # jadelens migrate <data_repo> [--finalize=vN-v(N+1)]
+    migrate_p = sub.add_parser(
+        "migrate",
+        parents=[common],
+        help="Drive the data-format migration state machine. Called by the /<assistant>-migrate skill.",
+    )
+    migrate_p.add_argument(
+        "--finalize",
+        metavar="vN-v(N+1)",
+        default=None,
+        help="Finalize a completed migration step (e.g. --finalize=v1-v2).",
+    )
+
     # jadelens render <data_repo>
     _ = sub.add_parser(
         "render",
@@ -153,6 +166,10 @@ def main() -> None:
         case "check":
             data_path = args.data_repo.expanduser().resolve()
             do_check(data_path)
+        case "migrate":
+            data_path = args.data_repo.expanduser().resolve()
+            from jadelens.migrate import do_migrate
+            do_migrate(data_path, args.finalize)
         case "render":
             data_path = args.data_repo.expanduser().resolve()
             do_render_skill(data_path)
@@ -290,31 +307,38 @@ def do_init(
     if not assistant_name:
         assistant_name = prompt_assistant_name()
 
-    # Skill paths. repo_skill_path is the rendered skill dir inside the data repo;
-    # global_skill_path is the ~/.claude/skills symlink that makes /<name> work
-    # from any session. These paths are only needed for the pre-flight check and
-    # the later symlink — the directories themselves are created further down.
+    # Skill paths. repo_skill_path / repo_migrate_skill_path are the rendered
+    # skill dirs inside the data repo; global_skill_path / global_migrate_skill_path
+    # are the ~/.claude/skills symlinks. These paths are only needed for the
+    # pre-flight check and the later symlink — the dirs themselves are created
+    # further down by do_render_skill.
     repo_skill_path = data_repo_path / ".claude" / "skills" / assistant_name
+    repo_migrate_skill_path = data_repo_path / ".claude" / "skills" / f"{assistant_name}-migrate"
     global_skills_dir = Path.home() / ".claude" / "skills"
     global_skill_path = global_skills_dir / assistant_name
+    global_migrate_skill_path = global_skills_dir / f"{assistant_name}-migrate"
 
-    # Bail early if the global skill name is taken by something we shouldn't
+    # Bail early if either global skill name is taken by something we shouldn't
     # clobber (an unrelated file/dir, or a symlink pointing elsewhere). A symlink
     # already pointing at our repo_skill_path is fine — it's the steady state.
-    if global_skill_path.is_symlink():
-        existing_target = global_skill_path.readlink()
-        if existing_target != repo_skill_path:
+    for gsp, rsp, label in [
+        (global_skill_path, repo_skill_path, assistant_name),
+        (global_migrate_skill_path, repo_migrate_skill_path, f"{assistant_name}-migrate"),
+    ]:
+        if gsp.is_symlink():
+            existing_target = gsp.readlink()
+            if existing_target != rsp:
+                sys.exit(
+                    f"A skill named {label!r} is already symlinked at "
+                    f"{gsp} → {existing_target}.\n"
+                    "Remove it (or choose a different assistant name) and try again."
+                )
+        elif gsp.exists():
             sys.exit(
-                f"A skill named {assistant_name!r} is already symlinked at "
-                f"{global_skill_path} → {existing_target}.\n"
+                f"Something already exists at {gsp} and it isn't a "
+                "symlink to this data repo's skill.\n"
                 "Remove it (or choose a different assistant name) and try again."
             )
-    elif global_skill_path.exists():
-        sys.exit(
-            f"Something already exists at {global_skill_path} and it isn't a "
-            "symlink to this data repo's skill.\n"
-            "Remove it (or choose a different assistant name) and try again."
-        )
 
     if not ssh_url:
         ssh_url = prompt_ssh_url()
@@ -372,9 +396,13 @@ def do_init(
     # We validated above that global_skill_path is either absent or already the
     # symlink we want, so only create it when it isn't there yet.
     global_skills_dir.mkdir(parents=True, exist_ok=True)
-    if not global_skill_path.is_symlink():
-        global_skill_path.symlink_to(repo_skill_path)
-        print(f"✓ Symlinked {global_skill_path} → {repo_skill_path}")
+    for gsp, rsp in [
+        (global_skill_path, repo_skill_path),
+        (global_migrate_skill_path, repo_migrate_skill_path),
+    ]:
+        if not gsp.is_symlink():
+            gsp.symlink_to(rsp)
+            print(f"✓ Symlinked {gsp} → {rsp}")
 
     # Commit and push the bootstrap files. The data repo was empty, so this is
     # its first commit; name the default branch `main` (matching CLAUDE.md's
@@ -737,18 +765,21 @@ def do_render_skill(data_repo: Path, *, force: bool = False) -> None:
     except ValueError as e:
         sys.exit(f"Invalid config in {config_path}: {e}")
 
-    skill_path = data_repo / ".claude" / "skills" / assistant_name / "SKILL.md"
-    if skill_path.exists():
-        if force:
-            skill_path.unlink()
-        else:
-            return  # no-op; delete to force a re-render (or pass force=True)
-
-    template_text = files("jadelens").joinpath("templates", "skill.md").read_text()
-    rendered = render_skill(config, template_text)
-    skill_path.parent.mkdir(parents=True, exist_ok=True)
-    skill_path.write_text(rendered)
-    print(f"✓ Rendered skill at {skill_path}")
+    for skill_name, template_name in [
+        (assistant_name, "skill.md"),
+        (f"{assistant_name}-migrate", "migrate-skill.md"),
+    ]:
+        skill_path = data_repo / ".claude" / "skills" / skill_name / "SKILL.md"
+        if skill_path.exists():
+            if force:
+                skill_path.unlink()
+            else:
+                continue  # no-op; delete to force a re-render (or pass force=True)
+        template_text = files("jadelens").joinpath("templates", template_name).read_text()
+        rendered = render_skill(config, template_text)
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(rendered)
+        print(f"✓ Rendered skill at {skill_path}")
 
 
 def do_stash_list(data_repo: Path) -> None:

@@ -1,7 +1,5 @@
 # Migration runbook: v1 → v2
 
-**Migration identifier:** `v1-v2`
-
 After completing all steps, return control to the migration skill by doing nothing
 further — the skill will call `jadelens migrate --finalize=v1-v2` automatically.
 

@@ -172,8 +172,8 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   - Call `jadelens run-migration-helper <data_repo> v1_v2/promote-sidecars` to batch-promote qualifying strings (the helper handles the apply call internally).
   - Instruct the bot to review the promotion output and flag anything unexpected.
   - Instruct the bot to check for any file-stem/directory-name collisions and resolve them (rename the colliding file, ask the user if intent is unclear).
-  - State its own migration identifier (`v1-v2`) near the top, so the bot knows what to pass to `--finalize` after the runbook completes (the migration skill loop uses it — see 9g-i).
   - End with `jadelens check <data_repo>` to confirm all v2 invariants pass (see 9f for the `check` subcommand). This is the runbook's final action; it then returns control to the skill. Note: `apply --unsafe` cannot be used for this because `--unsafe` suppresses the enforcement checks; and `apply` in normal mode would reject the call because the data is still at v1.
+  - **Not** state the migration identifier — `jadelens migrate` prepends `"Here's the runbook for migration \`vN-v(N+1)\`:\n\n"` before printing the runbook, so the bot always knows the identifier from the header.
   - **Not** bump `.jade/version` and **not** call `jadelens migrate --finalize` itself — those are the skill loop's job, run *after* the runbook finishes via `jadelens migrate --finalize=v1-v2` (see 9g-i; it does the version bump, end tag, and push). `apply` could not do the version bump anyway: it rejects ops on `.jade/` paths (outside the scope of `--unsafe`), and `.jade/version` is not a JSON file.
 - [ ] **9d.** Add data-format version check to the web app: if data version < supported (2, in this case), warn to use the CLI/skill to migrate the data (even though this is a lie for now, because that's not implemented yet). If data version > supported (2, in this case), warn the user they should reload (and if needed clear the cache and reload again). In both cases, switch to read-only mode (best-effort, might be broken).
 - [x] **9e.** Implement `jadelens update`. Sub-tasks:
@@ -270,7 +270,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
        - No start tag: create + push `vData-v(Data+1)-migration-start`.
        - Start tag exists and HEAD is ahead of it (crash mid-runbook): `git reset --hard <start-tag>`, pull, print a rollback warning ("Rolled back unfinished migration work; restarting the runbook from a clean state.").
        - Start tag exists and HEAD == start tag: clean resume, no rollback.
-    5. Print the contents of `jadelens/migrations/vData_v(Data+1)/RUNBOOK.md` to stdout.
+    5. Print `"Here's the runbook for migration \`vData-v(Data+1)\`:\n\n"` followed by the contents of `jadelens/migrations/vData_v(Data+1)/RUNBOOK.md` to stdout.
   - [ ] **9g-ii.** Render and symlink the `/<assistant>-migrate` skill alongside the main skill. Add a `migrate-skill.md` template to `jadelens/templates/`. Wire it into `do_render_skill` (renders both skills) and `_write_common_files` / `post-update` (same lifecycle as the main skill). The migrate skill contains the loop described in `docs/design/versioning.md` ("The `/<assistant>-migrate` skill" section).
   - [ ] **9g-iii.** Tests for `jadelens migrate`: fresh start creates start tag and outputs runbook; crash recovery resets and warns; completion creates end tag and prints DONE; multi-version sequence works end-to-end.
 

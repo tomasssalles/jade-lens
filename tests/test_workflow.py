@@ -1053,3 +1053,63 @@ def test_6b_delete_json_without_sidecars_is_ok(data_repo: Path):
 
     assert not (data_repo / "Garden.json").exists()
     assert (data_repo / "Notes.json").exists()
+
+
+# ====================================================================
+# run — data-format version check
+# ====================================================================
+
+
+def test_run_accepts_matching_data_version(data_repo: Path):
+    (data_repo / ".jade" / "version").write_text(f"{__supported_data_format_version__}\n")
+    (data_repo / "Notes.json").write_text('{"title": "Hi"}\n')
+    _write_index(data_repo, [("Notes.json", "Notes")])
+    commit(data_repo)
+
+    result = workflow.run(
+        data_repo,
+        [{"op": "json_patch", "path": "Notes.json",
+          "patch": [{"op": "replace", "path": "/title", "value": "Hello"}]}],
+        "update title",
+    )
+    assert result.sha
+
+
+def test_run_rejects_data_version_too_old(data_repo: Path):
+    (data_repo / ".jade" / "version").write_text("v0\n")
+    commit(data_repo)
+
+    with pytest.raises(WorkflowError, match="this CLI requires"):
+        workflow.run(
+            data_repo,
+            [{"op": "create_file", "path": "x.md", "content": "hi\n",
+              "indexed": False, "scope": None}],
+            "noop",
+        )
+
+
+def test_run_rejects_data_version_too_new(data_repo: Path):
+    (data_repo / ".jade" / "version").write_text("v99\n")
+    commit(data_repo)
+
+    with pytest.raises(WorkflowError, match="newer than this CLI supports"):
+        workflow.run(
+            data_repo,
+            [{"op": "create_file", "path": "x.md", "content": "hi\n",
+              "indexed": False, "scope": None}],
+            "noop",
+        )
+
+
+def test_run_unsafe_skips_version_check(data_repo: Path):
+    (data_repo / ".jade" / "version").write_text("v0\n")
+    commit(data_repo)
+
+    result = workflow.run(
+        data_repo,
+        [{"op": "create_file", "path": "x.md", "content": "hi\n",
+          "indexed": False, "scope": None}],
+        "noop",
+        unsafe=True,
+    )
+    assert result.sha

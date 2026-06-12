@@ -299,10 +299,55 @@ def append_log_entry(
 # ---------- Orchestration ----------
 
 
+def _check_data_format_version(data_repo: Path) -> None:
+    """Abort if the data repo's format version doesn't match what this CLI supports.
+
+    Silently passes when ``.jade/version`` is absent (version unknown → skip check).
+    """
+    version_path = data_repo / ".jade" / "version"
+    if not version_path.exists():
+        return
+    raw = version_path.read_text().strip().lstrip("v")
+    try:
+        data_ver = int(raw)
+    except ValueError:
+        return
+
+    try:
+        supported = int(__supported_data_format_version__.lstrip("v"))
+    except ValueError:
+        return
+
+    if data_ver == supported:
+        return
+
+    if data_ver > supported:
+        raise WorkflowError(
+            f"Data version v{data_ver} is newer than this CLI supports "
+            f"({__supported_data_format_version__}). Run 'jadelens update'."
+        )
+
+    # data_ver < supported
+    assistant_name: str | None = None
+    try:
+        cfg = json.loads((data_repo / ".jade" / "config.json").read_text())
+        assistant_name = cfg.get("assistant", {}).get("name")
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    migrate_cmd = f"/{assistant_name}-migrate" if assistant_name else "the migration skill"
+    raise WorkflowError(
+        f"Data is at v{data_ver}, this CLI requires "
+        f"{__supported_data_format_version__}. "
+        f"Run `{migrate_cmd}` to migrate."
+    )
+
+
 def run(
     data_repo: Path,
     raw_operations: list[dict],
     commit_message: str,
+    *,
+    unsafe: bool = False,
 ) -> RunResult:
     """Execute the full jadelens-apply workflow.
 
@@ -310,11 +355,21 @@ def run(
     the batch, ensures the data repo is clean, applies each op, appends a
     log entry, and commits everything with ``commit_message``.
 
+    When ``unsafe=True``, skips the data-format version check and the
+    end-of-apply enforcement pass. Intended only for migration helpers.
+    Callers must not push after the call — leave that to
+    ``jadelens migrate --finalize``.
+
     Returns a :class:`RunResult` with the new commit SHA and metadata about
     any sidecars the promotion pass created. On any failure, reverts the data
     repo to its pre-call HEAD and re-raises (``ValidationError``,
     ``BatchValidationError``, ``WorkflowError``, or ``ApplyError``).
     """
+    if unsafe:
+        print("⚠️  Unsafe mode: version check and end-of-apply enforcement are bypassed.")
+    else:
+        _check_data_format_version(data_repo)
+
     operations = [parse_operation(op) for op in raw_operations]
     validate_batch(operations)
     require_clean_tree(data_repo)
@@ -331,7 +386,8 @@ def run(
         _post_apply_sidecar_propagation_pass(data_repo, effective)
         _post_apply_wikilink_pass(data_repo, effective)
         _post_apply_index_pass(data_repo, effective)
-        _post_apply_enforcement_pass(data_repo)
+        if not unsafe:
+            run_enforcement_pass(data_repo)
         timestamp = datetime.now(timezone.utc).isoformat()
         append_log_entry(data_repo, raw_operations, commit_message, timestamp)
         sha = git_commit(data_repo, commit_message)
@@ -652,9 +708,12 @@ def _is_sidecar_path(path: str) -> bool:
     return any(part.endswith(_SIDECARS_SUFFIX) for part in PurePosixPath(path).parts)
 
 
-def _post_apply_enforcement_pass(data_repo: Path) -> None:
-    """Format, completeness, and integrity checks after all ops and automation
-    passes have completed. Any failure reverts the entire batch.
+def run_enforcement_pass(data_repo: Path) -> None:
+    """Format, completeness, and integrity checks against the repo's current state.
+
+    Called by :func:`run` after all ops (unless ``unsafe=True``), and by
+    ``jadelens check`` as a standalone read-only integrity scan.
+    Any failure raises :class:`~jadelens.operations.ApplyError`.
 
     4a — Index.json format: a JSON array; each entry an object with 'File'
          (a ``[[wikilink]]``) and a non-empty 'Scope' string; no entry may

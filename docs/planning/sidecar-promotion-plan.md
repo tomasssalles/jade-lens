@@ -229,7 +229,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
     jadelens post-update --data-repo="$REPO"
     ```
     The `git checkout main` is required because on claude.ai the environment may have pre-created a feature branch before the hook fires; `post-update` must commit to `main`. Add a comment in the template explaining this. Because `post-update` may overwrite the hook file itself, it must be the last substantive command in the hook. Update `do_init()` to use the updated template. Existing data repos will receive the new hook on their next `jadelens update`.
-- [ ] **9f.** Add data-format version check to `workflow.run` and a standalone `jadelens check` subcommand. Two parts:
+- [x] **9f.** Add data-format version check to `workflow.run` and a standalone `jadelens check` subcommand. Two parts:
 
   **9f-i.** Extract the enforcement logic. Move `_post_apply_enforcement_pass` (currently called at the end of `workflow.run`) into a standalone public function `run_enforcement_pass(data_repo: Path)` in `workflow.py`. Both `workflow.run` (when not in `--unsafe` mode) and the new `check` subcommand call this function. No code is duplicated.
 

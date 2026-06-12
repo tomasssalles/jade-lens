@@ -59,11 +59,24 @@ def main() -> None:
         help="A short name the assistant will use to refer to you in informal context.",
     )
 
-    # jadelens apply <data_repo>
-    _ = sub.add_parser(
+    # jadelens apply <data_repo> [--unsafe]
+    apply_p = sub.add_parser(
         "apply",
         parents=[common],
         help="Apply edits to the data via stdin. This is meant to be used by the AI. Not a human-friendly input format.",
+    )
+    apply_p.add_argument(
+        "--unsafe",
+        action="store_true",
+        default=False,
+        help="Skip data-format version check and end-of-apply enforcement. Migration use only.",
+    )
+
+    # jadelens check <data_repo>
+    _ = sub.add_parser(
+        "check",
+        parents=[common],
+        help="Run the enforcement pass against the data repo (integrity check, no writes).",
     )
 
     # jadelens render <data_repo>
@@ -136,7 +149,10 @@ def main() -> None:
             )
         case "apply":
             data_path = args.data_repo.expanduser().resolve()
-            do_apply(data_path)
+            do_apply(data_path, unsafe=args.unsafe)
+        case "check":
+            data_path = args.data_repo.expanduser().resolve()
+            do_check(data_path)
         case "render":
             data_path = args.data_repo.expanduser().resolve()
             do_render_skill(data_path)
@@ -396,6 +412,17 @@ def do_run_migration_helper(data_repo: Path, identifier: str) -> None:
                 f"Unknown migration helper identifier: {identifier!r}\n"
                 f"Supported identifiers: v1_v2/promote-sidecars"
             )
+
+
+def do_check(data_repo: Path) -> None:
+    """Run the enforcement pass and print the result. No writes are made."""
+    from jadelens import workflow
+    from jadelens.operations import ApplyError
+    try:
+        workflow.run_enforcement_pass(data_repo)
+    except ApplyError as e:
+        sys.exit(f"Check failed: {e}")
+    print("✓ All checks passed.")
 
 
 def do_update() -> None:

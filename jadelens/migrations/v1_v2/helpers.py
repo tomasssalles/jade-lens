@@ -85,6 +85,7 @@ def promote_sidecars(data_repo: Path, stdin_data: dict | None) -> None:
         data_repo,
         raw_ops,
         "migration: promote inline strings to sidecars",
+        unsafe=True,
     )
 
     n = len(result.promoted_sidecars)

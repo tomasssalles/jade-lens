@@ -24,13 +24,16 @@ from jadelens.reflection import format_reflection
 from jadelens.skill import parse_skill_marker_version
 
 
-def do_apply(data_repo: Path) -> None:
+def do_apply(data_repo: Path, *, unsafe: bool = False) -> None:
     """Read a JSON mutation payload from stdin, apply it atomically, and sync.
 
     ``data_repo`` is the already-resolved path to the data repo's local clone.
     Pulls the latest remote before applying and pushes the new commit after
     (auto-sync); a cross-device conflict is stashed and reported. Exits with a
     message on malformed input or a workflow failure (the repo is left at HEAD).
+
+    When ``unsafe=True``, the version check and enforcement pass are skipped,
+    and the push step is omitted (the caller is responsible for pushing).
     """
     if not data_repo.is_dir():
         sys.exit(f"Data repo path does not exist or is not a directory: {data_repo}")
@@ -81,7 +84,7 @@ def do_apply(data_repo: Path) -> None:
         pass
 
     try:
-        result = workflow.run(data_repo, raw_ops, commit_message)
+        result = workflow.run(data_repo, raw_ops, commit_message, unsafe=unsafe)
     except (
         ValidationError,
         workflow.BatchValidationError,
@@ -94,6 +97,10 @@ def do_apply(data_repo: Path) -> None:
         format_reflection(result.sha, commit_message, raw_ops, result.promoted_sidecars),
         end="",
     )
+
+    # In unsafe (migration) mode, leave pushing to `jadelens migrate --finalize`.
+    if unsafe:
+        return
 
     # Auto-sync, push side: push the new commit; reconcile a remote that advanced
     # under us (rebase if disjoint, stash on a same-file conflict). The change is

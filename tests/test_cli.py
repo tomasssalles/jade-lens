@@ -623,3 +623,65 @@ def test_run_migration_helper_dispatches_to_promote_sidecars(tmp_path: Path, mon
 
     assert len(called) == 1
     assert called[0] == (repo, None)
+
+
+# ---------------------- jadelens check ----------------------
+
+
+def test_check_passes_on_valid_repo(tmp_path: Path, capsys):
+    """do_check prints success when all invariants pass."""
+    from jadelens.cli import do_check
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_v1_repo_with_promotable(repo)
+
+    do_check(repo)
+
+    out = capsys.readouterr().out
+    assert "All checks passed" in out
+
+
+def test_check_fails_on_invalid_repo(tmp_path: Path):
+    """do_check exits with 'Check failed' when an invariant is violated."""
+    from jadelens.cli import do_check
+    from jadelens.operations import dumps_js_canonical
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_git_repo(repo)
+    (repo / ".jade").mkdir(parents=True, exist_ok=True)
+    # Malformed Index.json — not an array
+    (repo / "Index.json").write_text(dumps_js_canonical({"bad": "data"}))
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "bad index"], check=True, capture_output=True
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        do_check(repo)
+    assert "Check failed" in str(exc_info.value.code)
+
+
+def test_apply_unsafe_skips_push(tmp_path: Path, monkeypatch):
+    """do_apply with unsafe=True does not call sync.push."""
+    from jadelens.apply import do_apply
+    from jadelens import sync
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_v1_repo_with_promotable(repo)
+
+    push_called = []
+    monkeypatch.setattr(sync, "pull", lambda _: None)
+    monkeypatch.setattr(sync, "push", lambda _: push_called.append(True))
+
+    payload = {"commit_message": "test", "operations": [
+        {"op": "json_patch", "path": "Items.json",
+         "patch": [{"op": "replace", "path": "/title", "value": "New title"}]}
+    ]}
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(json.dumps(payload)))
+
+    do_apply(repo, unsafe=True)
+
+    assert push_called == [], "sync.push must not be called in unsafe mode"

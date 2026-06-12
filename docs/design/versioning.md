@@ -242,25 +242,32 @@ format doesn't conflict with `cli-vX.Y.Z` / `web-vX.Y.Z` tags.
 
 ### Execution flow
 
-For a data repo at v2 being migrated to v5 (three sequential migrations):
+For a data repo at v2 being migrated to v5 (three sequential migrations). The
+skill loop alternates between a plain call (start/resume) and a `--finalize` call
+(seal the completed migration and advance):
 
 1. User invokes `/<assistant>-migrate`.
-2. Bot calls `jadelens migrate`. Command creates `v2-v3-migration-start`, pushes,
-   outputs v2→v3 runbook.
-3. Bot follows runbook (using `apply --unsafe` for all data ops). Runbook ends with
-   bumping `.jade/version` to `v3`.
-4. Bot loops. `jadelens migrate`: data=v3, no `v2-v3-migration-end` → creates
-   `v2-v3-migration-end` + `v3-v4-migration-start`, pushes, outputs v3→v4 runbook.
-5. Bot follows runbook. `.jade/version` bumped to v4.
-6. Bot loops. Same pattern → `v3-v4-migration-end` + `v4-v5-migration-start`,
-   v4→v5 runbook.
-7. Bot follows runbook. `.jade/version` bumped to v5.
-8. Bot loops. `jadelens migrate`: data=v5 == required → creates
-   `v4-v5-migration-end`, pushes, outputs `DONE`.
+2. Bot calls `jadelens migrate`. Creates `v2-v3-migration-start`, pushes. Outputs
+   v2→v3 runbook (identifier: `v2-v3`).
+3. Bot follows runbook (`apply --unsafe` for all data ops; ends with `jadelens
+   check`). All migration ops are logged to `.jade/operations-log/v5.jsonl`
+   (the CLI's current supported-version file).
+4. Bot calls `jadelens migrate --finalize=v2-v3`. Phase A: bumps `.jade/version`
+   to `v3`, commits, creates `v2-v3-migration-end`, pushes. Phase B: no end tag
+   for v3-v4 yet → creates `v3-v4-migration-start`, pushes. Outputs v3→v4 runbook.
+5. Bot follows runbook.
+6. Bot calls `jadelens migrate --finalize=v3-v4`. Same pattern: bumps to `v4`,
+   creates `v3-v4-migration-end` + `v4-v5-migration-start`, outputs v4→v5 runbook.
+7. Bot follows runbook.
+8. Bot calls `jadelens migrate --finalize=v4-v5`. Phase A: bumps to `v5`, creates
+   `v4-v5-migration-end`, pushes. Phase B: data=v5 == required → outputs `DONE`.
 9. Bot tells user "Migration complete." Skill exits.
 
-Fresh ops-log: after the final migration commit, `jadelens migrate` starts a new
-`.jade/operations-log/v5.jsonl`; previous log files stay for history.
+Operations log: all operations — including migration ops — are written to the log
+file matching the CLI's `__supported_data_format_version__` constant. During a
+v2→v5 migration, every `apply --unsafe` call appends to `v5.jsonl`. Previous
+version log files stay for history. The log file is created on first write;
+`jadelens migrate` does not create it explicitly.
 
 ### One-way door
 

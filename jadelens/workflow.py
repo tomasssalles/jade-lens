@@ -260,12 +260,13 @@ def git_commit(data_repo: Path, message: str) -> str:
 
 
 def _log_path(data_repo: Path) -> Path:
-    """Return the path to the current data-version's operations log file.
+    """Return the path to the operations log file for the current CLI version.
 
-    The log is partitioned by data-format version: each migration starts a
-    fresh ``.jade/operations-log/<version>.jsonl`` file so pre-migration
-    entries (which reference data shapes that may no longer exist) stay
-    readable but separate from post-migration ones (§7.2, §14.5).
+    All operations — including ``apply --unsafe`` migration ops — are appended
+    to the file keyed by ``__supported_data_format_version__``. This means
+    every entry in a given log file was produced by code that supported the
+    same data format, so log-entry semantics and the data schema evolve
+    together. Previous version log files are preserved for history.
     """
     version = __supported_data_format_version__
     return data_repo / ".jade" / "operations-log" / f"{version}.jsonl"

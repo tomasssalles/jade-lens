@@ -144,6 +144,10 @@ function App() {
   // optimistic update already shows the right thing; it only reconciles when a
   // conflict was stashed (the local change was rolled back to the remote).
   const commitBatch = useCallback(async (path, batch) => {
+    if (dataVersion !== SUPPORTED_DATA_FORMAT_VERSION) {
+      showToast('Editing is disabled: data version mismatch. Please migrate or update first.', 5000)
+      return
+    }
     let cfg
     try { cfg = await getConfig() } catch { return }
     const cached = await getCachedRepo().catch(() => null)
@@ -172,7 +176,7 @@ function App() {
       showToast(res.error, 6000)
     }
     await refreshStatus()
-  }, [refreshStatus, showToast])
+  }, [refreshStatus, showToast, dataVersion])
 
   // Micro-edit: toggle a task-list checkbox in the open markdown file. Flips the
   // checkbox in the UI immediately (optimistic), then persists + syncs in the

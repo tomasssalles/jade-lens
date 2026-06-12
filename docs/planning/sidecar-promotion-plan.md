@@ -165,7 +165,7 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
   - [x] **9b-ii.** Add `jadelens run-migration-helper <data_repo> <identifier>` subcommand. `<identifier>` is a `vN_v(N+1)/name` string (e.g. `v1_v2/promote-sidecars`). A match block dispatches to the corresponding helper function. The subcommand reads JSON from stdin and passes it to the function. Raises a clear error for unknown identifiers.
   - [x] **9b-iii.** Tests for `promote_sidecars`: at least one test with a fixture repo containing promotable strings confirms the correct apply payload is emitted and the strings are promoted. Test `run-migration-helper` dispatch: unknown identifier exits with error; known identifier calls the right function.
 
-- [ ] **9c.** Write migration runbook for v2 at `jadelens/migrations/v1_v2/RUNBOOK.md`. The runbook is output verbatim to stdout by `jadelens migrate` and followed by the bot. It must:
+- [x] **9c.** Write migration runbook for v2 at `jadelens/migrations/v1_v2/RUNBOOK.md`. The runbook is output verbatim to stdout by `jadelens migrate` and followed by the bot. It must:
   - Explicitly instruct the bot to use `apply --unsafe` only for data operations listed in this runbook, and for nothing else during the session.
   - Explicitly instruct the bot not to perform any git operations (commit, push, reset, tag, …), and not to edit or create files directly via its native tools (Edit, Write, shell commands, echo, etc.). All data mutations go through `jadelens apply --unsafe`; all git operations go through `jadelens migrate`.
   - Use `jadelens apply --unsafe` for every data operation.

@@ -128,27 +128,27 @@ pushed together.
 ### Bot-run, Python-assisted
 
 Migrations are **run by the bot**, following a **markdown runbook** bundled inside
-the `jadelens` package at `jadelens/migrations/vN/RUNBOOK.md`. The runbook
+the `jadelens` package at `jadelens/migrations/vN_v(N+1)/RUNBOOK.md`. The runbook
 interleaves two registers:
 
 - **Natural-language instructions** for work needing intelligence — *"rename files
   so their names never include verbs," "merge duplicate research records on the
   same topic."*
 - **Calls to per-migration Python helpers** for everything mechanical —
-  *"`jadelens run-migration-helper <data_repo> v2/promote-sidecars`"*
+  *"`jadelens run-migration-helper <data_repo> v1_v2/promote-sidecars`"*
 
 Order is whatever the runbook dictates — interleaved, not "all Python then the bot
 finishes up." Guiding principle: **automate in Python wherever possible to save
 tokens; use the bot only where intelligence is genuinely needed.**
 
 **Helper layout.** Each migration's helpers are Python functions in
-`jadelens/migrations/vN/helpers.py`. The `jadelens run-migration-helper <data_repo>
-<identifier>` subcommand dispatches to the right function via a match block (e.g.
-`v2/promote-sidecars`). Helpers receive `data_repo: Path` and read any
-bot-supplied input from stdin as JSON (same protocol as `apply`). They print a
+`jadelens/migrations/vN_v(N+1)/helpers.py`. The `jadelens run-migration-helper
+<data_repo> <identifier>` subcommand dispatches to the right function via a match
+block (e.g. `v1_v2/promote-sidecars`). Helpers receive `data_repo: Path` and read
+any bot-supplied input from stdin as JSON (same protocol as `apply`). They print a
 structured result to stdout. No helper scripts in PATH; no subprocess spawning.
 
-**File layout.** Each migration lives in `jadelens/migrations/vN/` containing
+**File layout.** Each migration lives in `jadelens/migrations/vN_v(N+1)/` containing
 `RUNBOOK.md` and `helpers.py` (the latter may be minimal or empty). The
 `docs/changelogs/data-format/vN.md` changelog describes the format change and
 summarises how the migration works (high-level, for humans); the runbook is the

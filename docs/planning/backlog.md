@@ -174,9 +174,8 @@ shipped, gives a low-stakes first migration: retroactively promote existing
 oversized inline strings.)
 
 **Open questions:**
-- Exact migration file layout (`migrations/vN.md` runbook + `migrations/vN*.py`
-  helpers vs. a `migrations/vN/` dir) and its relation to `changelogs/data/vN.md` —
-  settle at implementation.
+- Exact migration file layout (`migrations/vN_v(N+1)/RUNBOOK.md` + `helpers.py`)
+  and its relation to `changelogs/data-format/vN.md` — settled; see versioning.md.
 - Release-time migration testing; whether to pin the model version used in a run.
 
 ---

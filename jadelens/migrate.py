@@ -62,19 +62,21 @@ def _push(data_repo: Path) -> None:
 
 def _parse_finalize(finalize: str) -> tuple[int, int]:
     """Parse 'vN-v(N+1)' → (N, N+1). Exits cleanly on bad format."""
+    _bad = (
+        f"Invalid --finalize argument {finalize!r}: expected format vN-v(N+1) "
+        f"(e.g. v1-v2)."
+    )
     parts = finalize.split("-")
     if len(parts) != 2:
-        sys.exit(
-            f"Invalid --finalize argument {finalize!r}: expected format vN-v(N+1) "
-            f"(e.g. v1-v2)."
-        )
+        sys.exit(_bad)
+    from_raw, to_raw = parts
+    if not from_raw.startswith("v") or not to_raw.startswith("v"):
+        sys.exit(_bad)
     try:
-        from_ver = int(parts[0].lstrip("v"))
-        to_ver = int(parts[1].lstrip("v"))
+        from_ver = int(from_raw[1:])
+        to_ver = int(to_raw[1:])
     except ValueError:
-        sys.exit(
-            f"Invalid --finalize argument {finalize!r}: version parts must be integers."
-        )
+        sys.exit(_bad)
     if to_ver != from_ver + 1:
         sys.exit(
             f"Invalid --finalize argument {finalize!r}: "

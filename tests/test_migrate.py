@@ -281,7 +281,7 @@ class TestPhaseA:
         repo = tmp_path / "repo"
         repo.mkdir()
 
-        for bad in ["v1v2", "v1-v3", "v1-v2-v3", "abc-def"]:
+        for bad in ["v1v2", "v1-v3", "v1-v2-v3", "abc-def", "1-2"]:
             with pytest.raises(SystemExit):
                 do_migrate(repo, bad)
 

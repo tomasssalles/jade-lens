@@ -2,6 +2,21 @@ body {
   padding: 0 1rem;
 }
 
+.version-warning {
+  background: #7a3a00;
+  color: #ffd;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 -1rem;
+}
+.version-warning code {
+  background: rgba(255,255,255,0.15);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 h1 {
   text-align: center;
   margin-top: 2rem;

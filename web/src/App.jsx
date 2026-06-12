@@ -5,7 +5,7 @@ import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
-import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile } from './repoCache'
+import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile, SUPPORTED_DATA_FORMAT_VERSION } from './repoCache'
 import { buildCheckboxToggle } from './edit/checkbox'
 import { buildJsonValueEdit } from './edit/jsonValueEdit'
 import { applyUnifiedDiff } from './mutation/unifiedDiff'
@@ -31,6 +31,7 @@ function App() {
   // Initialise synchronously from the module-load preload so the H1 is present
   // on the first render (no flash) when IDB resolved before mount.
   const [jadeConfig, setJadeConfig] = useState(() => jadeConfigFromRepo(getPreloadedRepo()))
+  const [dataVersion, setDataVersion] = useState(null)
   const [stashCount, setStashCount] = useState(0)
   const [pendingCount, setPendingCount] = useState(0) // unpushed local changes
   const [syncTick, setSyncTick] = useState(0) // bumped after a sync updates the working map, to refresh the tree
@@ -386,12 +387,27 @@ function App() {
       )}
       {/* Render Main for both loading (no gear/browser, anti-flicker) and main.
           Keeping it at the same JSX position lets React update props without remounting. */}
+      {dataVersion !== null && dataVersion < SUPPORTED_DATA_FORMAT_VERSION && (
+        <div className="version-warning">
+          ⚠️ Your data is at format version v{dataVersion}, but this app requires v{SUPPORTED_DATA_FORMAT_VERSION}.
+          Run <code>/{jadeConfig?.assistant?.name ?? 'jade'}-migrate</code> in Claude Code to migrate your data.
+          Editing is disabled until migration is complete.
+        </div>
+      )}
+      {dataVersion !== null && dataVersion > SUPPORTED_DATA_FORMAT_VERSION && (
+        <div className="version-warning">
+          ⚠️ Your data is at format version v{dataVersion}, which is newer than this app supports (v{SUPPORTED_DATA_FORMAT_VERSION}).
+          Please reload the page (or clear the cache and reload) to get the latest app version.
+          Editing is disabled.
+        </div>
+      )}
       {(page === 'loading' || page === 'main') && (
         <Main
           onSettings={page === 'main' ? handleSettings : undefined}
           onFileOpen={page === 'main' ? openFile : undefined}
           jadeConfig={jadeConfig}
           onJadeConfig={setJadeConfig}
+          onDataVersion={setDataVersion}
           onContentLoaded={refreshStatus}
           stashCount={stashCount}
           onStash={page === 'main' ? handleStash : undefined}
@@ -423,8 +439,8 @@ function App() {
           onBack={() => history.back()}
           viewerSettings={viewerSettings}
           onWikilinkClick={handleWikilinkClick}
-          onCheckboxToggle={handleCheckboxToggle}
-          onJsonValueEdit={handleJsonValueEdit}
+          onCheckboxToggle={dataVersion === SUPPORTED_DATA_FORMAT_VERSION ? handleCheckboxToggle : null}
+          onJsonValueEdit={dataVersion === SUPPORTED_DATA_FORMAT_VERSION ? handleJsonValueEdit : null}
           repoFiles={repoFiles}
         />
       )}

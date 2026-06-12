@@ -6,6 +6,7 @@ export default function Main({
   onFileOpen,
   jadeConfig,
   onJadeConfig,
+  onDataVersion,
   onContentLoaded,
   stashCount = 0,
   onStash,
@@ -47,6 +48,7 @@ export default function Main({
         <FileBrowser
           onFileOpen={onFileOpen}
           onJadeConfig={onJadeConfig}
+          onDataVersion={onDataVersion}
           onContentLoaded={onContentLoaded}
           syncTick={syncTick}
         />

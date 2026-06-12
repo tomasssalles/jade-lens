@@ -3,7 +3,7 @@ import { getConfig } from './config'
 import {
   preloadPromise, getCachedRepo, setCachedRepo,
   getPreloadedRepo, getSessionCache, setSessionCache,
-  parseJadeConfig,
+  parseJadeConfig, parseDataVersion,
 } from './repoCache'
 import { getRepoTree, fetchBlobs, getFileContent } from './github'
 import { getQueue, initQueueFromRead, getWorkingTree } from './sync/syncController'
@@ -45,7 +45,7 @@ function indexItems(contentMap) {
   }
 }
 
-export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded, syncTick = 0 }) {
+export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, onContentLoaded, syncTick = 0 }) {
   // Initialise synchronously from whatever is already in memory: the session
   // cache (in-app navigation) or the module-load IDB preload (page reload).
   const initData = getSessionCache() ?? getPreloadedRepo()
@@ -92,8 +92,9 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
     setStatus('ready')
     const jadeCfg = parseJadeConfig(wt.contentMap)
     if (jadeCfg) onJadeConfig?.(jadeCfg)
+    onDataVersion?.(parseDataVersion(wt.contentMap))
     return true
-  }, [onJadeConfig])
+  }, [onJadeConfig, onDataVersion])
 
   // Re-source the tree after a sync-on-focus (App bumps syncTick once sync has
   // updated the working map), so newly added/renamed/deleted files appear
@@ -137,6 +138,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onContentLoaded,
       setStatus('ready')
       const jadeCfg = parseJadeConfig(contentMap)
       if (jadeCfg) onJadeConfig?.(jadeCfg)
+      onDataVersion?.(parseDataVersion(contentMap))
     }
 
     async function refreshInBackground(cfg, cached) {

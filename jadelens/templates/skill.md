@@ -26,6 +26,8 @@ If a change collides with an edit made on another device, `jadelens apply` tells
 
 Mention a stash to the user when the tool reports one; only resolve it when they ask.
 
+**If `jadelens apply` output contains any `⚠` warning lines, quote them to the user in your reply.** They indicate conditions requiring attention (version mismatch, sync failure, etc.) that are easy to miss in the collapsed tool output.
+
 ## Out of bounds
 
 Inside the data repo, you must **neither read from nor write to** any top-level path whose name starts with `.`:

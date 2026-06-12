@@ -88,6 +88,17 @@ def main() -> None:
         help="Resolve (delete) the stash entry with this id (filename stem), then sync.",
     )
 
+    # jadelens run-migration-helper <data_repo> <identifier>
+    run_mh = sub.add_parser(
+        "run-migration-helper",
+        parents=[common],
+        help="Dispatch to a migration helper function by identifier (vN_v(N+1)/name).",
+    )
+    run_mh.add_argument(
+        "identifier",
+        help="Migration helper identifier, e.g. 'v1_v2/promote-sidecars'.",
+    )
+
     # jadelens update — thin shell-out only; see do_update()
     _ = sub.add_parser(
         "update",
@@ -135,6 +146,9 @@ def main() -> None:
                 do_stash_list(data_path)
             else:
                 do_stash_resolve(data_path, args.resolve)
+        case "run-migration-helper":
+            data_path = args.data_repo.expanduser().resolve()
+            do_run_migration_helper(data_path, args.identifier)
         case "update":
             do_update()
         case "post-update":
@@ -357,6 +371,31 @@ def do_init(
 
     print(f"\n✓ Done. Your data repo is ready at {data_repo_path}")
     print(f"  Start a Claude Code session and type /{assistant_name} to begin.")
+
+
+def do_run_migration_helper(data_repo: Path, identifier: str) -> None:
+    """Dispatch to a migration helper by vN_v(N+1)/name identifier.
+
+    Reads JSON from stdin (may be None/null) and passes it to the helper.
+    """
+    import json as _json
+    import sys as _sys
+
+    try:
+        stdin_text = _sys.stdin.read().strip()
+        stdin_data = _json.loads(stdin_text) if stdin_text else None
+    except _json.JSONDecodeError as e:
+        _sys.exit(f"Invalid JSON on stdin: {e}")
+
+    match identifier:
+        case "v1_v2/promote-sidecars":
+            from jadelens.migrations.v1_v2.helpers import promote_sidecars
+            promote_sidecars(data_repo, stdin_data)
+        case _:
+            _sys.exit(
+                f"Unknown migration helper identifier: {identifier!r}\n"
+                f"Supported identifiers: v1_v2/promote-sidecars"
+            )
 
 
 def do_update() -> None:

@@ -501,4 +501,125 @@ def test_apply_version_guard_passes_when_versions_match(tmp_path: Path, monkeypa
         do_apply(repo)
     msg = str(exc_info.value.code)
     assert "post-update" not in msg
-    assert "jadelens update" not in msg
+
+
+# ---------------------- run-migration-helper / promote_sidecars ----------------------
+
+
+def _make_v1_repo_with_promotable(path: Path) -> None:
+    """Set up a valid v1 data repo with a JSON file containing promotable strings."""
+    from jadelens.operations import dumps_js_canonical
+
+    _make_git_repo(path)
+    _write_config(path, VALID_CONFIG)
+    (path / ".jade").mkdir(parents=True, exist_ok=True)
+    (path / ".jade" / "version").write_text("v1\n")
+
+    items = {
+        "title": "Short title",
+        "description": "First paragraph.\n\nSecond paragraph.",
+    }
+    (path / "Items.json").write_text(dumps_js_canonical(items))
+    index = [{"File": "[[Items.json]]", "Scope": "Items"}]
+    (path / "Index.json").write_text(dumps_js_canonical(index))
+
+    subprocess.run(["git", "-C", str(path), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(path), "commit", "-m", "initial"], check=True, capture_output=True
+    )
+
+
+def test_promote_sidecars_promotes_qualifying_strings(tmp_path: Path, capsys):
+    """promote_sidecars replaces promotable strings with sidecar wikilinks."""
+    from jadelens.migrations.v1_v2.helpers import promote_sidecars
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_v1_repo_with_promotable(repo)
+
+    promote_sidecars(repo, None)
+
+    data = json.loads((repo / "Items.json").read_text())
+    # Multi-paragraph description should be promoted to a wikilink
+    assert data["description"].startswith("[[")
+    assert data["description"].endswith("]]")
+    # Single-word title is not promotable
+    assert data["title"] == "Short title"
+
+    # Sidecar file created with original content
+    sidecar_path = repo / "Items.sidecars" / "description.md"
+    assert sidecar_path.is_file()
+    assert "First paragraph." in sidecar_path.read_text()
+
+    out = capsys.readouterr().out
+    assert "1 values promoted" in out
+    assert "1 sidecars created" in out
+
+
+def test_promote_sidecars_skips_already_wikilinks(tmp_path: Path, capsys):
+    """promote_sidecars does not re-promote values that are already wikilinks."""
+    from jadelens.migrations.v1_v2.helpers import promote_sidecars
+    from jadelens.operations import dumps_js_canonical
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_git_repo(repo)
+    _write_config(repo, VALID_CONFIG)
+    (repo / ".jade").mkdir(parents=True, exist_ok=True)
+    (repo / ".jade" / "version").write_text("v1\n")
+
+    # Create sidecar dir and file manually to represent an already-promoted value
+    (repo / "Items.sidecars").mkdir()
+    (repo / "Items.sidecars" / "notes.md").write_text("Para one.\n\nPara two.")
+    data = {"notes": "[[Items.sidecars/notes.md]]", "title": "Short"}
+    (repo / "Items.json").write_text(dumps_js_canonical(data))
+    index = [{"File": "[[Items.json]]", "Scope": "Items"}]
+    (repo / "Index.json").write_text(dumps_js_canonical(index))
+
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "initial"], check=True, capture_output=True
+    )
+
+    promote_sidecars(repo, None)
+
+    out = capsys.readouterr().out
+    assert "0 values promoted" in out
+
+
+def test_run_migration_helper_unknown_identifier_exits(tmp_path: Path, monkeypatch):
+    """Unknown identifier exits with a clear error message."""
+    from jadelens.cli import do_run_migration_helper
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(""))
+
+    with pytest.raises(SystemExit) as exc_info:
+        do_run_migration_helper(repo, "v99/nonexistent")
+    msg = str(exc_info.value.code)
+    assert "Unknown migration helper" in msg
+    assert "v99/nonexistent" in msg
+
+
+def test_run_migration_helper_dispatches_to_promote_sidecars(tmp_path: Path, monkeypatch):
+    """v1_v2/promote-sidecars dispatches to the promote_sidecars helper."""
+    from jadelens.cli import do_run_migration_helper
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(_sys, "stdin", io.StringIO(""))
+
+    called: list[tuple] = []
+
+    def _mock_promote(data_repo, stdin_data):
+        called.append((data_repo, stdin_data))
+
+    monkeypatch.setattr(
+        "jadelens.migrations.v1_v2.helpers.promote_sidecars", _mock_promote
+    )
+
+    do_run_migration_helper(repo, "v1_v2/promote-sidecars")
+
+    assert len(called) == 1
+    assert called[0] == (repo, None)

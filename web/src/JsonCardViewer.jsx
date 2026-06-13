@@ -512,6 +512,7 @@ function SidecarPreview({ sidecarPath, onWikilinkClick }) {
   useEffect(() => {
     const cached = getContentFromCache(sidecarPath)
     if (cached !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ loading: false, text: cached })
       return
     }

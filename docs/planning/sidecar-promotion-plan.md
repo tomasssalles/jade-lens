@@ -276,19 +276,142 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ---
 
-## Phase 10 — Release
+## Phase 10 — E2E test harness
 
-- [ ] **10a.** Test end-to-end against a real data repo without pushing release tags. Document what was tested. It is not clear how we can do this. We will probably need somewhat sandboxed installations of arbitrary versions of the CLI and the skill (desktop) (careful with global `jadelens` installation and skill symlink at `~`)? Probably need to launch arbitrary versions of the web app locally (desktop) because GitHub only deploys one version to pages and it's the public version everyone sees. Probably need curated test data for the important test-cases (whole data repos), and either they'll have to live on GitHub for real (and we can have one branch per test-case, set main to the desired branch with --force, test) (or a similar idea but we make it possible to use other branches in the web app and create temporary branches for testing which are removed in the end) or we'll have to build in an adapter to replace GitHub in tests (but that's difficult and more fragile).
-- [ ] **10b.** Set code versions: CLI `__version__` → `0.2.0`, web
+Design reference: `docs/design/e2e-testing.md`.
+
+- [x] **10a.** Write the e2e testing design doc (`docs/design/e2e-testing.md`).
+  Covers: fixture format, sandbox model, two modes (local / `--github`), fake
+  HOME, `--add-dir` for bot sessions, PAT-in-URL auth, safety guard pattern,
+  migration-tag clearing, `.env.local` contract, web app dev-seed.
+
+- [ ] **10b.** Create the first scenario fixture at
+  `tests/e2e/fixtures/v1-basic/`. Contents:
+  - `.jade/version` — `v1\n`
+  - `.jade/config.json` — `{"user": {"full_name": "Test User", "short_name": "Test"}, "assistant": {"name": "jadetest"}}`
+  - `Index.json` — `[]`
+  - At least two JSON content files whose string values contain more than one
+    CommonMark block (paragraphs, headings, list items, code blocks, or
+    blockquotes) — these should be promoted to sidecars by the v1→v2 migration
+    helper. Check `jadelens/sidecar.py` for what counts as a multi-block value.
+  - At least one JSON content file with only single-block string values — should
+    not be promoted.
+  - All files should use plausible personal-data content (not contrived). Each
+    JSON content file that should be in the index needs a corresponding entry in
+    `Index.json`. The `.jade/config.json` assistant name must be `jadetest`.
+
+- [ ] **10c.** Write `tests/e2e/materialize.py`. Implements the full harness
+  script as described in `docs/design/e2e-testing.md`. Detailed spec:
+
+  **Interface:** `python tests/e2e/materialize.py <fixture-name> [--github]`
+
+  **`.env.local` parsing:** read the file at `<repo-root>/.env.local` (two
+  levels up from `tests/e2e/`). Parse `KEY=VALUE` lines, ignoring blank lines
+  and `#` comments. Expose values by key name, stripping any `VITE_` prefix for
+  matching. Error clearly if `.env.local` is missing when `--github` is used.
+
+  **Sandbox creation:** wipe `/tmp/jl-e2e/<fixture-name>/` completely if it
+  exists, then create `home/`, `repo/`, and (local mode only) `remote.git/`.
+
+  **Repo materialization (both modes):**
+  1. Copy all files from `tests/e2e/fixtures/<fixture-name>/` into `repo/`.
+  2. Read `.jade/config.json` from `repo/` to get the config dict.
+  3. Write scaffold files by importing `jadelens.cli` and calling
+     `_write_common_files(repo_path, config_dict)`. This writes the
+     session-start hook, `.claude/settings.json`, CLAUDE.md, and `.gitignore`
+     from the installed templates without any interactive prompts or git ops.
+  4. `git init -b main`, configure `user.email` and `user.name` (test values),
+     `commit.gpgsign false`.
+  5. `git add -A && git commit -m "materialize: <fixture-name>"`.
+
+  **Local mode (no `--github`):**
+  6. `git init --bare remote.git/`.
+  7. `git remote add origin /tmp/jl-e2e/<fixture-name>/remote.git`.
+  8. `git push -u origin main`.
+
+  **`--github` mode:**
+  6. Read `VITE_JL_E2E_REPO_URL` and `VITE_JL_E2E_PAT` from `.env.local`.
+     Extract `owner/repo` from the URL. Validate the repo name (portion after
+     `/`) against `r"jade-lens-test(-.+)?"` — exit with a clear error message
+     if it doesn't match, before any network call.
+  7. Construct the authenticated remote URL:
+     `https://<PAT>@github.com/<owner>/<repo>.git`.
+  8. `git remote add origin <authenticated-url>`.
+  9. List all remote tags via `git ls-remote --tags origin`. Delete any whose
+     ref name matches `r"refs/tags/v\d+-v\d+-migration-(start|end)$"` using
+     `git push origin --delete <tag> ...` (batch into one call if multiple).
+  10. `git push --force -u origin main`.
+
+  **Output:** print a summary block:
+  ```
+  === Scenario: <fixture-name> ===
+  Sandbox:   /tmp/jl-e2e/<fixture-name>/
+  Data repo: /tmp/jl-e2e/<fixture-name>/repo/
+  Remote:    /tmp/jl-e2e/<fixture-name>/remote.git   [or GitHub URL]
+
+  Run CLI commands in this environment:
+    export HOME=/tmp/jl-e2e/<fixture-name>/home
+    export PATH="$HOME/.local/bin:$PATH"
+
+  For bot sessions:
+    claude --add-dir /tmp/jl-e2e/<fixture-name>/repo
+  ```
+
+  **No external dependencies beyond the standard library** — no `python-dotenv`,
+  no `requests`. Use `subprocess` for git, `shutil` for file ops, `re` for
+  pattern matching, plain string splitting for `.env.local` parsing.
+
+- [ ] **10d.** Web app dev-seed and Vite config change. Two parts:
+
+  **`web/src/devSeed.js`:** export an async function `seedDevConfig()`. The
+  function body is wrapped in `if (import.meta.env.DEV)` — dead code in
+  production builds. When running in dev mode and both `VITE_JL_E2E_REPO_URL`
+  and `VITE_JL_E2E_PAT` are set, the function opens the `jade-lens` IndexedDB
+  (via `getDB()` from `db.js`) and:
+  1. Writes `{ githubRepoUrl: import.meta.env.VITE_JL_E2E_REPO_URL, githubPat: import.meta.env.VITE_JL_E2E_PAT }` to the `config` store under key `'user'`.
+  2. Clears the `repo`, `sync`, and `drafts` stores.
+  
+  **`web/main.jsx`:** import `seedDevConfig` from `./devSeed.js` and call it
+  (fire-and-forget, no `await` needed before render) at the top of the module,
+  before `ReactDOM.createRoot`.
+
+  **`vite.config.js`:** add `envDir: path.resolve(__dirname, '..')` to the
+  `defineConfig` object so Vite reads `.env.local` from the repo root. Add
+  `import { resolve } from 'node:path'` (or use `path.resolve` via the existing
+  `node:child_process` import pattern) — check what's already imported.
+
+- [ ] **10e.** Add `.env.local.example` at repo root and verify gitignore.
+  Create `.env.local.example` (tracked):
+  ```
+  # Copy to .env.local and fill in real values.
+  # Used by tests/e2e/materialize.py (--github mode) and the web app dev server.
+  # Never commit .env.local.
+  VITE_JL_E2E_REPO_URL=https://github.com/<owner>/jade-lens-test
+  VITE_JL_E2E_PAT=ghp_xxxxxxxxxxxxxxxxxxxx
+  ```
+  Check `tests/e2e/.gitignore` or the root `.gitignore` — ensure `.env.local`
+  is listed. If not already present, add it to the root `.gitignore`.
+
+---
+
+## Phase 11 — Release
+
+Before running the release checklist, exercise the key scenarios using the
+phase 10 harness: at minimum, a full v1→v2 migration run (bot-driven) against
+`v1-basic`, and the version-mismatch error path in the web app.
+
+- [ ] **11a.** Set code versions: CLI `__version__` → `0.2.0`, web
   `package.json` → `0.2.0`, minimum required data format → `2` in both
   codebases.
-- [ ] **10c.** Finalize changelogs: rename each `unreleased.md` to the version
+- [ ] **11b.** Finalize changelogs: rename each `unreleased.md` to the version
   file (`cli/v0.2.0.md`, `web/v0.2.0.md`, `data-format/v2.md`); create new
   empty `unreleased.md` files.
-- [ ] **10d.** Final doc pass: update design docs with anything clarified during
+- [ ] **11c.** Final doc pass: update design docs with anything clarified during
   implementation. Move all future-work items from the top of this file to the
   backlog.
-- [ ] **10e.** Clean up planning: delete `sidecar-promotion-decisions.md`; remove completed backlog entries (sidecar promotion, versioning,
-  migration items).
-- [ ] **10f.** Delete this file. Push tags: `cli-v0.2.0`, `web-v0.2.0`; move `cli-latest` and
-  `web-latest`; verify GitHub Pages deployment was automatically triggered and completed.
+- [ ] **11d.** Clean up planning: delete `sidecar-promotion-decisions.md`;
+  remove completed backlog entries (sidecar promotion, versioning, migration
+  items).
+- [ ] **11e.** Delete this file. Push tags: `cli-v0.2.0`, `web-v0.2.0`; move
+  `cli-latest` and `web-latest`; verify GitHub Pages deployment was
+  automatically triggered and completed.

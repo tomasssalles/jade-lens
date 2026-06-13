@@ -408,7 +408,7 @@ phase 10 harness: at minimum, a full v1→v2 migration run (bot-driven) against
 - [x] **11c.** Final doc pass: update design docs with anything clarified during
   implementation. Move all future-work items from the top of this file to the
   backlog.
-- [ ] **11d.** Clean up planning: delete `sidecar-promotion-decisions.md`;
+- [x] **11d.** Clean up planning: delete `sidecar-promotion-decisions.md`;
   remove completed backlog entries (sidecar promotion, versioning, migration
   items).
 - [ ] **11e.** Delete this file. Push tags: `cli-v0.2.0`, `web-v0.2.0`; move

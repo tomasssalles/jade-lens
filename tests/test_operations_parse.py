@@ -17,8 +17,15 @@ from jadelens.operations import (
 
 
 def test_parse_create_file():
-    raw = {"op": "create_file", "path": "todos.json", "content": "{}\n"}
-    assert parse_operation(raw) == CreateFile(path="todos.json", content="{}\n")
+    raw = {
+        "op": "create_file",
+        "path": "todos.json",
+        "content": "{}\n",
+        "scope": "Todo list",
+    }
+    assert parse_operation(raw) == CreateFile(
+        path="todos.json", content="{}\n", indexed=True, scope="Todo list"
+    )
 
 
 def test_parse_delete_path():
@@ -145,7 +152,7 @@ def test_create_file_rejects_unsupported_suffix():
 
 
 def test_create_file_accepts_md():
-    raw = {"op": "create_file", "path": "notes.md", "content": "# notes\n"}
+    raw = {"op": "create_file", "path": "notes.md", "content": "# notes\n", "indexed": False}
     parse_operation(raw)  # must not raise
 
 
@@ -168,6 +175,7 @@ def test_create_file_with_md_path_allows_arbitrary_content():
         "op": "create_file",
         "path": "notes.md",
         "content": "{ this is not JSON, but it's fine in markdown }",
+        "indexed": False,
     }
     parse_operation(raw)  # must not raise
 
@@ -175,12 +183,30 @@ def test_create_file_with_md_path_allows_arbitrary_content():
 # ---------------------- indexed / scope validation ----------------------
 
 
-def test_create_file_defaults_to_not_indexed():
-    """Omitting indexed and scope is fine — defaults to (False, None)."""
-    op = parse_operation({"op": "create_file", "path": "notes.md", "content": "hi\n"})
+def test_create_file_scope_only_is_indexed():
+    """Passing only a scope indexes the file — indexed defaults to True."""
+    op = parse_operation(
+        {"op": "create_file", "path": "notes.md", "content": "hi\n", "scope": "My notes"}
+    )
+    assert isinstance(op, CreateFile)
+    assert op.indexed is True
+    assert op.scope == "My notes"
+
+
+def test_create_file_indexed_false_only_needs_no_scope():
+    """Passing only indexed=False is enough — scope defaults to None."""
+    op = parse_operation(
+        {"op": "create_file", "path": "notes.md", "content": "hi\n", "indexed": False}
+    )
     assert isinstance(op, CreateFile)
     assert op.indexed is False
     assert op.scope is None
+
+
+def test_create_file_omitting_indexed_and_scope_is_rejected():
+    """With indexed defaulting to True, omitting scope is invalid — you must choose."""
+    with pytest.raises(ValidationError, match="'scope' must be a non-empty string"):
+        parse_operation({"op": "create_file", "path": "notes.md", "content": "hi\n"})
 
 
 def test_create_file_indexed_true_with_scope():
@@ -291,12 +317,12 @@ def test_unified_diff_rejects_protected_path():
 def test_protected_check_allows_nested_dot_directories():
     """A '.' as a nested component (not the leading one) is fine — only the
     top-level component triggers the rule."""
-    raw = {"op": "create_file", "path": "projects/.draft/notes.md", "content": "x"}
+    raw = {"op": "create_file", "path": "projects/.draft/notes.md", "content": "x", "indexed": False}
     parse_operation(raw)  # must not raise
 
 
 def test_protected_check_allows_leading_dot_slash():
     """PurePosixPath strips './' from the front, so './notes.md' resolves to
     'notes.md' and is allowed."""
-    raw = {"op": "create_file", "path": "./notes.md", "content": "# notes\n"}
+    raw = {"op": "create_file", "path": "./notes.md", "content": "# notes\n", "indexed": False}
     parse_operation(raw)  # must not raise

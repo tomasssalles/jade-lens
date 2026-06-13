@@ -35,7 +35,7 @@ function pathExists(tree, path) {
 // --- operation types ---
 
 export class CreateFile {
-  constructor(path, content, indexed = false, scope = null) {
+  constructor(path, content, indexed = true, scope = null) {
     this.path = path;
     this.content = content;
     this.indexed = indexed;
@@ -263,7 +263,7 @@ function parseCreateFile(raw) {
       );
     }
   }
-  const indexed = Object.hasOwn(raw, 'indexed') ? raw.indexed : false;
+  const indexed = Object.hasOwn(raw, 'indexed') ? raw.indexed : true;
   if (typeof indexed !== 'boolean') {
     throw new ValidationError(
       `Field "indexed" must be a boolean, got ${jsType(indexed)}`,

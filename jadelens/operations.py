@@ -123,7 +123,7 @@ def dumps_js_canonical_compact(obj: Any) -> str:
 class CreateFile:
     path: str
     content: str
-    indexed: bool = False
+    indexed: bool = True
     scope: str | None = None
 
     def apply(self, data_repo: Path) -> None:
@@ -327,7 +327,7 @@ def _parse_create_file(raw: dict) -> CreateFile:
                 f"create_file content for {path!r} is not valid JSON: {e}",
                 code="CREATE_FILE_INVALID_JSON",
             ) from e
-    indexed = raw.get("indexed", False)
+    indexed = raw.get("indexed", True)
     if not isinstance(indexed, bool):
         raise ValidationError(
             f"Field 'indexed' must be a boolean, got {type(indexed).__name__}",

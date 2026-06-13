@@ -4,7 +4,7 @@
   "before": { "a.md": "A\n" },
   "operations": [
     { "op": "rename_path", "from": "a.md", "to": "b.md" },
-    { "op": "create_file", "path": "b.md", "content": "new B\n" }
+    { "op": "create_file", "path": "b.md", "content": "new B\n", "indexed": false }
   ],
   "expect": { "error": "BATCH_MULTIPLE_STRUCTURE_OPS" }
 }

@@ -423,7 +423,7 @@ def test_run_aborts_and_reverts_on_apply_failure(data_repo: Path):
         workflow.run(
             data_repo,
             [
-                {"op": "create_file", "path": "new.json", "content": "{}"},
+                {"op": "create_file", "path": "new.json", "content": "{}", "indexed": False},
                 # This one fails — exists.json is already there. Its content
                 # differs from the bot's so the assertion below confirms
                 # the original wasn't clobbered.
@@ -431,6 +431,7 @@ def test_run_aborts_and_reverts_on_apply_failure(data_repo: Path):
                     "op": "create_file",
                     "path": "exists.json",
                     "content": '{"clobbered": true}',
+                    "indexed": False,
                 },
             ],
             "Should abort and revert",
@@ -453,7 +454,7 @@ def test_run_refuses_with_dirty_working_tree(data_repo: Path):
     with pytest.raises(WorkflowError, match="uncommitted changes"):
         workflow.run(
             data_repo,
-            [{"op": "create_file", "path": "new.json", "content": "{}"}],
+            [{"op": "create_file", "path": "new.json", "content": "{}", "indexed": False}],
             "Should be refused",
         )
     # The uncommitted file is still there — we didn't clobber it.
@@ -624,7 +625,7 @@ def test_run_rejects_invalid_batch(data_repo: Path):
         workflow.run(
             data_repo,
             [
-                {"op": "create_file", "path": "x.json", "content": "{}"},
+                {"op": "create_file", "path": "x.json", "content": "{}", "indexed": False},
                 {"op": "delete_path", "path": "x.json"},
             ],
             "Conflicting batch",

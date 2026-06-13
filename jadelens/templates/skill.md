@@ -143,7 +143,7 @@ You have exactly five operation types. The runtime rejects anything else.
 - Missing parent directories are auto-created.
 - If `.json`, the content must parse as valid JSON.
 - Refused if the target already exists.
-- Always include `"indexed"` and `"scope"` (see **Maintaining the index** below). Primary files: `"indexed": true` with a non-empty `"scope"`. Non-primary files: `"indexed": false, "scope": null`.
+- `"indexed"` and `"scope"` are each optional, but you must signal one intent (see **Maintaining the index** below): for a **primary file**, pass a non-empty `"scope"` (`"indexed"` defaults to `true`); for a **non-primary file**, pass `"indexed": false` (`"scope"` defaults to `null`). Passing neither is rejected.
 
 **`delete_path`** — recursively delete a file or directory.
 ```
@@ -216,7 +216,7 @@ When you restructure JSON or the file tree, the runtime keeps sidecar files in s
 
 Keep entries purposeful and brief; the index is loaded on every interaction.
 
-**Creating a primary file**: set `"indexed": true, "scope": "<non-empty description>"` on the `create_file` op — the runtime automatically appends the entry to `Index.json`. **Never manually add an index entry** when using `create_file`.
+**Creating a primary file**: pass a non-empty `"scope"` on the `create_file` op (`"indexed"` defaults to `true`) — the runtime automatically appends the entry to `Index.json`. **Never manually add an index entry** when using `create_file`.
 
 For all other index maintenance, use `json_patch` on `Index.json` directly:
 
@@ -224,7 +224,7 @@ For all other index maintenance, use `json_patch` on `Index.json` directly:
 - **Delete a primary file** → remove its entry.
 - **Rename a primary file** → the runtime auto-rewrites the `[[wikilink]]` in `"File"`; update `"Scope"` too if the rename reflects a change in what the file covers.
 
-The index lists primary files only. Non-primary files (sidecar `.md` files, working drafts, etc.) use `"indexed": false, "scope": null` on `create_file` and have no index entries.
+The index lists primary files only. Non-primary files (sidecar `.md` files, working drafts, etc.) pass `"indexed": false` on `create_file` (no `"scope"` needed) and have no index entries.
 
 Use your judgement on what's "primary": a project file deserves an entry; the `notes` field of a single to-do item probably doesn't.
 

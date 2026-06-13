@@ -2,7 +2,7 @@
   "name": "create_file rejected when the target already exists",
   "before": { "x.json": "[]\n" },
   "operations": [
-    { "op": "create_file", "path": "x.json", "content": "[1]" }
+    { "op": "create_file", "path": "x.json", "content": "[1]", "indexed": false }
   ],
   "expect": { "error": "TARGET_EXISTS" }
 }

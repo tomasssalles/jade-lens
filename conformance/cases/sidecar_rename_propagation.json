@@ -19,7 +19,7 @@
       "Park.json": "{\n  \"notes\": \"[[Park.sidecars/notes.md]]\"\n}\n",
       "Park.sidecars/notes.md": "Para one.\n\nPara two.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Park.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename Garden to Park\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Garden.json\", \"to\": \"Park.json\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename Garden to Park\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Garden.json\", \"to\": \"Park.json\"}]}\n"
     }
   }
 }

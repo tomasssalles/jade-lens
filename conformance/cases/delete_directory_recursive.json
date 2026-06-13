@@ -14,7 +14,7 @@
   "expect": {
     "after": {
       "Index.json": "[]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove archive directory\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"archive\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}, {\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove archive directory\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"archive\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}, {\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
     }
   }
 }

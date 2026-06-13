@@ -23,7 +23,7 @@
     "after": {
       "Garden.json": "{}\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove notes field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/notes\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove notes field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/notes\"}]}]}\n"
     }
   }
 }

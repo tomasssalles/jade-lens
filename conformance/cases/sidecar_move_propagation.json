@@ -25,7 +25,7 @@
       "Garden.json": "{\n  \"summary\": \"[[Garden.sidecars/summary.md]]\"\n}\n",
       "Garden.sidecars/summary.md": "Para one.\n\nPara two.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Garden.json]]\",\n    \"Scope\": \"Garden\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename notes field to summary\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"move\", \"from\": \"/notes\", \"path\": \"/summary\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename notes field to summary\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Garden.json\", \"patch\": [{\"op\": \"move\", \"from\": \"/notes\", \"path\": \"/summary\"}]}]}\n"
     }
   }
 }

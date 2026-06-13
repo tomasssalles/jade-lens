@@ -25,7 +25,7 @@ export function parseJadeConfig(contentMap) {
 
 // The data-format version this app supports. Bumped in Phase 10 alongside the
 // CLI's __supported_data_format_version__.
-export const SUPPORTED_DATA_FORMAT_VERSION = 1
+export const SUPPORTED_DATA_FORMAT_VERSION = 2
 
 // Parse the integer data-format version from `.jade/version` in a content map.
 // Returns null if the file is absent or unparseable.

@@ -13,7 +13,7 @@
     "after": {
       "shopping.json": "{\n  \"items\": [\n    \"groceries\"\n  ]\n}\n",
       "Index.json": "[\n  {\n    \"File\": \"[[shopping.json]]\",\n    \"Scope\": \"Shopping list\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add groceries to shopping list\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"shopping.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"groceries\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add groceries to shopping list\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"shopping.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"groceries\"}]}]}\n"
     }
   }
 }

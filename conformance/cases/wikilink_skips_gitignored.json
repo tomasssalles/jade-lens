@@ -19,7 +19,7 @@
       "tracked.md": "[[new.md]] in tracked\n",
       "new.md": "# original\n",
       "Index.json": "[\n  {\n    \"File\": \"[[tracked.md]]\",\n    \"Scope\": \"tracked\"\n  },\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename, leaving gitignored refs alone\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }
 }

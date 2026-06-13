@@ -18,7 +18,7 @@
       "ref.md": "see [[something_else.md]] for details\n",
       "something_else.md": "# something else\n",
       "Index.json": "[\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  },\n  {\n    \"File\": \"[[something_else.md]]\",\n    \"Scope\": \"something else\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with explicit override\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}, {\"op\": \"unified_diff\", \"path\": \"ref.md\", \"diff\": \"@@ -1 +1 @@\\n-see [[old.md]] for details\\n+see [[something_else.md]] for details\\n\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename with explicit override\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}, {\"op\": \"unified_diff\", \"path\": \"ref.md\", \"diff\": \"@@ -1 +1 @@\\n-see [[old.md]] for details\\n+see [[something_else.md]] for details\\n\"}]}\n"
     }
   }
 }

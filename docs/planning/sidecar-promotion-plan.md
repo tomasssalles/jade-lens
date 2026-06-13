@@ -407,7 +407,7 @@ Before running the release checklist, exercise the key scenarios using the
 phase 10 harness: at minimum, a full v1→v2 migration run (bot-driven) against
 `v1-basic`, and the version-mismatch error path in the web app.
 
-- [ ] **11a.** Set code versions: CLI `__version__` → `0.2.0`, web
+- [x] **11a.** Set code versions: CLI `__version__` → `0.2.0`, web
   `package.json` → `0.2.0`, minimum required data format → `2` in both
   codebases.
 - [ ] **11b.** Finalize changelogs: rename each `unreleased.md` to the version

@@ -10,7 +10,7 @@
     "after": {
       "notes.md": "# notes\n",
       "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Create notes via ./ path\", \"operations\": [{\"op\": \"create_file\", \"path\": \"./notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"Notes\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Create notes via ./ path\", \"operations\": [{\"op\": \"create_file\", \"path\": \"./notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"Notes\"}]}\n"
     }
   }
 }

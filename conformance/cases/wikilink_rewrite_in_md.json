@@ -15,7 +15,7 @@
       "new.md": "# original\n",
       "ref.md": "see [[new.md]] for details\n",
       "Index.json": "[\n  {\n    \"File\": \"[[new.md]]\",\n    \"Scope\": \"original\"\n  },\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old to new\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old to new\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"old.md\", \"to\": \"new.md\"}]}\n"
     }
   }
 }

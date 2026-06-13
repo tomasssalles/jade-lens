@@ -125,7 +125,7 @@ export function mergeUnifiedDiffs(operations) {
 
 // ---------- Operations log ----------
 
-const SUPPORTED_DATA_FORMAT_VERSION = "v1";
+const SUPPORTED_DATA_FORMAT_VERSION = "v2";
 
 function appendLogEntry(tree, rawOperations, commitMessage, timestamp) {
   const logPath = `.jade/operations-log/${SUPPORTED_DATA_FORMAT_VERSION}.jsonl`;

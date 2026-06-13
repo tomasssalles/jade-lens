@@ -24,7 +24,7 @@
       "Projects.json": "{\n  \"items\": [\n    \"[[Projects.sidecars/items/0.md]]\"\n  ]\n}\n",
       "Projects.sidecars/items/0.md": "Step one.\n\nStep two.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Projects.json]]\",\n    \"Scope\": \"Projects\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add item\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Projects.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"Step one.\\n\\nStep two.\\n\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add item\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Projects.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/items/-\", \"value\": \"Step one.\\n\\nStep two.\\n\"}]}]}\n"
     }
   }
 }

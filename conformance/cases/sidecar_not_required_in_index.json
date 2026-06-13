@@ -25,7 +25,7 @@
       "Notes.json": "{\n  \"summary\": \"[[Notes.sidecars/summary.md]]\",\n  \"title\": \"Notes\"\n}\n",
       "Notes.sidecars/summary.md": "Para one.\n\nPara two.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Notes.json]]\",\n    \"Scope\": \"Notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add title field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Notes.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/title\", \"value\": \"Notes\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add title field\", \"operations\": [{\"op\": \"json_patch\", \"path\": \"Notes.json\", \"patch\": [{\"op\": \"add\", \"path\": \"/title\", \"value\": \"Notes\"}]}]}\n"
     }
   }
 }

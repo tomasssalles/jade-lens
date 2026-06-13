@@ -15,7 +15,7 @@
       "archive/a.md": "# a\n",
       "archive/b.md": "# b\n",
       "Index.json": "[\n  {\n    \"File\": \"[[archive/a.md]]\",\n    \"Scope\": \"a\"\n  },\n  {\n    \"File\": \"[[archive/b.md]]\",\n    \"Scope\": \"b\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
     }
   }
 }

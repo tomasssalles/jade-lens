@@ -9,7 +9,7 @@
     "after": {
       "notes.md": "# notes\n",
       "Index.json": "[\n  {\n    \"File\": \"[[notes.md]]\",\n    \"Scope\": \"My notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"My notes\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"notes.md\", \"content\": \"# notes\\n\", \"indexed\": true, \"scope\": \"My notes\"}]}\n"
     }
   }
 }

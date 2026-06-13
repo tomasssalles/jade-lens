@@ -15,7 +15,7 @@
       "Projects/Leasing.json": "{\n  \"notes\": \"[[Projects/new.md]]\"\n}\n",
       "Projects/new.md": "# Old notes\n",
       "Index.json": "[\n  {\n    \"File\": \"[[Projects/Leasing.json]]\",\n    \"Scope\": \"Leasing project\"\n  },\n  {\n    \"File\": \"[[Projects/new.md]]\",\n    \"Scope\": \"Old notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old notes to new notes\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Projects/old.md\", \"to\": \"Projects/new.md\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename old notes to new notes\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"Projects/old.md\", \"to\": \"Projects/new.md\"}]}\n"
     }
   }
 }

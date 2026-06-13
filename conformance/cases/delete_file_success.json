@@ -14,7 +14,7 @@
     "after": {
       "keep.md": "# Keep\n",
       "Index.json": "[\n  {\n    \"File\": \"[[keep.md]]\",\n    \"Scope\": \"Keep note\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Remove stale note\", \"operations\": [{\"op\": \"delete_path\", \"path\": \"stale.md\"}, {\"op\": \"json_patch\", \"path\": \"Index.json\", \"patch\": [{\"op\": \"remove\", \"path\": \"/0\"}]}]}\n"
     }
   }
 }

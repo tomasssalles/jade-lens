@@ -150,7 +150,7 @@ describe('run – sidecar promotion', () => {
 
     const result = run(tree, rawOps, 'Promote notes', { timestamp: TS });
 
-    const logLine = result.get('.jade/operations-log/v1.jsonl');
+    const logLine = result.get('.jade/operations-log/v2.jsonl');
     const entry = JSON.parse(logLine);
     expect(entry.operations).toEqual(rawOps);
   });

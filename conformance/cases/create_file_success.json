@@ -9,7 +9,7 @@
     "after": {
       "projects/leasing/notes.md": "# Leasing\n\nFirst note.\n",
       "Index.json": "[\n  {\n    \"File\": \"[[projects/leasing/notes.md]]\",\n    \"Scope\": \"Leasing notes\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add leasing notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/leasing/notes.md\", \"content\": \"# Leasing\\n\\nFirst note.\\n\", \"indexed\": true, \"scope\": \"Leasing notes\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Add leasing notes\", \"operations\": [{\"op\": \"create_file\", \"path\": \"projects/leasing/notes.md\", \"content\": \"# Leasing\\n\\nFirst note.\\n\", \"indexed\": true, \"scope\": \"Leasing notes\"}]}\n"
     }
   }
 }

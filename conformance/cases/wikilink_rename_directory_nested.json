@@ -17,7 +17,7 @@
       "archive/leasing/notes.md": "# notes\n",
       "archive/leasing/cars.json": "{}\n",
       "Index.json": "[\n  {\n    \"File\": \"[[ref.md]]\",\n    \"Scope\": \"reference\"\n  },\n  {\n    \"File\": \"[[archive/leasing/notes.md]]\",\n    \"Scope\": \"notes\"\n  },\n  {\n    \"File\": \"[[archive/leasing/cars.json]]\",\n    \"Scope\": \"cars\"\n  }\n]\n",
-      ".jade/operations-log/v1.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects dir to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
+      ".jade/operations-log/v2.jsonl": "{\"ts\": \"<TS>\", \"commit_message\": \"Rename projects dir to archive\", \"operations\": [{\"op\": \"rename_path\", \"from\": \"projects\", \"to\": \"archive\"}]}\n"
     }
   }
 }

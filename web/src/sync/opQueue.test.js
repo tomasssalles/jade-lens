@@ -5,7 +5,7 @@ import { PushConflictError, GitHubWriteError } from "./githubWrite.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const VERSION = "v1";
+const VERSION = "v2";
 const LOG_PATH = `.jade/operations-log/${VERSION}.jsonl`;
 
 // A minimal synced baseline: the version file is required by the pipeline (the

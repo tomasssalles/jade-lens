@@ -4,7 +4,7 @@ import { createMemoryQueueStore } from "./queueStore.js";
 import { PushConflictError } from "./githubWrite.js";
 import { computeSyncPlan } from "./conflicts.js";
 
-const VERSION = "v1";
+const VERSION = "v2";
 const LOG_PATH = `.jade/operations-log/${VERSION}.jsonl`;
 
 function baseMap(extra = {}) {

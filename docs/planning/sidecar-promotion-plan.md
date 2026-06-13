@@ -11,14 +11,6 @@ Design reference: `docs/design/inline-sidecar-promotion.md`,
 
 ---
 
-## Items to be documented as future work:
-
-- [ ] Optimization: Enforce sidecar integrity only on afected JSONs
-- [ ] Optimization: We now have multiple wikilink passes over the entire repo. If 2 files are moved and 1 file deleted, we search for all wikilinks 4 times: 2 times to edit them because of the moves, 1 time to check for dangling references because of the deletion, and 1 time to make sure that wikilinks always point to existing files (4e). First of all, the wikilink integrity check already covers the deletion case, so we can drop that check. That's 3 passes instead of 4. But we could even do a single pass, collecting infos such as `{"[[<wikilink-path>]]": [<occurrences>]}` where an occurrence is of the form `{"file": "<occurrence-filepath>", [<occurrences-within-file>]}` and an occurrence within a file is either a line number (in case of markdown) or a JSON-pointer (in case of JSON). With this information we could efficiently edit the wikilinks to files that were moved and check the integrity of all the other wikilinks. This might not be perfect though. For example, if a line in a markdown file contains 2 wikilinks to files that were moved, we need to be careful (in particular, we should not store the current JSON values and current markdown lines in the collect info about wikilinks, but only the information about where they are). Just noticed: This collected info can also be used to validate that sidecar wikilinks only occur exactly once, at the JSON path whose value they represent (5f-iv).
-- [ ] Sidecars: inline accordion expansion of the truncated-text card in the card view.
-
----
-
 ## Phase 1 — Groundwork
 
 - [x] **1a.** Read the versioning design doc to confirm the mechanics for
@@ -413,7 +405,7 @@ phase 10 harness: at minimum, a full v1→v2 migration run (bot-driven) against
 - [x] **11b.** Finalize changelogs: rename each `unreleased.md` to the version
   file (`cli/v0.2.0.md`, `web/v0.2.0.md`, `data-format/v2.md`); create new
   empty `unreleased.md` files.
-- [ ] **11c.** Final doc pass: update design docs with anything clarified during
+- [x] **11c.** Final doc pass: update design docs with anything clarified during
   implementation. Move all future-work items from the top of this file to the
   backlog.
 - [ ] **11d.** Clean up planning: delete `sidecar-promotion-decisions.md`;

@@ -16,6 +16,9 @@ This is a to-do list, not JIRA. Keep it light.
 
 ## Contents
 
+- [Sidecar integrity check scope](#sidecar-integrity-check-scope)
+- [Wikilink pass consolidation](#wikilink-pass-consolidation)
+- [Sidecar inline accordion expansion](#sidecar-inline-accordion-expansion)
 - [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Versioning and version comparison](#versioning-and-version-comparison)
@@ -35,6 +38,62 @@ This is a to-do list, not JIRA. Keep it light.
 - [Codex compatibility](#codex-compatibility)
 - [Credential storage and trust](#credential-storage-and-trust)
 - [Bot in the web app](#bot-in-the-web-app)
+
+---
+
+## Sidecar integrity check scope
+
+**Scope:** pipeline (Python + JS).
+
+The end-of-apply enforcement pass (`run_enforcement_pass`) currently runs sidecar
+structural checks (5f) over every JSON file in the repo, even when only one file
+was touched by the batch. For large repos this adds unnecessary work.
+
+Optimization: limit the integrity scan to the subset of JSON files actually
+affected by the current batch (i.e., files that were created, modified, or whose
+sidecars could have been touched).
+
+**Blockers:** none.
+
+---
+
+## Wikilink pass consolidation
+
+**Scope:** pipeline (Python + JS).
+
+Multiple wikilink passes run over the entire repo during a single `apply`. For example,
+2 file moves + 1 delete currently triggers 4 full passes: 2 reference rewrites (for
+the moves), 1 dangling-reference check (for the delete), and 1 wikilink integrity
+scan (4e). The integrity scan already covers the deletion case, so that's 3 instead
+of 4 — but we could reduce to a single pass.
+
+A single-pass approach: collect a `{wikilink_target: [occurrences]}` index over the
+whole repo once, where each occurrence carries its location (file path + line number
+for markdown, or file path + JSON pointer for JSON). With this index we can
+efficiently rewrite wikilinks to moved files and check the integrity of all others.
+
+Edge cases to handle carefully: a single line in a markdown file may contain two
+wikilinks to moved files; the stored occurrence info must capture position (not the
+current line value) so rewrites compose correctly.
+
+This same collected index could also accelerate the sidecar invariant check that
+wikilinks into `.sidecars/` appear only at their owner field (5f-iv).
+
+**Blockers:** none.
+
+---
+
+## Sidecar inline accordion expansion
+
+**Scope:** web.
+
+In the JSON card view, sidecar values are currently shown as a truncated one-line
+preview with a ↗ icon to navigate to the full sidecar view. An accordion expansion
+would let the user read and scroll the full sidecar content inline, without leaving
+the card.
+
+**Blockers:** none (but shares concerns with the text editor item — editing inside
+an accordion adds complexity).
 
 ---
 

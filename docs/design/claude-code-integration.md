@@ -6,8 +6,10 @@ user's choice; package default `/jade`). The skill covers all use cases: logging
 new information, querying old information, chatting. This path is **built**.
 
 Source of truth: [jadelens/cli.py](../../jadelens/cli.py) (the `jadelens` CLI),
-[jadelens/templates/skill/](../../jadelens/templates/skill/) (the skill
-templates), [jadelens/templates/session-start-hook.sh](../../jadelens/templates/session-start-hook.sh),
+[jadelens/templates/skill.md](../../jadelens/templates/skill.md) and
+[jadelens/templates/migrate-skill.md](../../jadelens/templates/migrate-skill.md)
+(the skill templates),
+[jadelens/templates/session-start-hook.sh](../../jadelens/templates/session-start-hook.sh),
 [jadelens/skill.py](../../jadelens/skill.py) (render + marker). Related:
 [mutation-pipeline.md](mutation-pipeline.md) (the shared pipeline the tool wraps),
 [versioning.md](versioning.md) (the version-pinned install, future).
@@ -104,13 +106,20 @@ session start (any surface):
 1. Compute the data-repo path from `${BASH_SOURCE[0]}`.
 2. If `jadelens` isn't on `PATH`, `uv tool install … @cli-latest` (idempotent — a
    developer's editable `uv tool install -e` no-ops).
-3. `jadelens render <data-repo>` — reads `.jade/config.json`, picks the
-   highest-version bundled template, writes the rendered skill. **No-op if the
-   SKILL.md already exists** — refresh-by-delete is the rebuild loop.
+3. `jadelens render <data-repo>` — reads `.jade/config.json`, renders the skill
+   template into the data-repo skill directory. **No-op if SKILL.md already
+   exists** — the update flow (step 4) handles version-triggered re-renders.
 4. On desktop (silent no-op elsewhere): symlink `~/.claude/skills/<name>` → the
    data-repo skill **directory** `<data-repo>/.claude/skills/<name>/` (not to
    `SKILL.md` inside it), so `/<name>` works from any cwd; otherwise print the
    exact `ln -s` command.
+5. `git -C <data-repo> checkout main && jadelens post-update --data-repo=<data-repo>` —
+   brings the repo's scaffolded files up to date with the installed CLI. `post-update`
+   compares the `cli-version` marker in the rendered skill against `jadelens.__version__`
+   and is a no-op when they match (the steady state); when they differ it rewrites all
+   common repo files, commits, pushes, and force-re-renders the skill. The `git checkout main`
+   is needed because on claude.ai a feature branch may be pre-created before the hook fires.
+   `post-update` must be the **last** step because it may overwrite this hook file itself.
 
 Claude Code auto-discovers skills under `.claude/skills/<name>/` from the repo
 root, so no alias or installer is needed; the symlink just extends reach to any
@@ -118,20 +127,32 @@ cwd on desktop.
 
 ### Templates and the version marker
 
-Templates live as package resources at
-[jadelens/templates/skill/](../../jadelens/templates/skill/)`v<X.Y.Z>.md`;
-`uv tool install` ships them and `importlib.resources` reads them whether the
-install is editable or a built wheel. The rendered SKILL.md carries a marker —
-`<!-- jade-lens-skill template-version=v0.1.0 -->` — holding **only the template
-version**; config values are substituted into `{{PLACEHOLDER}}` slots at render
-time.
+Two skill templates live as package resources under
+[jadelens/templates/](../../jadelens/templates/): `skill.md` (the main `/<name>`
+skill) and `migrate-skill.md` (the `/<name>-migrate` skill). `uv tool install`
+ships them; `importlib.resources` reads them whether the install is editable or a
+built wheel. Each rendered SKILL.md carries a marker —
+`<!-- jade-lens-skill cli-version=vX.Y.Z -->` — holding the installed CLI version
+that produced it. Config values and the CLI version are substituted into
+`{{PLACEHOLDER}}` slots (e.g. `{{ASSISTANT_NAME}}`, `{{CLI_VERSION}}`) at render
+time by `jadelens/skill.py:render_skill`.
+
+Both skills are rendered and symlinked by `do_render_skill` (in `cli.py`) and
+re-rendered by `post-update` whenever the marker version lags the installed
+`jadelens.__version__`.
 
 ### Updates and config changes
 
-- **Update the code/skill:** editable installs see new code + template on the next
-  session (delete the rendered skill dir to re-render). claude.ai cold sessions
-  re-install from the pinned ref each time. (A first-class `jadelens update` tool is
-  planned — [versioning.md](versioning.md).)
+- **Update the code/skill:** run `jadelens update` — this reinstalls `jadelens`
+  from `@cli-latest` (via `uv tool install --reinstall`) then calls
+  `jadelens post-update`, which rewrites all common repo files (hook, settings,
+  CLAUDE.md, config), commits, pushes, and force-re-renders both skills. The
+  session-start hook also calls `post-update` automatically, so any device that
+  starts a session after an update on another device catches up on its own.
+  On claude.ai, each cold session reinstalls from `cli-latest`; `post-update` then
+  brings the data repo in sync.
+  Force-re-render without a full update: delete the rendered skill directory and
+  start a new session — `jadelens render` will recreate it.
 - **Rename the assistant / change names:** edit `.jade/config.json`, delete the old
   rendered skill dir (and the old home-dir symlink), start a fresh session — the
   hook re-renders under the new name.

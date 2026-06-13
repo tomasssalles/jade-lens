@@ -410,7 +410,7 @@ phase 10 harness: at minimum, a full v1→v2 migration run (bot-driven) against
 - [x] **11a.** Set code versions: CLI `__version__` → `0.2.0`, web
   `package.json` → `0.2.0`, minimum required data format → `2` in both
   codebases.
-- [ ] **11b.** Finalize changelogs: rename each `unreleased.md` to the version
+- [x] **11b.** Finalize changelogs: rename each `unreleased.md` to the version
   file (`cli/v0.2.0.md`, `web/v0.2.0.md`, `data-format/v2.md`); create new
   empty `unreleased.md` files.
 - [ ] **11c.** Final doc pass: update design docs with anything clarified during

@@ -387,7 +387,7 @@ Design reference: `docs/design/e2e-testing.md`.
   `import { resolve } from 'node:path'` (or use `path.resolve` via the existing
   `node:child_process` import pattern) — check what's already imported.
 
-- [ ] **10e.** Add `.env.local.example` at repo root and verify gitignore.
+- [x] **10e.** Add `.env.local.example` at repo root and verify gitignore.
   Create `.env.local.example` (tracked):
   ```
   # Copy to .env.local and fill in real values.

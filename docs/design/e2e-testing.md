@@ -232,6 +232,7 @@ follow the same `import.meta.env.DEV` gate.
 
 ```
 tests/e2e/
+  README.md            ← practical step-by-step guide for running scenarios
   materialize.py       ← the single harness script
   fixtures/
     v1-basic/          ← scenario: v1 data repo with promotable string values

@@ -1,0 +1,20 @@
+[
+  {
+    "Title": "The Pragmatic Programmer",
+    "Author": "David Thomas, Andrew Hunt",
+    "Status": "Read",
+    "Notes": "## Key takeaways\n\nThe \"broken windows\" theory applies to code: don't leave bad designs or wrong decisions in place. Fix them as soon as you see them.\n\n## Favourite quotes\n\n> \"You Can't Write Perfect Software. Did that hurt? It shouldn't. Accept it as an axiom of life.\"\n\nGreat companion to reading actual code in projects you admire."
+  },
+  {
+    "Title": "Thinking, Fast and Slow",
+    "Author": "Daniel Kahneman",
+    "Status": "Reading",
+    "Notes": "About halfway through. The distinction between System 1 and System 2 thinking is immediately useful for spotting your own cognitive biases in everyday decisions."
+  },
+  {
+    "Title": "A Pattern Language",
+    "Author": "Christopher Alexander",
+    "Status": "Want to read",
+    "Notes": null
+  }
+]

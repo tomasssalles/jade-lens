@@ -1,0 +1,20 @@
+[
+  {
+    "Name": "Alice Brennan",
+    "Email": "alice@example.com",
+    "Met": "2024-03-15",
+    "Notes": "Works at the city planning office. Good contact for the neighbourhood association."
+  },
+  {
+    "Name": "Ben Kowalski",
+    "Email": "ben.k@example.com",
+    "Met": "2025-01-08",
+    "Notes": "Recommended the mechanic on Fairfield Road."
+  },
+  {
+    "Name": "Priya Nair",
+    "Email": "priya@example.com",
+    "Met": "2023-11-20",
+    "Notes": "Former colleague from the agency. Now freelancing."
+  }
+]

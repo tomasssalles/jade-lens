@@ -1,0 +1,16 @@
+{
+  "Season": "Spring 2026",
+  "Beds": [
+    {
+      "Name": "South bed",
+      "Plants": ["tomatoes", "basil", "courgette"],
+      "Notes": "Tomatoes went in late — watch for blight if we get a wet June."
+    },
+    {
+      "Name": "North bed",
+      "Plants": ["kale", "chard", "rocket"],
+      "Notes": "## What worked last year\n\nKale survived the frost without any covering. Chard bolted early — sow later next time.\n\n## Plan for this year\n\n- Sow chard in late April instead of March\n- Try a cut-and-come-again mix in the gaps\n- Add a layer of compost before planting out"
+    }
+  ],
+  "General notes": "## Soil\n\npH around 6.5, tested March 2026. Added a bag of well-rotted manure to each bed.\n\n## Watering\n\nDrip irrigation on the south bed is working well. North bed still hand-watered — consider extending the system this summer."
+}

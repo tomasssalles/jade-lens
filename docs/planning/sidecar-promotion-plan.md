@@ -285,7 +285,7 @@ Design reference: `docs/design/e2e-testing.md`.
   HOME, `--add-dir` for bot sessions, PAT-in-URL auth, safety guard pattern,
   migration-tag clearing, `.env.local` contract, web app dev-seed.
 
-- [ ] **10b.** Create the first scenario fixture at
+- [x] **10b.** Create the first scenario fixture at
   `tests/e2e/fixtures/v1-basic/`. Contents:
   - `.jade/version` — `v1\n`
   - `.jade/config.json` — `{"user": {"full_name": "Test User", "short_name": "Test"}, "assistant": {"name": "jadetest"}}`

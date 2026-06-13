@@ -220,19 +220,25 @@ set, the seed:
    the test repo rather than serving stale cache from a previous scenario.
 
 The seed runs its clearing logic only when the stored config does not already
-match the env vars — i.e. on the first load after pointing the app at a new
-test repo. On subsequent reloads (same URL + PAT already in IDB) the seed is a
-no-op, so queued sync operations and editing drafts survive reloads normally.
+match the env vars — i.e. on the first load after pointing the app at the
+test repo for the first time. After that it is a no-op. **Cache clearing is
+always manual**: after each `materialize --github` run, clear site data in
+browser devtools (`Application → Storage → Clear site data`) before reloading
+to get a fresh view of the newly materialized repo state.
+
+The reason there is no automatic per-materialize clear: the URL and PAT come
+from `.env.local` and never change between runs, so there is no browser-visible
+signal that a new materialization has happened. Attempting to be clever here
+(e.g. a run-ID stamp) would require restarting the dev server on each
+materialize — a worse trade-off than one manual clear-site-data step.
 
 The result: `npm run dev` with `.env.local` present points the web app at the
-test repo immediately, with a clean cache. No manual Settings entry is needed.
+test repo immediately on the first load. No manual Settings entry is needed.
 
-Re-materializing the same fixture does not auto-clear the web app's IDB (the
-URL and PAT are unchanged, so the seed's config-change check doesn't trigger).
-The `repo` store self-heals via the background SHA-diff refresh; `sync` and
-`drafts` may contain stale entries from the previous run and should be cleared
-manually via `Application → Storage → Clear site data` in browser devtools if
-the scenario requires a truly clean slate.
+The `repo` store self-heals without a full clear: the background SHA-diff
+refresh re-fetches changed blobs. The `sync` and `drafts` stores may contain
+stale entries from a previous run and should be cleared explicitly when a clean
+slate is needed.
 
 This seed is the first instance of the "dev-only code stripped from the Pages
 build" pattern. Future dev-only settings (Advanced panel, feature flags) should

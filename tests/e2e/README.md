@@ -102,16 +102,17 @@ npm run dev        # → http://localhost:5173/jade-lens/
 ```
 
 The dev-seed reads `.env.local` at the repo root and, in dev mode only,
-pre-fills the test repo URL + PAT into Settings and clears the cache on
-**first load** (when the stored config doesn't already match the env vars).
-On subsequent reloads it is a no-op, so queued sync operations and editing
-drafts survive reloads.
+writes the test repo URL + PAT into Settings on first load (if Settings are
+not already configured). That's all it does — cache clearing is always manual.
 
-To reset the web app's view after re-materializing the same fixture (same URL
-and PAT — the seed won't trigger again): clear site data in browser devtools
-(`Application → Storage → Clear site data`), then reload. The `repo` store
-also self-heals without a full clear: the background refresh diffs the file
-tree by blob SHA and re-fetches anything that changed.
+After each `materialize --github` run, clear the web app's state before
+reloading: in browser devtools, `Application → Storage → Clear site data`.
+Then reload — the app fetches fresh from the newly materialized repo.
+
+The `repo` store also self-heals without a full clear: the background refresh
+diffs the file tree by blob SHA and re-fetches anything that changed. But the
+`sync` and `drafts` stores will have stale entries from the previous run
+unless you clear explicitly.
 
 Run multiple versions side by side on different ports:
 

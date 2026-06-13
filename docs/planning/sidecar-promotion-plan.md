@@ -368,12 +368,15 @@ Design reference: `docs/design/e2e-testing.md`.
   production builds. When running in dev mode and both `VITE_JL_E2E_REPO_URL`
   and `VITE_JL_E2E_PAT` are set, the function opens the `jade-lens` IndexedDB
   (via `getDB()` from `db.js`), reads the current `config/user` entry, and
-  **only if the stored `githubRepoUrl` or `githubPat` differ from the env vars**:
+  **only if Settings are not already configured** (i.e. `githubRepoUrl` is
+  absent or empty):
   1. Writes `{ githubRepoUrl: import.meta.env.VITE_JL_E2E_REPO_URL, githubPat: import.meta.env.VITE_JL_E2E_PAT }` to the `config` store under key `'user'`.
-  2. Clears the `repo`, `sync`, and `drafts` stores.
 
-  If the stored config already matches, the function is a no-op — queued sync
-  operations and editing drafts survive normal reloads.
+  That is all the seed does. It does **not** clear the `repo`, `sync`, or
+  `drafts` stores — cache clearing between scenario runs is always manual
+  (`Application → Storage → Clear site data` in browser devtools). The URL and
+  PAT never change between materializations (they come from `.env.local`), so
+  there is no reliable browser-visible trigger for "a new materialize just ran."
   
   **`web/main.jsx`:** import `seedDevConfig` from `./devSeed.js` and call it
   (fire-and-forget, no `await` needed before render) at the top of the module,

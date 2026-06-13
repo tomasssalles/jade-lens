@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:e2e": "BROWSER=../tests/e2e/open-private.sh vite --open /jade-lens/",
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run && npm run test:conformance",

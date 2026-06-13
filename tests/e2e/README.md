@@ -97,8 +97,8 @@ git worktree add /tmp/jl-web-v0.1.0 web-v0.1.0     # tag, branch, or SHA
 cd /tmp/jl-web-v0.1.0/web
 npm ci
 
-# Run it (dev server, no build needed):
-npm run dev        # → http://localhost:5173/jade-lens/
+# Start the dev server and open in a private window automatically:
+npm run dev:e2e    # → opens http://localhost:5173/jade-lens/ in Chrome incognito / Firefox private
 ```
 
 The dev-seed reads `.env.local` at the repo root and, in dev mode only,

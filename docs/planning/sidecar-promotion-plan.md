@@ -300,7 +300,7 @@ Design reference: `docs/design/e2e-testing.md`.
     JSON content file that should be in the index needs a corresponding entry in
     `Index.json`. The `.jade/config.json` assistant name must be `jadetest`.
 
-- [ ] **10c.** Write `tests/e2e/materialize.py`. Implements the full harness
+- [x] **10c.** Write `tests/e2e/materialize.py`. Implements the full harness
   script as described in `docs/design/e2e-testing.md`. Detailed spec:
 
   **Interface:** `python tests/e2e/materialize.py <fixture-name> [--github]`

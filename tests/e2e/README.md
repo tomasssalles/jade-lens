@@ -103,10 +103,15 @@ npm run dev        # → http://localhost:5173/jade-lens/
 
 The dev-seed reads `.env.local` at the repo root and, in dev mode only,
 pre-fills the test repo URL + PAT into Settings and clears the cache on
-startup — so the app points at your test repo immediately, no manual setup.
+**first load** (when the stored config doesn't already match the env vars).
+On subsequent reloads it is a no-op, so queued sync operations and editing
+drafts survive reloads.
 
-To reset the web app's view after re-materializing: just reload the page (the
-dev-seed clears the cache on every load).
+To reset the web app's view after re-materializing the same fixture (same URL
+and PAT — the seed won't trigger again): clear site data in browser devtools
+(`Application → Storage → Clear site data`), then reload. The `repo` store
+also self-heals without a full clear: the background refresh diffs the file
+tree by blob SHA and re-fetches anything that changed.
 
 Run multiple versions side by side on different ports:
 

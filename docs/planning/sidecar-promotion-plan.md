@@ -367,9 +367,13 @@ Design reference: `docs/design/e2e-testing.md`.
   function body is wrapped in `if (import.meta.env.DEV)` — dead code in
   production builds. When running in dev mode and both `VITE_JL_E2E_REPO_URL`
   and `VITE_JL_E2E_PAT` are set, the function opens the `jade-lens` IndexedDB
-  (via `getDB()` from `db.js`) and:
+  (via `getDB()` from `db.js`), reads the current `config/user` entry, and
+  **only if the stored `githubRepoUrl` or `githubPat` differ from the env vars**:
   1. Writes `{ githubRepoUrl: import.meta.env.VITE_JL_E2E_REPO_URL, githubPat: import.meta.env.VITE_JL_E2E_PAT }` to the `config` store under key `'user'`.
   2. Clears the `repo`, `sync`, and `drafts` stores.
+
+  If the stored config already matches, the function is a no-op — queued sync
+  operations and editing drafts survive normal reloads.
   
   **`web/main.jsx`:** import `seedDevConfig` from `./devSeed.js` and call it
   (fire-and-forget, no `await` needed before render) at the top of the module,

@@ -219,10 +219,20 @@ set, the seed:
 2. Clears the `repo`, `sync`, and `drafts` stores so the app fetches fresh from
    the test repo rather than serving stale cache from a previous scenario.
 
+The seed runs its clearing logic only when the stored config does not already
+match the env vars — i.e. on the first load after pointing the app at a new
+test repo. On subsequent reloads (same URL + PAT already in IDB) the seed is a
+no-op, so queued sync operations and editing drafts survive reloads normally.
+
 The result: `npm run dev` with `.env.local` present points the web app at the
 test repo immediately, with a clean cache. No manual Settings entry is needed.
-Changing the scenario (re-running `materialize.py --github`) and reloading the
-browser is sufficient to reset the web app's view.
+
+Re-materializing the same fixture does not auto-clear the web app's IDB (the
+URL and PAT are unchanged, so the seed's config-change check doesn't trigger).
+The `repo` store self-heals via the background SHA-diff refresh; `sync` and
+`drafts` may contain stale entries from the previous run and should be cleared
+manually via `Application → Storage → Clear site data` in browser devtools if
+the scenario requires a truly clean slate.
 
 This seed is the first instance of the "dev-only code stripped from the Pages
 build" pattern. Future dev-only settings (Advanced panel, feature flags) should

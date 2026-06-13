@@ -14,6 +14,7 @@ try {
 export default defineConfig({
   plugins: [react(), svgr()],
   base: '/jade-lens/',
+  envDir: new URL('..', import.meta.url).pathname,
   define: {
     __BUILD_SHA__: JSON.stringify(buildSha),
   },

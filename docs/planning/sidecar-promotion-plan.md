@@ -361,7 +361,7 @@ Design reference: `docs/design/e2e-testing.md`.
   no `requests`. Use `subprocess` for git, `shutil` for file ops, `re` for
   pattern matching, plain string splitting for `.env.local` parsing.
 
-- [ ] **10d.** Web app dev-seed and Vite config change. Two parts:
+- [x] **10d.** Web app dev-seed and Vite config change. Two parts:
 
   **`web/src/devSeed.js`:** export an async function `seedDevConfig()`. The
   function body is wrapped in `if (import.meta.env.DEV)` — dead code in

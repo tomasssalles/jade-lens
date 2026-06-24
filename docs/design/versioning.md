@@ -304,10 +304,23 @@ changelog, now split into the per-track layout (`cli/v0.1.0.md`, `web/v0.1.0.md`
 |---|---|---|
 | `cli-vMAJOR.MINOR.PATCH` | `cli-v1.2.3` | Python tooling/skill release |
 | `web-vMAJOR.MINOR.PATCH` | `web-v0.4.0` | Web app deployment |
+| `cli-latest` | — | Moving tag: always points at the latest `cli-v*` release commit |
+| `web-latest` | — | Moving tag: always points at the latest `web-v*` release commit |
 
 Tags are created at the version-bump commit (for the web app, the commit that
 triggers the Pages deploy). When a code release requires a new data version, push
 the code tag(s) **and** the migration together.
+
+The two component tracks are independent: the CLI and the web app version on
+their own cadence (the data repo could one day be on `cli-v1.3.5` and
+`web-v2.4.8` at once), and their release tags need not sit on the same commit.
+
+`cli-latest` and `web-latest` are **moving** tags that must be re-pointed to the
+new release commit as part of every release — never left behind on an older one.
+`cli-latest` is load-bearing: both the session-start hook and `jadelens update`
+install the CLI from `git+…@cli-latest`, so it must always resolve to the latest
+`cli-v*` release. Invariant: `cli-latest == ` the highest `cli-v*` tag, and
+`web-latest == ` the highest `web-v*` tag.
 
 **Data repo tags** (in the user's private data repo):
 
@@ -324,7 +337,7 @@ See the Migrations section for how these tags are used.
 |---|---|---|---|
 | Format | semver | semver | sequential integer |
 | Source of truth | Python `__version__` | `package.json` | `.jade/version` |
-| Git tags | `cli-vX.Y.Z` | `web-vX.Y.Z` | none |
+| Git tags | `cli-vX.Y.Z` + moving `cli-latest` | `web-vX.Y.Z` + moving `web-latest` | none |
 | Changelog | `docs/changelogs/cli/` | `docs/changelogs/web/` | `docs/changelogs/data-format/` |
 | Update | manual update tool | page reload (always latest) | migration |
 | On `data < code` | run migration | warn + read-only, point to `/jade` | — |

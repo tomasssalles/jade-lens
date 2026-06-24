@@ -22,6 +22,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
 - [Fail-safe handling of an unparseable data-format version](#fail-safe-handling-of-an-unparseable-data-format-version)
 - [Version-aware enforcement for migration checks](#version-aware-enforcement-for-migration-checks)
+- [Unicode-normalization-robust path comparison](#unicode-normalization-robust-path-comparison)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Schema and view registry](#schema-and-view-registry)
 - [Structured-creation forms](#structured-creation-forms)
@@ -212,6 +213,46 @@ Fix direction — make enforcement version-aware:
 
 **Blockers:** none hard, but the per-version-ruleset design must be settled first
 (ties into the migration framework / `versioning.md`).
+
+---
+
+## Unicode-normalization-robust path comparison
+
+**Scope:** pipeline (Python + JS).
+
+The non-ASCII *quoting* fix (commit `0f3e353`) made git path listing return real
+Unicode, but path comparison still assumes the two sides are codepoint-identical:
+the path on disk / from git vs. the wikilink target stored in `Index.json` and in
+inline wikilinks. Unicode breaks that assumption via **normalization**.
+
+The same grapheme has multiple encodings — NFC (composed: `é` = U+00E9) vs NFD
+(decomposed: `e` + U+0301). macOS APFS/HFS+ historically hand filenames back in
+NFD (git's `core.precomposeunicode` mitigates but isn't universal), while JSON
+authored elsewhere — or by the bot — is typically NFC. So an *accented* filename
+can mismatch: the file on disk reads as NFD while its `Index.json` entry is NFC,
+and the strings compare unequal even though they're the "same" name.
+
+Impact — anywhere a disk/git path is compared to an index/wikilink string:
+- index completeness (4d) → spurious `INDEX_MISSING_ENTRY`;
+- wikilink resolution (4e) → spurious dead-link / `WIKILINK_DEAD`;
+- sidecar path↔pointer mapping; rename/delete reference rewrites.
+
+(The em-dash case that prompted the quoting fix is *not* affected — it has a
+single NFC/NFD form — which is why it's a separate, deeper follow-up.)
+
+Fix direction — normalize both sides to a canonical form (NFC) before comparison.
+Decisions to settle (permanent, so settle first):
+- **Compare-only vs canonicalize-on-write.** Folding both sides to NFC only for
+  comparison is least invasive; additionally rewriting stored paths/filenames to
+  NFC guarantees internal consistency but touches user filenames on disk.
+- **Choke point.** Do it once in the path/wikilink comparison + the wikilink
+  resolver, not scattered. Round-trips matter: a file created with an NFC name may
+  re-surface as NFD on macOS, so equality must be normalization-insensitive *at the
+  boundary*, not normalized a single time.
+- **Cross-client parity.** The web app (workingMap keys) and Python must agree; add
+  a conformance case with an NFC-vs-NFD pair so both pipelines are pinned.
+
+**Blockers:** none.
 
 ---
 

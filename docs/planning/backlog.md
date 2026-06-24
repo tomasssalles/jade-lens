@@ -21,6 +21,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Sidecar inline accordion expansion](#sidecar-inline-accordion-expansion)
 - [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
 - [Fail-safe handling of an unparseable data-format version](#fail-safe-handling-of-an-unparseable-data-format-version)
+- [Version-aware enforcement for migration checks](#version-aware-enforcement-for-migration-checks)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Schema and view registry](#schema-and-view-registry)
 - [Structured-creation forms](#structured-creation-forms)
@@ -174,6 +175,43 @@ pipeline and the web app's version check (9d) so all three clients agree.
 - Do we auto-heal an obvious legacy `v0.1.0` → `v1` (with confirmation), or only
   instruct the user? Auto-healing touches `.jade/`, which `apply` won't do, so it
   would belong to the migration tooling, not `apply`.
+
+---
+
+## Version-aware enforcement for migration checks
+
+**Scope:** pipeline (Python + JS) + /jade (migration).
+
+`run_enforcement_pass(data_repo)` (`workflow.py`) and the `jadelens check`
+subcommand that wraps it (`cli.py`) are **single-version**: they enforce the one
+ruleset hardcoded into the *installed* CLI (i.e. the latest supported data-format
+version), with no target-version parameter.
+
+Every migration runbook ends with a bare `jadelens check <data_repo>` (e.g.
+`jadelens/migrations/v1_v2/RUNBOOK.md`) intending to confirm *"the data now
+satisfies the target of this step"* — v2 for the v1→v2 runbook. But `jadelens
+migrate` walks the version steps in sequence on whatever CLI is installed. If that
+CLI supports, say, v5, the v1→v2 runbook's final `jadelens check` enforces **v5**
+rules against data that's only been migrated to v2 → spurious failure, and the
+migration can't complete.
+
+(Normal operation is unaffected: `workflow.run` requires `data == supported`, so
+enforcing the supported ruleset there is correct. The bug is specific to the
+migration path, where the step's target version ≠ the installed supported version.
+It first bites the moment the CLI supports ≥ v3 while a user migrates up from v1.)
+
+Fix direction — make enforcement version-aware:
+- Parameterize the pass, `run_enforcement_pass(data_repo, target_version)`, and add
+  `jadelens check --format-version=vN` (defaulting to `.jade/version` or the
+  supported version when omitted), so each runbook checks against *its own* target.
+- This needs per-version rule sets: the enforced invariants accrete/evolve across
+  data-format versions, so there must be a way to select (snapshot or compose) the
+  ruleset for an arbitrary vN, not just the latest. Settle how rules are versioned
+  before building — this shape is permanent.
+- Each runbook should invoke the check for the version that step targets.
+
+**Blockers:** none hard, but the per-version-ruleset design must be settled first
+(ties into the migration framework / `versioning.md`).
 
 ---
 

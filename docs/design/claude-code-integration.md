@@ -125,6 +125,35 @@ Claude Code auto-discovers skills under `.claude/skills/<name>/` from the repo
 root, so no alias or installer is needed; the symlink just extends reach to any
 cwd on desktop.
 
+### claude.ai app: the two-repo workaround for GitHub install policy
+
+On the **claude.ai app** (mobile/web) the per-session GitHub egress policy has
+tightened. A session scoped to **only the data repo** can no longer reach
+github.com to `uv tool install … @cli-latest`, so the session-start hook's install
+step (step 2 above) fails and `/<name>` never comes up.
+
+**Workaround:** when creating the code session, add **both** the data repo **and**
+the public `tomasssalles/jade-lens` code repo as session repositories. Because
+`jade-lens` is public, any user can add it; with both repos in the session the
+install succeeds.
+
+Two consequences of the two-repo session:
+
+- **The hook does not auto-run.** In a multi-repo session the data repo's
+  `SessionStart` hook does **not** fire automatically. Run it once by hand — ask
+  the assistant to execute `bash <data-repo>/.claude/hooks/session-start` (the hook
+  derives the data-repo path from its own location, so invoking it by path is
+  enough). That performs the install + render just as an automatic run would.
+- **The symlink is irrelevant.** After the manual run the skill is rendered into
+  `<data-repo>/.claude/skills/<name>/` and `/<name>` works everywhere — with or
+  without the home-dir symlink (hook step 4). The app treats the session as if
+  `--add-dir` were passed for both repos, so Claude Code discovers the skill from
+  the data-repo root directly.
+
+This is a claude.ai-app operational wrinkle, not a change to the install design:
+the hook and templates are unchanged; only *how the session is created* and the
+*one manual hook invocation* differ.
+
 ### Templates and the version marker
 
 Two skill templates live as package resources under

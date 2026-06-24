@@ -20,6 +20,7 @@ This is a to-do list, not JIRA. Keep it light.
 - [Wikilink pass consolidation](#wikilink-pass-consolidation)
 - [Sidecar inline accordion expansion](#sidecar-inline-accordion-expansion)
 - [Automation visibility in apply output and log](#automation-visibility-in-apply-output-and-log)
+- [Fail-safe handling of an unparseable data-format version](#fail-safe-handling-of-an-unparseable-data-format-version)
 - [Re-organize all docs](#re-organize-all-docs)
 - [Schema and view registry](#schema-and-view-registry)
 - [Structured-creation forms](#structured-creation-forms)
@@ -137,6 +138,42 @@ is permanent.
   bot to re-query state when it needs to know? (Contrast: the wikilink rewrite is
   unlikely to affect a subsequent op in the same session; the index append might
   matter if the bot queries the index soon after.)
+
+---
+
+## Fail-safe handling of an unparseable data-format version
+
+**Scope:** pipeline (Python + JS) + web.
+
+`.jade/version` is parsed as a sequential integer with an optional `v` prefix
+(`read_text().strip().lstrip("v")` → `int(...)`). When the file is **present but
+unparseable** (e.g. an old semver-style `v0.1.0` from a repo predating the
+sequential-integer scheme), the `ValueError` is swallowed in a way that *disables*
+the safety check rather than flagging it — the opposite of fail-safe:
+
+- **Apply** (`workflow._check_data_format_version`) does `except ValueError:
+  return`, conflating "unparseable" with "absent → skip check". So `jadelens apply`
+  sails past the migration guard as if the data already matched the supported
+  version, then trips the end-of-apply v2 enforcement pass — surfacing confusing
+  *rule-violation* errors instead of "you need to migrate."
+- **Migrate** (`migrate._read_data_version`) returns `None`, which `do_migrate`
+  turns into `sys.exit("Cannot read .jade/version. Is this a valid JADE LENS data
+  repo?")` — so the one tool that should rescue an old repo refuses with a
+  misleading "is this even a valid repo?" message.
+
+Fix: distinguish **present-but-unparseable** from **absent**. Absent legitimately
+skips the check (version unknown). Present-but-unparseable should be a hard,
+explicit error that points the user at the migration flow (and, for a recognizably
+old semver value, ideally says "this looks like a pre-v1 repo; set `.jade/version`
+to `v1` and run `/<assistant>-migrate`"). Mirror the same handling in the JS
+pipeline and the web app's version check (9d) so all three clients agree.
+
+**Blockers:** none.
+
+**Open questions:**
+- Do we auto-heal an obvious legacy `v0.1.0` → `v1` (with confirmation), or only
+  instruct the user? Auto-healing touches `.jade/`, which `apply` won't do, so it
+  would belong to the migration tooling, not `apply`.
 
 ---
 

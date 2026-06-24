@@ -322,6 +322,14 @@ install the CLI from `git+…@cli-latest`, so it must always resolve to the late
 `cli-v*` release. Invariant: `cli-latest == ` the highest `cli-v*` tag, and
 `web-latest == ` the highest `web-v*` tag.
 
+Tags are cut by the **Release tags** workflow (`.github/workflows/release-tags.yml`),
+a `workflow_dispatch` job runnable from the GitHub web UI or mobile app. It reads
+the version from the source of truth at the chosen ref, creates the immutable
+version tag (erroring if it already exists at a different commit), and force-moves
+the matching `-latest` tag — independently per component (`cli`, `web`, or `both`).
+A web release also dispatches the Pages deploy, since a tag pushed by the
+workflow's `GITHUB_TOKEN` does not itself trigger the `on: push` deploy workflow.
+
 **Data repo tags** (in the user's private data repo):
 
 | Tag | Example | Meaning |

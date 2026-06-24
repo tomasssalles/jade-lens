@@ -1,0 +1,109 @@
+name: Release tags
+
+# Cuts release tags for the CLI and/or the web app from the repo's own source
+# of truth, so a release can be driven entirely from the GitHub web UI or the
+# GitHub mobile app (no local git access needed). For each selected component
+# it reads the version at the chosen ref, creates the immutable version tag
+# (cli-vX.Y.Z / web-vX.Y.Z) if absent, and force-moves the moving -latest tag
+# to the same commit. A web release additionally triggers the Pages deploy.
+#
+# The two components are fully independent: release `cli`, `web`, or `both`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Which component to release'
+        type: choice
+        options:
+          - both
+          - cli
+          - web
+        default: both
+      ref:
+        description: 'Branch or commit SHA to tag (the release commit)'
+        type: string
+        default: main
+
+permissions:
+  contents: write   # create and push tags
+  actions: write    # dispatch the Pages deploy for web releases
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Shared logic: create an immutable version tag (guarding against
+      # re-pointing an existing one) and force-move the component's -latest tag.
+      - name: Release CLI
+        if: ${{ inputs.component == 'cli' || inputs.component == 'both' }}
+        run: |
+          set -euo pipefail
+          VER=$(grep -E '^__version__' jadelens/__init__.py | sed -E 's/.*"([^"]+)".*/\1/')
+          TAG="cli-${VER}"          # __version__ already includes the leading 'v'
+          SHA=$(git rev-parse HEAD)
+          echo "CLI version=${VER} tag=${TAG} sha=${SHA}"
+          existing=$(git ls-remote origin "refs/tags/${TAG}" | awk '{print $1}')
+          if [ -n "${existing}" ]; then
+            if [ "${existing}" = "${SHA}" ]; then
+              echo "::notice::${TAG} already exists at ${SHA} — skipping create."
+            else
+              echo "::error::${TAG} already exists at ${existing} (≠ ${SHA}). Refusing to move an immutable release tag."
+              exit 1
+            fi
+          else
+            git tag "${TAG}" "${SHA}"
+            git push origin "${TAG}"
+            echo "::notice::created ${TAG} at ${SHA}"
+          fi
+          git tag -f cli-latest "${SHA}"
+          git push -f origin cli-latest
+          echo "- **CLI** \`${TAG}\` → \`${SHA}\`; moved \`cli-latest\`" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Release web
+        id: web
+        if: ${{ inputs.component == 'web' || inputs.component == 'both' }}
+        run: |
+          set -euo pipefail
+          VER=$(python3 -c "import json; print(json.load(open('web/package.json'))['version'])")
+          TAG="web-v${VER}"          # package.json version has no leading 'v'
+          SHA=$(git rev-parse HEAD)
+          echo "web version=${VER} tag=${TAG} sha=${SHA}"
+          existing=$(git ls-remote origin "refs/tags/${TAG}" | awk '{print $1}')
+          if [ -n "${existing}" ]; then
+            if [ "${existing}" = "${SHA}" ]; then
+              echo "::notice::${TAG} already exists at ${SHA} — skipping create."
+            else
+              echo "::error::${TAG} already exists at ${existing} (≠ ${SHA}). Refusing to move an immutable release tag."
+              exit 1
+            fi
+          else
+            git tag "${TAG}" "${SHA}"
+            git push origin "${TAG}"
+            echo "::notice::created ${TAG} at ${SHA}"
+          fi
+          git tag -f web-latest "${SHA}"
+          git push -f origin web-latest
+          echo "released=true" >> "${GITHUB_OUTPUT}"
+          echo "- **web** \`${TAG}\` → \`${SHA}\`; moved \`web-latest\`" >> "${GITHUB_STEP_SUMMARY}"
+
+      # A tag pushed by GITHUB_TOKEN does not trigger the `on: push: tags`
+      # deploy workflow (GitHub's recursion guard), so dispatch it explicitly.
+      - name: Trigger Pages deploy
+        if: ${{ steps.web.outputs.released == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run deploy-pages.yml --ref "${{ inputs.ref }}"
+          echo "- Triggered **Deploy to GitHub Pages** on \`${{ inputs.ref }}\`" >> "${GITHUB_STEP_SUMMARY}"

@@ -126,18 +126,34 @@ def _scannable_files(data_repo: Path) -> Iterator[Path]:
     private scratch files, and our rewrites stay revertable via
     ``git reset --hard`` (which only restores tracked content).
     """
+    for relative in list_git_visible_files(data_repo):
+        if not relative.endswith(EDITABLE_FILE_SUFFIXES):
+            continue
+        f = data_repo / relative
+        if f.is_file():
+            yield f
+
+
+def list_git_visible_files(data_repo: Path) -> list[str]:
+    """Relative POSIX paths of every git-visible file in ``data_repo``.
+
+    Tracked files plus untracked-but-not-gitignored ones (``--cached
+    --others --exclude-standard``); gitignored files and ``.git/`` are
+    excluded.
+
+    Uses ``-z`` (NUL-delimited) output so paths are returned verbatim. With
+    the default newline output git octal-quotes any path containing non-ASCII
+    bytes and wraps it in double quotes (e.g. ``"a/Jobs \342\200\224 b.md"``),
+    which would never match the real Unicode paths held in ``Index.json`` and
+    wikilinks — breaking the index/integrity checks for any such file.
+    """
     result = subprocess.run(
         [
-            "git", "-C", str(data_repo), "ls-files",
+            "git", "-C", str(data_repo), "ls-files", "-z",
             "--cached", "--others", "--exclude-standard",
         ],
         capture_output=True,
         text=True,
         check=True,
     )
-    for relative in result.stdout.splitlines():
-        if not relative.endswith(EDITABLE_FILE_SUFFIXES):
-            continue
-        f = data_repo / relative
-        if f.is_file():
-            yield f
+    return [p for p in result.stdout.split("\0") if p]

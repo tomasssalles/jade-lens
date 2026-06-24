@@ -46,7 +46,12 @@ from jadelens.sidecar import (
     sidecar_dir_for_json,
     sidecar_path_to_pointer,
 )
-from jadelens.wikilinks import WIKILINK_RE, find_dead_wikilinks, rewrite_references_under
+from jadelens.wikilinks import (
+    WIKILINK_RE,
+    find_dead_wikilinks,
+    list_git_visible_files,
+    rewrite_references_under,
+)
 
 
 @dataclass
@@ -729,12 +734,7 @@ def run_enforcement_pass(data_repo: Path) -> None:
     5f-iii — Each sidecar .md's owning JSON field holds exactly the wikilink.
     5f-iv  — Sidecar wikilinks appear only at their owning JSON field.
     """
-    result = subprocess.run(
-        ["git", "-C", str(data_repo), "ls-files",
-         "--cached", "--others", "--exclude-standard"],
-        capture_output=True, text=True, check=True,
-    )
-    all_relative = [p for p in result.stdout.splitlines() if p]
+    all_relative = list_git_visible_files(data_repo)
     user_relative = [
         p for p in all_relative
         if not PurePosixPath(p).parts[0].startswith(".")

@@ -663,6 +663,39 @@ def test_check_fails_on_invalid_repo(tmp_path: Path):
     assert "Check failed" in str(exc_info.value.code)
 
 
+def test_check_passes_with_non_ascii_filename(tmp_path: Path):
+    """Regression: git ls-files octal-quotes non-ASCII paths by default
+    (e.g. ``"Job Search \\342\\200\\224 ….md"``). The enforcement pass must see
+    the real Unicode path so a correctly indexed file with an em dash in its
+    name passes instead of raising INDEX_MISSING_ENTRY."""
+    from jadelens import workflow
+    from jadelens.operations import dumps_js_canonical
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _make_git_repo(repo)
+    (repo / ".jade").mkdir(parents=True, exist_ok=True)
+    (repo / ".jade" / "version").write_text("v2\n")
+
+    # Em dash (U+2014) — the exact character from the reported repo.
+    fname = "Job Search — German climate tech media.md"
+    (repo / fname).write_text("# Notes\n\nSome content.\n")
+    index = [{"File": f"[[{fname}]]", "Scope": "Job search notes"}]
+    (repo / "Index.json").write_text(dumps_js_canonical(index))
+
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "non-ascii"],
+        check=True, capture_output=True,
+    )
+
+    # Must not raise: previously failed with INDEX_MISSING_ENTRY because the
+    # quoted path never matched the Unicode wikilink in Index.json.
+    workflow.run_enforcement_pass(repo)
+
+
 def test_apply_unsafe_skips_push(tmp_path: Path, monkeypatch):
     """do_apply with unsafe=True does not call sync.push."""
     from jadelens.apply import do_apply

@@ -50,15 +50,32 @@ def _head_sha(repo: Path) -> str:
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
-def _tag_sha(repo: Path, tag: str) -> str:
-    return _git(repo, "rev-parse", tag).stdout.strip()
+def _seed_start_checkpoint(repo: Path, marker: str) -> None:
+    """Create a start checkpoint commit and push it — the state left by a
+    successful `jadelens migrate` start call."""
+    from jadelens.migrate import _create_checkpoint_commit
+
+    _create_checkpoint_commit(repo, marker)
+    _git(repo, "push", "origin", "main")
 
 
-def _tag_exists(repo: Path, tag: str) -> bool:
-    return bool(_git(repo, "tag", "-l", tag).stdout.strip())
+def _remote_has_checkpoint(tmp_path: Path, marker: str) -> bool:
+    """Whether the bare remote's `main` contains a commit with the checkpoint."""
+    remote = tmp_path / "remote.git"
+    result = subprocess.run(
+        ["git", "-C", str(remote), "log", "-E",
+         f"--grep=^Jade-Checkpoint: {marker}$", "--format=%H", "main"],
+        capture_output=True, text=True, check=True,
+    )
+    return bool(result.stdout.strip())
 
 
 # ─── Tests ───────────────────────────────────────────────────────────────────
+
+
+def _count_commits_matching(repo: Path, grep: str) -> int:
+    out = _git(repo, "log", "-F", f"--grep={grep}", "--format=%H").stdout
+    return len([line for line in out.splitlines() if line.strip()])
 
 
 class TestPhaseBDone:
@@ -79,8 +96,7 @@ class TestPhaseBDone:
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
         do_migrate(repo, "v1-v2")
 
@@ -90,9 +106,9 @@ class TestPhaseBDone:
 
 
 class TestPhaseBFreshStart:
-    def test_creates_start_tag_and_outputs_runbook(self, tmp_path, monkeypatch, capsys):
-        """Fresh start: creates v1-v2-migration-start and prints the v1→v2 runbook."""
-        from jadelens.migrate import do_migrate
+    def test_creates_start_checkpoint_and_outputs_runbook(self, tmp_path, monkeypatch, capsys):
+        """Fresh start: creates the v1-v2-start checkpoint and prints the runbook."""
+        from jadelens.migrate import _checkpoint_exists, do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
@@ -101,10 +117,10 @@ class TestPhaseBFreshStart:
 
         out = capsys.readouterr().out
         assert "Here's the runbook for migration `v1-v2`:" in out
-        assert _tag_exists(repo, "v1-v2-migration-start")
+        assert _checkpoint_exists(repo, "v1-v2-start")
 
-    def test_start_tag_pushed_to_remote(self, tmp_path, monkeypatch, capsys):
-        """The start tag is pushed to remote, not just local."""
+    def test_start_checkpoint_pushed_to_remote(self, tmp_path, monkeypatch, capsys):
+        """The start checkpoint reaches the remote (rides on the main push)."""
         from jadelens.migrate import do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
@@ -112,13 +128,7 @@ class TestPhaseBFreshStart:
 
         do_migrate(repo, None)
 
-        # Fetch tags from remote and verify
-        remote = tmp_path / "remote.git"
-        result = subprocess.run(
-            ["git", "-C", str(remote), "tag", "-l", "v1-v2-migration-start"],
-            capture_output=True, text=True, check=True,
-        )
-        assert "v1-v2-migration-start" in result.stdout
+        assert _remote_has_checkpoint(tmp_path, "v1-v2-start")
 
     def test_runbook_contains_content(self, tmp_path, monkeypatch, capsys):
         """The runbook is not empty — it has actual content from RUNBOOK.md."""
@@ -134,20 +144,43 @@ class TestPhaseBFreshStart:
         assert "Step 1" in out or "## Step" in out
 
 
-class TestPhaseBCrashRecovery:
-    def test_resets_head_and_warns_when_head_ahead_of_start_tag(
+class TestPhaseBSelfHeal:
+    def test_unpushed_start_checkpoint_is_pushed_on_next_call(
         self, tmp_path, monkeypatch, capsys
     ):
-        """When HEAD is ahead of start tag, reset to tag and print rollback warning."""
+        """Regression for the tag-era bug: a start checkpoint that exists locally
+        but never reached the remote (a failed push) is re-pushed on the next
+        `migrate` call, because Phase B always pushes main — it doesn't gate the
+        push on local checkpoint existence."""
+        from jadelens.migrate import _create_checkpoint_commit, do_migrate
+
+        monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
+        repo = _make_migrate_repo(tmp_path, "v1")
+
+        # Simulate the post-failed-push state: checkpoint committed locally,
+        # never pushed.
+        _create_checkpoint_commit(repo, "v1-v2-start")
+        assert not _remote_has_checkpoint(tmp_path, "v1-v2-start")
+
+        do_migrate(repo, None)
+        capsys.readouterr()
+
+        # The next call self-heals: the checkpoint is now on the remote.
+        assert _remote_has_checkpoint(tmp_path, "v1-v2-start")
+
+
+class TestPhaseBCrashRecovery:
+    def test_resets_head_and_warns_when_head_ahead_of_start_checkpoint(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """When HEAD is ahead of the start checkpoint, reset to it and warn."""
         from jadelens.migrate import do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
 
-        # Create start tag at current HEAD
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
-        start_sha = _head_sha(repo)
+        _seed_start_checkpoint(repo, "v1-v2-start")
+        start_sha = _head_sha(repo)  # the checkpoint commit itself
 
         # Make a "crash commit" (simulates incomplete migration work)
         (repo / "crash.md").write_text("incomplete\n")
@@ -160,20 +193,19 @@ class TestPhaseBCrashRecovery:
         out = capsys.readouterr().out
         assert "Rolled back" in out
         assert "Here's the runbook for migration `v1-v2`:" in out
-        # HEAD should be back at start tag
+        # HEAD should be back at the start checkpoint
         assert _head_sha(repo) == start_sha
         assert not (repo / "crash.md").exists()
 
     def test_crash_recovery_does_not_leave_extra_commits(
         self, tmp_path, monkeypatch, capsys
     ):
-        """After crash recovery, the log has no extra commits beyond the start tag."""
+        """After crash recovery, the log has no extra commits beyond the checkpoint."""
         from jadelens.migrate import do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
         expected_sha = _head_sha(repo)
 
         # Simulate two crash commits
@@ -189,16 +221,15 @@ class TestPhaseBCrashRecovery:
 
 
 class TestPhaseBCleanResume:
-    def test_outputs_runbook_without_rollback_when_head_at_start_tag(
+    def test_outputs_runbook_without_rollback_when_head_at_start_checkpoint(
         self, tmp_path, monkeypatch, capsys
     ):
-        """When HEAD == start tag, resume cleanly without any rollback message."""
+        """When HEAD == start checkpoint, resume cleanly without a rollback message."""
         from jadelens.migrate import do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
         do_migrate(repo, None)
 
@@ -208,63 +239,62 @@ class TestPhaseBCleanResume:
 
 
 class TestPhaseA:
-    def test_bumps_version_and_creates_end_tag(self, tmp_path, monkeypatch, capsys):
-        """Phase A writes v2 to .jade/version, commits it, creates end tag."""
-        from jadelens.migrate import do_migrate
+    def test_bumps_version_and_creates_end_checkpoint(self, tmp_path, monkeypatch, capsys):
+        """Phase A writes v2 to .jade/version and records the end checkpoint."""
+        from jadelens.migrate import _checkpoint_exists, do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
         do_migrate(repo, "v1-v2")
         capsys.readouterr()
 
         assert (repo / ".jade" / "version").read_text().strip() == "v2"
-        assert _tag_exists(repo, "v1-v2-migration-end")
+        assert _checkpoint_exists(repo, "v1-v2-end")
 
-    def test_idempotent_if_version_already_bumped(self, tmp_path, monkeypatch, capsys):
-        """Phase A is a no-op for the version bump if .jade/version is already v(N+1)."""
-        from jadelens.migrate import do_migrate
+    def test_does_not_rebump_if_version_already_bumped(self, tmp_path, monkeypatch, capsys):
+        """If .jade/version is already v(N+1), Phase A doesn't bump again; it just
+        ensures the end checkpoint exists (as its own commit, since the existing
+        bump commit lacks the trailer)."""
+        from jadelens.migrate import _checkpoint_exists, do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
-        # Pre-bump version manually (simulate crash after bump, before end tag)
+        # Pre-bump version manually (simulate crash after bump, before checkpoint)
         (repo / ".jade" / "version").write_text("v2\n")
         _git(repo, "add", ".jade/version")
         _git(repo, "commit", "-q", "-m", "migration: bump data format to v2")
 
-        sha_before = _head_sha(repo)
         do_migrate(repo, "v1-v2")
         capsys.readouterr()
 
-        # No extra commit should have been made for the version bump
-        assert _head_sha(repo) == sha_before
-        assert _tag_exists(repo, "v1-v2-migration-end")
+        # Exactly one bump commit (no re-bump), and the end checkpoint now exists.
+        assert _count_commits_matching(repo, "bump data format to v2") == 1
+        assert _checkpoint_exists(repo, "v1-v2-end")
 
-    def test_idempotent_if_end_tag_already_exists(self, tmp_path, monkeypatch, capsys):
-        """Phase A skips end-tag creation if it already exists."""
-        from jadelens.migrate import do_migrate
+    def test_idempotent_if_end_checkpoint_already_exists(self, tmp_path, monkeypatch, capsys):
+        """Re-running --finalize after a complete finalize is a no-op (no new commits)."""
+        from jadelens.migrate import _checkpoint_exists, do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
-        # Pre-create end tag
-        _git(repo, "tag", "v1-v2-migration-end")
+        do_migrate(repo, "v1-v2")   # first finalize: bump + end checkpoint + push
+        capsys.readouterr()
+        sha_after_first = _head_sha(repo)
 
-        # Should not raise even though the tag already exists
-        do_migrate(repo, "v1-v2")
+        do_migrate(repo, "v1-v2")   # second finalize: should add nothing
         capsys.readouterr()
 
-        assert _tag_exists(repo, "v1-v2-migration-end")
+        assert _head_sha(repo) == sha_after_first
+        assert _checkpoint_exists(repo, "v1-v2-end")
 
-    def test_exits_if_start_tag_missing(self, tmp_path, monkeypatch):
-        """Phase A exits with an error if the start tag was never created."""
+    def test_exits_if_start_checkpoint_missing(self, tmp_path, monkeypatch):
+        """Phase A exits with an error if the start checkpoint was never created."""
         from jadelens.migrate import do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v2")
@@ -272,7 +302,7 @@ class TestPhaseA:
 
         with pytest.raises(SystemExit) as exc_info:
             do_migrate(repo, "v1-v2")
-        assert "start tag" in str(exc_info.value.code).lower()
+        assert "start checkpoint" in str(exc_info.value.code).lower()
 
     def test_rejects_bad_finalize_format(self, tmp_path):
         """Invalid --finalize values exit with a clear error."""
@@ -294,12 +324,11 @@ class TestMultiStepSequence:
         binding in jadelens.migrate to return a stub for that path only.
         """
         from jadelens import migrate as migrate_module
-        from jadelens.migrate import do_migrate
+        from jadelens.migrate import _checkpoint_exists, do_migrate
 
         monkeypatch.setattr("jadelens.migrate.__supported_data_format_version__", "v3")
         repo = _make_migrate_repo(tmp_path, "v1")
-        _git(repo, "tag", "v1-v2-migration-start")
-        _git(repo, "push", "origin", "--tags")
+        _seed_start_checkpoint(repo, "v1-v2-start")
 
         real_files = migrate_module.files  # original importlib.resources.files
 
@@ -323,7 +352,8 @@ class TestMultiStepSequence:
         out = capsys.readouterr().out
         assert "Here's the runbook for migration `v2-v3`:" in out
         assert (repo / ".jade" / "version").read_text().strip() == "v2"
-        assert _tag_exists(repo, "v1-v2-migration-end")
+        assert _checkpoint_exists(repo, "v1-v2-end")
+        assert _checkpoint_exists(repo, "v2-v3-start")
 
 
 class TestCheckpointPrimitives:

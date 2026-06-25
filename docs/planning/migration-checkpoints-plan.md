@@ -45,7 +45,7 @@ Design reference: `docs/design/versioning.md` (Migrations section).
   commit carrying the trailer). Additive — old code untouched. Unit tests for
   create/detect/absent.
 
-- [ ] **2. Convert the state machine.** Rewrite `_push` (drop `--tags` → push
+- [x] **2. Convert the state machine.** Rewrite `_push` (drop `--tags` → push
   `main` only), `_phase_a` (verify start checkpoint; bump `.jade/version` carrying
   the `end` trailer, or ensure the end checkpoint if already bumped), and
   `_phase_b` (detect start checkpoint; fresh-start creates it, crash-recovery

@@ -44,10 +44,6 @@ def _git(data_repo: Path, *args: str, check: bool = True) -> subprocess.Complete
     )
 
 
-def _tag_exists(data_repo: Path, tag: str) -> bool:
-    return bool(_git(data_repo, "tag", "-l", tag).stdout.strip())
-
-
 # Migration checkpoints are recorded as commit-message trailers on ``main``
 # rather than git tags. The claude.ai git relay accepts branch pushes but
 # rejects ``refs/tags/*``, so a tag-based checkpoint can be created locally yet
@@ -86,11 +82,13 @@ def _create_checkpoint_commit(data_repo: Path, marker: str) -> None:
 
 
 def _push(data_repo: Path) -> None:
-    """Push main branch and all tags; retry with exponential backoff."""
+    """Push the ``main`` branch (carrying any checkpoint commits); retry with
+    exponential backoff. No ``--tags``: checkpoints live on ``main``, and the
+    claude.ai relay rejects tag pushes."""
     for i, delay in enumerate([0, 2, 4, 8, 16]):
         if delay:
             time.sleep(delay)
-        result = _git(data_repo, "push", "origin", "main", "--tags", check=False)
+        result = _git(data_repo, "push", "origin", "main", check=False)
         if result.returncode == 0:
             return
         if i == 4:
@@ -132,17 +130,19 @@ def _phase_a(data_repo: Path, finalize: str) -> None:
     """
     from_ver, to_ver = _parse_finalize(finalize)
     mid = f"v{from_ver}-v{to_ver}"
-    s_tag = f"{mid}-migration-start"
-    e_tag = f"{mid}-migration-end"
+    start_marker = f"{mid}-start"
+    end_marker = f"{mid}-end"
 
-    # 1. Verify start tag exists.
-    if not _tag_exists(data_repo, s_tag):
+    # 1. Verify the start checkpoint exists.
+    if not _checkpoint_exists(data_repo, start_marker):
         sys.exit(
-            f"Cannot finalize: start tag '{s_tag}' not found.\n"
+            f"Cannot finalize: start checkpoint '{start_marker}' not found.\n"
             f"Was 'jadelens migrate {data_repo}' called to start the migration?"
         )
 
-    # 2. Bump .jade/version from vN to v(N+1) if not already done.
+    # 2. Bump .jade/version from vN to v(N+1), recording the end checkpoint on
+    #    the bump commit. If the version is already bumped (retry after a crash),
+    #    ensure the end checkpoint exists as its own empty commit instead.
     version_path = data_repo / ".jade" / "version"
     current_raw = version_path.read_text().strip().lstrip("v") if version_path.exists() else ""
     try:
@@ -153,14 +153,15 @@ def _phase_a(data_repo: Path, finalize: str) -> None:
     if current_ver == from_ver:
         version_path.write_text(f"v{to_ver}\n")
         _git(data_repo, "add", ".jade/version")
-        _git(data_repo, "commit", "-q", "-m",
-             f"migration: bump data format to v{to_ver}")
+        _git(
+            data_repo, "commit", "-q",
+            "-m", f"migration: bump data format to v{to_ver}",
+            "-m", f"{_CHECKPOINT_TRAILER}: {end_marker}",
+        )
+    elif not _checkpoint_exists(data_repo, end_marker):
+        _create_checkpoint_commit(data_repo, end_marker)
 
-    # 3. Create end tag at current HEAD if absent.
-    if not _tag_exists(data_repo, e_tag):
-        _git(data_repo, "tag", e_tag)
-
-    # 4. Push branch + all tags.
+    # 3. Push the branch (idempotent; retries on network failure).
     _push(data_repo)
 
 
@@ -192,24 +193,29 @@ def _phase_b(data_repo: Path) -> None:
     # 4. Target migration data_ver → data_ver+1.
     next_ver = data_ver + 1
     mid = f"v{data_ver}-v{next_ver}"
-    s_tag = f"{mid}-migration-start"
+    start_marker = f"{mid}-start"
 
-    if not _tag_exists(data_repo, s_tag):
-        # Fresh start — create and push start tag.
-        _git(data_repo, "tag", s_tag)
-        _push(data_repo)
+    start_sha = _checkpoint_sha(data_repo, start_marker)
+    if start_sha is None:
+        # Fresh start — create the start checkpoint commit.
+        _create_checkpoint_commit(data_repo, start_marker)
     else:
         head = _git(data_repo, "rev-parse", "HEAD").stdout.strip()
-        tag_sha = _git(data_repo, "rev-parse", s_tag).stdout.strip()
-        if head != tag_sha:
-            # HEAD is ahead of start tag — crash recovery.
-            _git(data_repo, "reset", "--hard", s_tag)
+        if head != start_sha:
+            # HEAD is ahead of the start checkpoint — crash recovery.
+            _git(data_repo, "reset", "--hard", start_sha)
             _git(data_repo, "pull", "--ff-only", "origin", "main", check=False)
             print(
-                f"Rolled back unfinished migration work to `{s_tag}`; "
-                "restarting the runbook from a clean state."
+                f"Rolled back unfinished migration work to checkpoint "
+                f"`{start_marker}`; restarting the runbook from a clean state."
             )
-        # else: HEAD == start tag, clean resume — no rollback needed.
+        # else: HEAD == start checkpoint, clean resume — no rollback needed.
+
+    # 4b. Always ensure main (with the start checkpoint) is on the remote.
+    # Unconditional — not gated on whether we just created the checkpoint — so a
+    # push that failed on a previous call self-heals on the next one. This is the
+    # fix for the tag-era bug where a failed start-tag push was never retried.
+    _push(data_repo)
 
     # 5. Output runbook.
     migration_dir = f"v{data_ver}_v{next_ver}"

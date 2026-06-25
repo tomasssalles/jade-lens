@@ -187,21 +187,27 @@ Called repeatedly by the bot inside the migration skill's loop. On each call it:
 
 1. **Pulls** from the remote (detects anything pushed from another device; catches
    the edge case of two sessions running the same migration concurrently).
-2. **Checks completion.** If `data_version == required_version`: create + push the
-   end tag for the last migration (see tags below), output `DONE`, exit.
-3. **Finds the open migration.** Scans tags for a `vN-v(N+1)-migration-start`
-   without a corresponding `vN-v(N+1)-migration-end`. `N` equals the current
-   `data_version`.
-   - **No start tag (fresh start):** create + push `vN-v(N+1)-migration-start`.
-   - **Start tag exists, HEAD is ahead of it (crash recovery):** commits from the
-     failed attempt were never pushed — `git reset --hard <start-tag>` is safe.
-     Reset, then print: *"Rolled back N commits to `vN-v(N+1)-migration-start`.
-     Re-running the runbook from scratch."*
-   - **Start tag exists, HEAD == start tag:** clean resume, no rollback needed.
-4. **If this is not the first migration in the run:** create + push the end tag for
-   the just-completed migration (`v(N-1)-vN-migration-end`) and the start tag for
-   this one (`vN-v(N+1)-migration-start`) together, then push once.
+2. **Checks completion.** If `data_version == required_version`: output `DONE`, exit.
+3. **Finds the open migration.** Looks for a `vN-v(N+1)-start` checkpoint without a
+   corresponding `vN-v(N+1)-end` checkpoint (see checkpoints below). `N` equals the
+   current `data_version`.
+   - **No start checkpoint (fresh start):** create the `vN-v(N+1)-start` checkpoint
+     commit.
+   - **Start checkpoint exists, HEAD is ahead of it (crash recovery):** commits
+     from the failed attempt were never pushed — `git reset --hard <checkpoint>` is
+     safe. Reset, then print: *"Rolled back unfinished migration work to checkpoint
+     `vN-v(N+1)-start`; restarting the runbook from a clean state."*
+   - **Start checkpoint exists, HEAD == checkpoint:** clean resume, no rollback.
+4. **Always pushes `main`** afterward — unconditionally, not gated on whether the
+   checkpoint was just created. A push that failed on a previous call therefore
+   self-heals on the next one. (The earlier tag-based design gated the push on
+   local tag creation, so a failed start-tag push was silently never retried.)
 5. **Output the runbook** for the `vN → v(N+1)` migration to stdout.
+
+The `--finalize=vN-v(N+1)` call seals the just-completed migration first (Phase A):
+verify the start checkpoint exists, bump `.jade/version` to `v(N+1)` on a commit
+that carries the `vN-v(N+1)-end` checkpoint trailer, then push `main`. It then runs
+the steps above (Phase B) to start the next migration or report `DONE`.
 
 The bot reads the runbook and executes it. All data operations use
 `jadelens apply --unsafe` (see below). The runbook's final step bumps
@@ -217,28 +223,38 @@ state that would normally be rejected. `--unsafe` suppresses three things:
 2. **End-of-apply rule enforcement** — the new-version invariants that the data
    doesn't yet satisfy mid-migration.
 3. **Auto-push** — commits are made locally but not pushed. `jadelens migrate`
-   pushes at the end of each migration (after the end tag). This makes crash
-   recovery clean: uncommitted local commits can be dropped with a safe local
-   `reset --hard`, with no force-push needed.
+   pushes at the end of each migration (once the end checkpoint is recorded). This
+   makes crash recovery clean: unpushed local commits can be dropped with a safe
+   local `reset --hard`, with no force-push needed.
 
 `apply --unsafe` still **pulls** before applying (to detect remote changes).
 The output of any `--unsafe` call is visually distinguished (colour + emoji) so
 it's unambiguous in the session transcript when the guard is bypassed.
 
-### Tags in the data repo
+### Migration checkpoints in the data repo
 
-Migration tags live in the data repo (not the code repo):
+Checkpoints mark migration progress. They are **not git tags** — they are
+commit-message trailers on `main`:
 
-| Tag pattern | Example | Created when |
+| Trailer | On which commit | Recorded when |
 |---|---|---|
-| `vN-v(N+1)-migration-start` | `v1-v2-migration-start` | Before the runbook for N→N+1 is output |
-| `vN-v(N+1)-migration-end` | `v1-v2-migration-end` | After N→N+1 is confirmed complete (data version == N+1) |
+| `Jade-Checkpoint: vN-v(N+1)-start` | an empty commit | Before the runbook for N→N+1 is output |
+| `Jade-Checkpoint: vN-v(N+1)-end` | the `.jade/version` bump commit (or an empty commit on retry) | After N→N+1 is confirmed complete (data version == N+1) |
 
-Tags are always pushed immediately when created. The presence of a start tag with
-no end tag is the signal that a migration is in progress or was interrupted.
+**Why trailers, not tags.** The primary `/jade` environment is the claude.ai app,
+whose git relay accepts branch pushes but **rejects `refs/tags/*`** (403). A
+tag-based checkpoint could be created locally yet silently fail to reach the
+remote. A trailer rides on `main`, so it travels with the ordinary branch push, and
+"is the checkpoint established?" reduces to "is there a commit carrying its trailer
+in the pushed history of `main`?"
 
-These are **data-repo tags** — they are not code-repo release tags, and their
-format doesn't conflict with `cli-vX.Y.Z` / `web-vX.Y.Z` tags.
+This also requires the marker to live *outside* the rolled-back content: a SHA in a
+committed state file would be erased by the `reset --hard` it exists to enable,
+whereas the checkpoint *commit is the rollback target itself* — you reset *to* it,
+never *past* it. The presence of a `start` checkpoint with no `end` checkpoint is
+the signal that a migration is in progress or was interrupted. Detection anchors on
+the full `Jade-Checkpoint: <marker>` trailer line, so prose mentioning a marker
+isn't mistaken for a checkpoint.
 
 ### Execution flow
 
@@ -247,20 +263,20 @@ skill loop alternates between a plain call (start/resume) and a `--finalize` cal
 (seal the completed migration and advance):
 
 1. User invokes `/<assistant>-migrate`.
-2. Bot calls `jadelens migrate`. Creates `v2-v3-migration-start`, pushes. Outputs
-   v2→v3 runbook (identifier: `v2-v3`).
+2. Bot calls `jadelens migrate`. Records the `v2-v3-start` checkpoint, pushes
+   `main`. Outputs v2→v3 runbook (identifier: `v2-v3`).
 3. Bot follows runbook (`apply --unsafe` for all data ops; ends with `jadelens
    check`). All migration ops are logged to `.jade/operations-log/v5.jsonl`
    (the CLI's current supported-version file).
 4. Bot calls `jadelens migrate --finalize=v2-v3`. Phase A: bumps `.jade/version`
-   to `v3`, commits, creates `v2-v3-migration-end`, pushes. Phase B: no end tag
-   for v3-v4 yet → creates `v3-v4-migration-start`, pushes. Outputs v3→v4 runbook.
+   to `v3` on a commit carrying the `v2-v3-end` checkpoint, pushes. Phase B: no
+   `v3-v4-start` checkpoint yet → records it, pushes. Outputs v3→v4 runbook.
 5. Bot follows runbook.
-6. Bot calls `jadelens migrate --finalize=v3-v4`. Same pattern: bumps to `v4`,
-   creates `v3-v4-migration-end` + `v4-v5-migration-start`, outputs v4→v5 runbook.
+6. Bot calls `jadelens migrate --finalize=v3-v4`. Same pattern: bumps to `v4` with
+   the `v3-v4-end` checkpoint, records `v4-v5-start`, outputs v4→v5 runbook.
 7. Bot follows runbook.
-8. Bot calls `jadelens migrate --finalize=v4-v5`. Phase A: bumps to `v5`, creates
-   `v4-v5-migration-end`, pushes. Phase B: data=v5 == required → outputs `DONE`.
+8. Bot calls `jadelens migrate --finalize=v4-v5`. Phase A: bumps to `v5` with the
+   `v4-v5-end` checkpoint, pushes. Phase B: data=v5 == required → outputs `DONE`.
 9. Bot tells user "Migration complete." Skill exits.
 
 Operations log: all operations — including migration ops — are written to the log
@@ -330,14 +346,16 @@ the matching `-latest` tag — independently per component (`cli`, `web`, or `bo
 A web release also dispatches the Pages deploy, since a tag pushed by the
 workflow's `GITHUB_TOKEN` does not itself trigger the `on: push` deploy workflow.
 
-**Data repo tags** (in the user's private data repo):
+**Data repo migration checkpoints** (in the user's private data repo) — commit
+trailers on `main`, not tags:
 
-| Tag | Example | Meaning |
+| Checkpoint trailer | Example | Meaning |
 |---|---|---|
-| `vN-v(N+1)-migration-start` | `v1-v2-migration-start` | Checkpoint before a migration; rollback point |
-| `vN-v(N+1)-migration-end` | `v1-v2-migration-end` | Migration confirmed complete |
+| `Jade-Checkpoint: vN-v(N+1)-start` | `…: v1-v2-start` | Checkpoint before a migration; rollback point |
+| `Jade-Checkpoint: vN-v(N+1)-end` | `…: v1-v2-end` | Migration confirmed complete |
 
-See the Migrations section for how these tags are used.
+See the Migrations section for how these checkpoints are used (and why they're
+commit trailers rather than tags).
 
 ## Summary
 

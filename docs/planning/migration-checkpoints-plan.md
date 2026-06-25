@@ -54,7 +54,7 @@ Design reference: `docs/design/versioning.md` (Migrations section).
   regression test** that simulates a failed start-push and asserts the next call
   re-pushes it to the remote.
 
-- [ ] **3. Update the design doc.** Rewrite the `versioning.md` migration mechanics,
+- [x] **3. Update the design doc.** Rewrite the `versioning.md` migration mechanics,
   the data-repo "tags" table (→ checkpoints), and the worked execution-flow example
   to describe commit-trailer checkpoints and branch-only pushes.
 

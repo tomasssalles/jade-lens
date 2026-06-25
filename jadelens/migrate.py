@@ -48,6 +48,43 @@ def _tag_exists(data_repo: Path, tag: str) -> bool:
     return bool(_git(data_repo, "tag", "-l", tag).stdout.strip())
 
 
+# Migration checkpoints are recorded as commit-message trailers on ``main``
+# rather than git tags. The claude.ai git relay accepts branch pushes but
+# rejects ``refs/tags/*``, so a tag-based checkpoint can be created locally yet
+# silently fail to reach the remote. A trailer rides on ``main`` and travels
+# with the ordinary branch push, so "is the checkpoint established?" becomes
+# "is there a commit carrying its trailer in main's history?" — true on the
+# remote as soon as ``main`` is pushed. ``marker`` is the ``vN-v(N+1)-(start|end)``
+# identifier, e.g. ``v1-v2-start``.
+_CHECKPOINT_TRAILER = "Jade-Checkpoint"
+
+
+def _checkpoint_sha(data_repo: Path, marker: str) -> str | None:
+    """SHA of the most recent HEAD-reachable commit carrying the checkpoint
+    trailer for ``marker``, or ``None`` if there is none."""
+    result = _git(
+        data_repo, "log", "-E",
+        f"--grep=^{_CHECKPOINT_TRAILER}: {marker}$",
+        "--format=%H", "-n", "1",
+        check=False,
+    )
+    return result.stdout.strip() or None
+
+
+def _checkpoint_exists(data_repo: Path, marker: str) -> bool:
+    return _checkpoint_sha(data_repo, marker) is not None
+
+
+def _create_checkpoint_commit(data_repo: Path, marker: str) -> None:
+    """Create an empty commit on ``main`` carrying the checkpoint trailer."""
+    _git(
+        data_repo, "commit", "--allow-empty", "-q",
+        "-m", f"migration: checkpoint {marker}",
+        "-m", f"{_CHECKPOINT_TRAILER}: {marker}",
+    )
+
+
+
 def _push(data_repo: Path) -> None:
     """Push main branch and all tags; retry with exponential backoff."""
     for i, delay in enumerate([0, 2, 4, 8, 16]):

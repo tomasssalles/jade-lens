@@ -39,7 +39,7 @@ Design reference: `docs/design/versioning.md` (Migrations section).
 
 ## Steps
 
-- [ ] **1. Checkpoint primitives.** Add to `migrate.py`: `_CHECKPOINT_TRAILER`,
+- [x] **1. Checkpoint primitives.** Add to `migrate.py`: `_CHECKPOINT_TRAILER`,
   `_checkpoint_sha(repo, marker)` (most recent HEAD-reachable commit with that
   trailer, or `None`), `_checkpoint_exists`, `_create_checkpoint_commit` (empty
   commit carrying the trailer). Additive — old code untouched. Unit tests for

@@ -326,6 +326,56 @@ class TestMultiStepSequence:
         assert _tag_exists(repo, "v1-v2-migration-end")
 
 
+class TestCheckpointPrimitives:
+    def test_create_and_detect(self, tmp_path):
+        from jadelens.migrate import (
+            _checkpoint_exists, _checkpoint_sha, _create_checkpoint_commit,
+        )
+
+        repo = _make_migrate_repo(tmp_path, "v1")
+        _create_checkpoint_commit(repo, "v1-v2-start")
+
+        assert _checkpoint_exists(repo, "v1-v2-start")
+        assert _checkpoint_sha(repo, "v1-v2-start") == _head_sha(repo)
+
+    def test_absent_returns_none(self, tmp_path):
+        from jadelens.migrate import _checkpoint_exists, _checkpoint_sha
+
+        repo = _make_migrate_repo(tmp_path, "v1")
+
+        assert _checkpoint_sha(repo, "v1-v2-start") is None
+        assert not _checkpoint_exists(repo, "v1-v2-start")
+
+    def test_markers_are_distinct(self, tmp_path):
+        from jadelens.migrate import _checkpoint_exists, _create_checkpoint_commit
+
+        repo = _make_migrate_repo(tmp_path, "v1")
+        _create_checkpoint_commit(repo, "v1-v2-start")
+
+        assert _checkpoint_exists(repo, "v1-v2-start")
+        assert not _checkpoint_exists(repo, "v1-v2-end")
+
+    def test_trailer_anchored_not_substring(self, tmp_path):
+        """A commit merely mentioning the marker in prose is not a checkpoint —
+        detection anchors on a full ``Jade-Checkpoint: <marker>`` trailer line."""
+        from jadelens.migrate import _checkpoint_exists
+
+        repo = _make_migrate_repo(tmp_path, "v1")
+        _git(repo, "commit", "--allow-empty", "-q",
+             "-m", "work toward v1-v2-start milestone")
+
+        assert not _checkpoint_exists(repo, "v1-v2-start")
+
+    def test_returns_most_recent(self, tmp_path):
+        from jadelens.migrate import _checkpoint_sha, _create_checkpoint_commit
+
+        repo = _make_migrate_repo(tmp_path, "v1")
+        _create_checkpoint_commit(repo, "v1-v2-start")
+        _create_checkpoint_commit(repo, "v1-v2-start")
+
+        assert _checkpoint_sha(repo, "v1-v2-start") == _head_sha(repo)
+
+
 class TestMigrateSkillRendering:
     def test_do_render_skill_also_renders_migrate_skill(self, tmp_path):
         """do_render_skill writes both main and migrate SKILL.md files."""

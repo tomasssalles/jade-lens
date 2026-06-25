@@ -63,6 +63,6 @@ Design reference: `docs/design/versioning.md` (Migrations section).
   the force-push of `main` already resets checkpoints. Update the matching
   description in `docs/design/e2e-testing.md`.
 
-- [ ] **5. Fix release (CLI only).** Bump `__version__` → `v0.2.2`, finalize the
+- [x] **5. Fix release (CLI only).** Bump `__version__` → `v0.2.2`, finalize the
   CLI changelog (`unreleased.md` → `v0.2.2.md`), fast-forward `main`, push, and
   prepare the `Release tags` dispatch (`component: cli`).

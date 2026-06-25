@@ -58,7 +58,7 @@ Design reference: `docs/design/versioning.md` (Migrations section).
   the data-repo "tags" table (→ checkpoints), and the worked execution-flow example
   to describe commit-trailer checkpoints and branch-only pushes.
 
-- [ ] **4. e2e harness cleanup.** Remove the now-obsolete migration-tag clearing
+- [x] **4. e2e harness cleanup.** Remove the now-obsolete migration-tag clearing
   from `tests/e2e/materialize.py` (`MIGRATION_TAG_PATTERN` + the delete loop) —
   the force-push of `main` already resets checkpoints. Update the matching
   description in `docs/design/e2e-testing.md`.

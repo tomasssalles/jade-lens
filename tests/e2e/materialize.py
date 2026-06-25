@@ -29,7 +29,6 @@ SANDBOX_BASE = Path("/tmp/jl-e2e")
 ENV_FILE = REPO_ROOT / ".env.local"
 
 GITHUB_REPO_NAME_PATTERN = re.compile(r"^jade-lens-test(-.+)?$")
-MIGRATION_TAG_PATTERN = re.compile(r"^v\d+-v\d+-migration-(start|end)$")
 
 
 # ── .env.local ───────────────────────────────────────────────────────────────
@@ -131,22 +130,8 @@ def materialize(fixture_name: str, github: bool) -> None:
     # ── Set up remote ─────────────────────────────────────────────────────
     if github:
         git(repo_dir, "remote", "add", "origin", remote_url)
-
-        # Clear migration tags from remote before force-pushing
-        ls = git(repo_dir, "ls-remote", "--tags", "origin", check=False)
-        if ls.returncode == 0:
-            tags_to_delete = []
-            for line in ls.stdout.splitlines():
-                ref = line.split("\t", 1)[-1]  # e.g. refs/tags/v1-v2-migration-start
-                tag_name = ref.removeprefix("refs/tags/")
-                # Skip peeled refs (^{})
-                if tag_name.endswith("^{}"):
-                    continue
-                if MIGRATION_TAG_PATTERN.match(tag_name):
-                    tags_to_delete.append(tag_name)
-            if tags_to_delete:
-                git(repo_dir, "push", "origin", "--delete", *tags_to_delete)
-
+        # Migration checkpoints live as commits on main, so the force-push below
+        # resets them along with everything else — no separate tag cleanup needed.
         git(repo_dir, "push", "--force", "-u", "origin", "main")
 
     else:

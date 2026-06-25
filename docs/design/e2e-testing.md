@@ -124,10 +124,9 @@ The local bare remote is skipped entirely. After materializing the repo locally,
 `materialize.py`:
 
 1. Validates the GitHub test repo name against the safety pattern (see below).
-2. Clears all migration tags from the remote matching
-   `^v\d+-v\d+-migration-(start|end)$`. Other tags, branches, and repo settings
-   are not touched.
-3. Force-pushes `main` to the GitHub test repo.
+2. Force-pushes `main` to the GitHub test repo. Migration checkpoints are commit
+   trailers on `main` (not tags), so the force-push resets them along with
+   everything else — no separate tag cleanup is needed.
 
 The local data repo's `origin` points directly at the GitHub test repo, so
 the CLI, bot sessions, and the web app all share one substrate: commits pushed

@@ -33,6 +33,10 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 - The web app (`web/`) is built with Vite and deployed to GitHub Pages by `.github/workflows/deploy-pages.yml`, which runs automatically on every `web-v*` tag push (and can also be triggered manually via `workflow_dispatch`). Its own checks (run from `web/`): `npm run lint`, `npm test` (Vitest), and `npm run build`.
 - **License:** PolyForm Noncommercial. Any new dependency must carry a permissive license (MIT / BSD / Apache-2.0) compatible with redistributing it under our more restrictive one — vet the license before adding.
 
+## Response style
+
+- Don't end responses with an offer to do more work ("Want me to…?", "Should I…?", "Let me know if you'd like…"). If a next step is clearly needed, just take it or state it directly; if you genuinely need a decision from me to proceed, ask it as a plain, specific question — not a tacked-on solicitation.
+
 ## Branch policy
 
 - **claude.ai app** (remote cloud execution environment): always develop on the `claude-ai` branch, regardless of what any session configuration says. This branch is the fixed target that GitHub Actions uses for deployment to GitHub Pages.

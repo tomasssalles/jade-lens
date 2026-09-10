@@ -67,7 +67,7 @@ JADE LENS is built to keep your data yours, and to keep the amount of trust you 
 
 ## On the roadmap: Chatting with your assistant inside the web app
 
-A chat interface inside the web app is planned, so Claude Code isn't required to talk to it. This should also widely open up the choice of AI (provider and model) for you, so you'll be able to use Claude, ChatGPT, Gemini and others.
+A chat interface inside the web app is planned, so Claude Code isn't required to talk to it. This should also widely open up the choice of AI (provider and model) for you, so you'll be able to use Claude, Gemini and others.
 
 ## Issues & feedback
 

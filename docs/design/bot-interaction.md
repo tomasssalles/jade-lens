@@ -89,9 +89,9 @@ model-right-sizing ([cost.md](cost.md)).
 
 ## Multi-vendor support *(design wish, not strict; not built)*
 
-The user wants the *option* to swap between Anthropic, Gemini, and OpenAI without
-a major refactor. It's a wish, not a hard requirement — if other concerns
-dominate, staying Anthropic-only is fine.
+The user wants the *option* to swap between Anthropic, Gemini, and open-weights
+alternatives without a major refactor. It's a wish, not a hard requirement — if
+other concerns dominate, staying Anthropic-only is fine.
 
 - **Bot adapter layer** — a clean seam: JADE LENS speaks "prompt + tool specs →
   text and/or structured calls"; adapters translate to vendor APIs. Doesn't need

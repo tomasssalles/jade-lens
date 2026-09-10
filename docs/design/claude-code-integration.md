@@ -26,7 +26,7 @@ context-assembly:
 | Context / discovery | Prompts built deterministically (index + alwaysLoad + history + per-turn data) | Claude Code navigates the repo agentically with native Read / Grep / Glob |
 | Prompt cache | We engineer breakpoints | Claude Code handles its own |
 | Cost ledger | Per-key spend tracking ([cost.md](cost.md)) | Covered by the Pro subscription |
-| Vendor | Adapter layer for future Gemini/OpenAI | Claude-only by definition |
+| Vendor | Adapter layer for future Gemini / open-weights models | Claude-only by definition |
 | Output / change format | Returned by the API | Returned via the mutation tool — same patch formats |
 
 So `/jade` is **not** a parallel implementation — the pipeline is genuinely shared;

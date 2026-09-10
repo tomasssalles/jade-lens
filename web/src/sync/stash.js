@@ -11,7 +11,7 @@
 // Schema (a refinement of docs/sync-and-conflicts.md §4):
 //   { timestamp, ancestors: {path: content}, operations: [<raw op>, ...] }
 // `operations` holds the RAW op objects verbatim (the `{op, path, …}` wire
-// format of DESIGN §4.2), not the illustrative `{type, path, payload}` shape the
+// format of docs/design/mutation-pipeline.md), not the illustrative `{type, path, payload}` shape the
 // design doc originally sketched — the raw format is the conformance-pinned,
 // cross-client-identical one, so web and /jade write byte-identical entries
 // (Phase 6). The serialised file is JS-canonical (`JSON.stringify(.., 2) + "\n"`)

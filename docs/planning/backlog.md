@@ -23,7 +23,6 @@ This is a to-do list, not JIRA. Keep it light.
 - [Fail-safe handling of an unparseable data-format version](#fail-safe-handling-of-an-unparseable-data-format-version)
 - [Version-aware enforcement for migration checks](#version-aware-enforcement-for-migration-checks)
 - [Unicode-normalization-robust path comparison](#unicode-normalization-robust-path-comparison)
-- [Re-organize all docs](#re-organize-all-docs)
 - [Schema and view registry](#schema-and-view-registry)
 - [Structured-creation forms](#structured-creation-forms)
 - [Calendar integration](#calendar-integration)
@@ -251,23 +250,6 @@ Decisions to settle (permanent, so settle first):
   boundary*, not normalized a single time.
 - **Cross-client parity.** The web app (workingMap keys) and Python must agree; add
   a conformance case with an NFC-vs-NFD pair so both pipelines are pinned.
-
-**Blockers:** none.
-
----
-
-## Re-organize all docs
-
-**Scope:** cross-cutting / housekeeping.
-
-Mostly **done**: the monolithic `DESIGN.md` is split into focused docs under
-`docs/design/`, the changelogs are per-track, and `BACKLOG.md`/`KNOWN_ISSUES.md`
-moved to `docs/planning/`. `legacy-docs/` is retired.
-
-Residual cleanup left:
-- Some relocated detail docs (`docs/design/web/*`, `docs/design/sync-mechanism.md`,
-  `conformance/README.md`) still carry prose `DESIGN §N` cross-references pointing
-  at the deleted monolith — repoint them at the relevant `docs/design/` files.
 
 **Blockers:** none.
 

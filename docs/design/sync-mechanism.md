@@ -18,7 +18,7 @@ committed locally" onward.
 
 The data repo is a **GitHub repository of state files** (JSON + markdown); each
 atomic change is a commit. This is the current substrate; a later move to a
-Postgres-backed store is anticipated (DESIGN §15.2), so the sync/conflict design
+Postgres-backed store is anticipated (see [sync-and-conflicts.md](sync-and-conflicts.md)), so the sync/conflict design
 is kept **substrate-agnostic** — nothing here depends on git's merge machinery,
 and the stash format is self-contained rather than coupled to git.
 
@@ -193,7 +193,7 @@ sort, UUID for uniqueness within the same instant.
   (already-edited-in-place) content and not the remote version — the client must
   retain the pristine baseline (the last-synced base) to produce it.
 - `operations` — the **complete batch**, never a subset, stored as the **raw op
-  objects verbatim** (the `{op, path, …}` wire format of DESIGN §4.2). The earlier
+  objects verbatim** (the `{op, path, …}` wire format of [mutation-pipeline.md](mutation-pipeline.md)). The earlier
   `{type, path, payload}` sketch is superseded: the raw format is the one the
   mutation pipeline already speaks and that the conformance suite pins byte-for-
   byte, so web and `/jade` write **identical** entries (the Phase 6 cross-client
@@ -255,7 +255,7 @@ Surfaces:
 - **`/jade`:** the bot manages the stash **only through dedicated tooling
   commands** (e.g. `jadelens stash list` / `jadelens stash resolve <id>`),
   **never by reading or writing `.jade/` directly** — the protected-path rule
-  (DESIGN §4.2) stays absolute and the bot has no carve-out into `.jade/`. The
+  ([mutation-pipeline.md](mutation-pipeline.md)) stays absolute and the bot has no carve-out into `.jade/`. The
   bot can list, describe, and resolve entries on the user's behalf via those
   commands.
 
@@ -285,7 +285,7 @@ entries across sync events. The stash grows until the user deals with it.
 
 ## 5. The operations log excludes stashed batches
 
-The operations log (DESIGN §7.2) records the **evolution of the user's personal
+The operations log (see [audit-and-correction.md](audit-and-correction.md)) records the **evolution of the user's personal
 data**, not the whole repo. Two consequences here:
 
 - A **stashed (rolled-back) batch must not appear in the log** — it never reached

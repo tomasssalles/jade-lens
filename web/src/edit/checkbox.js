@@ -11,7 +11,7 @@
 // the `[`, (2) the box character, (3) `]` and the rest of the line.
 const TASK_MARKER_RE = /^(\s*[-*+] \[)([ xX])(\].*)$/;
 
-/** A static, skimmable commit message for a checkbox toggle (DESIGN §7.3). */
+/** A static, skimmable commit message for a checkbox toggle (docs/design/audit-and-correction.md). */
 export function checkboxCommitMessage(path) {
   return `Manual edit: toggled checkbox — ${path}`;
 }

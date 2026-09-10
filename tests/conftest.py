@@ -12,7 +12,7 @@ def data_repo(tmp_path: Path) -> Path:
     data repo carries (version, empty index, operations-log directory),
     plus a seed file and one initial commit. Returns the repo path.
 
-    Mirrors what the user manually sets up for v0.1.0 (DESIGN.md §7.2):
+    Mirrors what the user manually sets up for v0.1.0 (docs/design/audit-and-correction.md):
     `.jade/version` holds the data-repo version string (`v0.1.0`),
     `.jade/index.json` starts as `{}` (bot fills in over time), and
     `.jade/operations-log/` will hold one append-only JSONL file per

@@ -3,7 +3,7 @@
 // React, no network. Each produces ONE structure op that flows through the shared
 // commitEdit pipeline as an immediate commit, exactly like a bot edit.
 
-/** Static, skimmable commit messages (DESIGN §7.3). */
+/** Static, skimmable commit messages (docs/design/audit-and-correction.md). */
 export function renameCommitMessage(from, to) {
   return `Manual edit: moved ${from} → ${to}`;
 }

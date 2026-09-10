@@ -2,7 +2,7 @@
 // operating on an in-memory file map (Map<path, content>) instead of the
 // filesystem + git.
 //
-// Wikilinks are `[[path]]`, path relative to the data-repo root (DESIGN §4.3).
+// Wikilinks are `[[path]]`, path relative to the data-repo root (docs/design/wikilinks.md).
 // The post-apply pass (workflow.run) rewrites references on rename and verifies
 // no dangling references remain on delete.
 

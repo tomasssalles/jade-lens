@@ -19,7 +19,7 @@ How user-driven data changes happen in the web app UI. The companion doc
 
 Every UI mutation produces the **same operation types the bot produces**
 (`json_patch`, `unified_diff`, `create_file`, `delete_path`, `rename_path`) and
-flows through the **same mutation pipeline** as bot edits (DESIGN §9.2). One code
+flows through the **same mutation pipeline** as bot edits (see [web-app.md](../web-app.md)). One code
 path for all data mutation, one audit substrate. The UI never invents a
 side-channel.
 
@@ -190,7 +190,7 @@ whether a number is a quantity (where grouping helps) or an identifier/year
 (where `2024` → `2,024` is just wrong), and the misfire zone — 4-digit integers —
 overlaps almost exactly with years and short IDs. The decimal-separator swap is
 safe for *every* number; grouping is not. Grouping belongs to a future
-**typed/registered numeric field** (DESIGN §4.9 / §9.4) that can opt in once the
+**typed/registered numeric field** (see [data-model.md](../data-model.md)) that can opt in once the
 bot can mark a field as a quantity.
 
 **Future nice-to-have — unambiguous paste parsing.** Today a *grouped* paste is
@@ -381,4 +381,4 @@ The runtime writes the message — the user never does. The format is a **static
 operation description plus the affected-file list** (usually a single file),
 e.g. `Manual edit: toggled checkbox — projects/leasing.md`. It is intentionally
 redundant with the operations-log entry; the point is to keep `git log` skimmable
-and searchable. (DESIGN §7.3.)
+and searchable. (See [audit-and-correction.md](../audit-and-correction.md).)

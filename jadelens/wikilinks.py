@@ -1,7 +1,7 @@
 """Wikilink reference scanning and rewriting.
 
 Wikilinks are written as ``[[path]]`` where ``path`` is relative to the
-data-repo root (DESIGN.md §4.3). The bot uses them to reference data-repo
+data-repo root (docs/design/wikilinks.md). The bot uses them to reference data-repo
 files from other data-repo files (in markdown prose or JSON string values).
 
 The runtime keeps wikilink references consistent across structural

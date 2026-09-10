@@ -12,7 +12,7 @@
 
 import { generateUnifiedDiff } from './diffGenerate.js';
 
-/** Static, skimmable commit message for a stashed editing session (DESIGN §7.3). */
+/** Static, skimmable commit message for a stashed editing session (docs/design/audit-and-correction.md). */
 export function draftCommitMessage(filePath) {
   return `Manual edit — ${filePath}`;
 }

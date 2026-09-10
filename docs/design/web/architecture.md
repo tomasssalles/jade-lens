@@ -2,9 +2,10 @@
 
 The read-only web viewer for a JADE LENS data repo. A static React + Vite SPA,
 deployed to GitHub Pages (base path `/jade-lens/`). It reads a GitHub data repo
-via the GitHub API and renders its JSON + markdown files. See the top-level
-`DESIGN.md` (§3, §9) for the product vision; the current build is read-only
-(no chat, no mutation — those are future work).
+via the GitHub API and renders its JSON + markdown files. See the design overview
+([jadelens.md](../jadelens.md)) and the [web app design](../web-app.md) for the
+product vision; the current build is read-only (no chat, no mutation — those are
+future work).
 
 ## Commands
 

@@ -1,6 +1,6 @@
 {
   "name": "non-matching wikilinks are preserved byte-identical on rewrite",
-  "description": "In a file with both a matching and a non-matching wikilink, only the matching one is rewritten. The non-matching link is returned byte-identical even when denormalised ([[./unrelated.md]]) — normalisation happens only as a side effect of an actual rewrite, never on links left alone (DESIGN §4.3).",
+  "description": "In a file with both a matching and a non-matching wikilink, only the matching one is rewritten. The non-matching link is returned byte-identical even when denormalised ([[./unrelated.md]]) — normalisation happens only as a side effect of an actual rewrite, never on links left alone (docs/design/wikilinks.md).",
   "before": {
     "old.md": "# original\n",
     "unrelated.md": "# unrelated\n",

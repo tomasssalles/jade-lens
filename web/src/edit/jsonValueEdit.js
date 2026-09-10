@@ -5,7 +5,7 @@
 // Pure logic — no React, no network. The no-op guard (don't commit an unchanged
 // value) lives in the caller, which knows the original value.
 
-/** Static, skimmable commit message (DESIGN §7.3). */
+/** Static, skimmable commit message (docs/design/audit-and-correction.md). */
 export function jsonValueCommitMessage(filePath, pointer) {
   return `Manual edit: updated ${pointer || '(root)'} — ${filePath}`;
 }

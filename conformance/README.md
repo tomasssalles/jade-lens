@@ -23,7 +23,7 @@ There are two scopes:
 
 ## 1. Why this exists
 
-DESIGN.md §12.1–§12.2 promises that the web app and the `/jade` skill share a
+[mutation-pipeline.md](../docs/design/mutation-pipeline.md) promises that the web app and the `/jade` skill share a
 mutation pipeline: "files end up structurally identical regardless of which
 client made the change." But the two clients cannot literally share code — one
 is Python operating on a local git clone, the other is JavaScript operating on
@@ -93,7 +93,7 @@ set of files, or the rejection:
 
 ### Out of scope — client-specific substrate
 
-These differ by design (DESIGN §12.1) and are **not** compared:
+These differ by design (see [mutation-pipeline.md](../docs/design/mutation-pipeline.md)) and are **not** compared:
 
 - **The write mechanism** — `git add`/`commit` (Python) vs. a GitHub API file
   write (JS). The suite checks the resulting *files*, not how they were written.

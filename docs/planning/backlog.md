@@ -521,8 +521,13 @@ sub-tasks TBD.
 **Open questions:**
 - API transport vs. Claude-Code-subprocess transport (§15.2) — and whether they
   coexist (mobile vs. desktop).
-- How much of the discovery flow to start with (eager-load-everything vs. the
-  structured data-request flow, §6.3).
+- How much of the discovery flow to start with — near-term **settled by the pivot**:
+  send the whole data repo, no discovery flow at all (the data is still tiny). The
+  eager-load-everything vs. structured data-request flow (§6.3) returns as a later
+  improvement.
+- Which vendor first — the pivot reverses the original Claude-first plan to
+  **Gemini-first** (free API tier; Claude is already reachable via Claude Code under
+  Pro), pending whether the free-tier models are capable enough.
 
 ---
 
@@ -535,9 +540,11 @@ Speech API — no STT service we integrate or run. Lowest-friction capture; dire
 targets the high-frequency-capture pain. Part of the pivot — see
 [web-app-pivot.md](web-app-pivot.md) (step 4).
 
-*Caveat:* Chrome's Web Speech recognition typically routes audio through Google's
-servers under the hood, so it is "no service *we* run," not necessarily on-device —
-surface that where privacy matters.
+*Caveat, possibly disqualifying:* Chrome's Web Speech recognition routes audio
+through Google's servers with no control over where — so it is "no service *we* run,"
+not necessarily on-device, and from Germany likely a US round-trip. That's bad on
+privacy (data leaves the EU) and on latency, and may push us to the external-STT
+item (with EU data residency) almost immediately. To be tested when we get there.
 
 **Blockers:** none (independent of the bot loop; a mic control lands most naturally
 alongside the chat UI, pivot step 1).
@@ -548,8 +555,11 @@ alongside the chat UI, pivot step 1).
 
 **Scope:** web (+ STT adapter).
 
-An opt-in, more controllable/consistent STT engine behind a setting — start with
-Google Cloud Speech-to-Text — for quality beyond the browser built-in. Pivot step 5.
+A more controllable/consistent STT engine behind a setting — start with Google Cloud
+Speech-to-Text, whose free tier is reasonable and which offers **EU data residency**.
+Originally framed as an opt-in upgrade for quality beyond the browser built-in, but
+per the pivot it may instead become the **primary** STT path if the built-in's US
+routing (privacy + latency from the EU) rules it out. Pivot step 5.
 
 **Blockers:** the built-in STT item (shared mic-capture plumbing); introduces a
 third external credential, so it rides on the credential-storage work.

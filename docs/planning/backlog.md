@@ -36,6 +36,8 @@ This is a to-do list, not JIRA. Keep it light.
 - [Onboarding an existing data repo on a new device](#onboarding-an-existing-data-repo-on-a-new-device)
 - [Credential storage and trust](#credential-storage-and-trust)
 - [Bot in the web app](#bot-in-the-web-app)
+- [Speech-to-text input (browser built-in)](#speech-to-text-input-browser-built-in)
+- [Optional external speech-to-text](#optional-external-speech-to-text)
 
 ---
 
@@ -495,7 +497,12 @@ isolated-origin hosting (§16.3), itself a decision.
 
 ## Bot in the web app
 
-**Scope:** web (+ bot adapters, cost ledger). **Big — the final phase.**
+**Scope:** web (+ bot adapters, cost ledger). **Big — now being pulled forward.**
+
+**Reprioritized ahead of the manual-editing suite — see
+[web-app-pivot.md](web-app-pivot.md)**, which decomposes the near-term path into
+chat UI → read-only chat → agentic loop, plus STT. This item remains the umbrella
+for the fuller vision.
 
 The chat UI in the web app driving the bot via the Claude API (or a Claude Code
 subprocess on desktop, §15.2), with the runtime assembling context (the discovery
@@ -504,13 +511,45 @@ mutations routed through the same pipeline as UI edits (§9.2, §12.1). This wil
 spawn many smaller backlog items; break it down as we approach — no need to
 enumerate them now.
 
-**Blockers:** the web app should first be a complete standalone manual data manager
-(the editing / create / move-delete / navigation / search items) and the
-foundational tracks should land (Versioning and version comparison; Data migration
-framework; Schema and view registry). Many sub-tasks TBD.
+**Blockers:** the "complete standalone manual data manager first" ordering is
+**intentionally relaxed** by the pivot — read-only then agentic chat come first,
+with the audit-log / git-history / forward-correction safety story in place of the
+full manual-editing floor (see the pivot doc). The schema/view registry is not
+required for read/write chat, though it improves typed rendering later. Many
+sub-tasks TBD.
 
 **Open questions:**
 - API transport vs. Claude-Code-subprocess transport (§15.2) — and whether they
   coexist (mobile vs. desktop).
 - How much of the discovery flow to start with (eager-load-everything vs. the
   structured data-request flow, §6.3).
+
+---
+
+## Speech-to-text input (browser built-in)
+
+**Scope:** web.
+
+Mic input for the chat (and potentially other text fields) via the browser's Web
+Speech API — no STT service we integrate or run. Lowest-friction capture; directly
+targets the high-frequency-capture pain. Part of the pivot — see
+[web-app-pivot.md](web-app-pivot.md) (step 4).
+
+*Caveat:* Chrome's Web Speech recognition typically routes audio through Google's
+servers under the hood, so it is "no service *we* run," not necessarily on-device —
+surface that where privacy matters.
+
+**Blockers:** none (independent of the bot loop; a mic control lands most naturally
+alongside the chat UI, pivot step 1).
+
+---
+
+## Optional external speech-to-text
+
+**Scope:** web (+ STT adapter).
+
+An opt-in, more controllable/consistent STT engine behind a setting — start with
+Google Cloud Speech-to-Text — for quality beyond the browser built-in. Pivot step 5.
+
+**Blockers:** the built-in STT item (shared mic-capture plumbing); introduces a
+third external credential, so it rides on the credential-storage work.

@@ -9,9 +9,6 @@ dependencies = [
     "httpx>=0.27",
 ]
 
-# Runtime deps are mirrored in requirements.txt for the Docker image (so dep
-# layers cache independently of source). Keep the two in sync.
-
 [dependency-groups]
 dev = [
     "pytest>=8.0",

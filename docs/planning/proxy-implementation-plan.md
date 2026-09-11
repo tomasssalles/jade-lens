@@ -64,7 +64,9 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 **first** so we prove the app is unchanged before removing anything.
 
 ### Phase 0 — Proxy skeleton + deploy pipeline (de-risk infra first)
-- [ ] `proxy/` **Starlette** app: `GET /healthz` only, `Dockerfile`
+**Status: code complete** (`proxy/`, CI green: ruff + mypy + pytest). Pending:
+GCP setup + the live hello-world deploy (needs `GCP_*` repo variables).
+- [x] `proxy/` **Starlette** app: `GET /healthz` only, `Dockerfile`
   (`python-slim`, uvicorn), env config (stdlib, or `pydantic-settings` if the
   validation is worth the dep). Core deps: `uvicorn + starlette + httpx`.
 - [ ] **Caller-auth middleware:** require a shared bearer token (`PROXY_TOKEN`) on
@@ -82,7 +84,10 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
   *This proves the whole pipeline before any real route exists.*
 
 ### Phase 1 — GitHub route (the very first route) + prove the app is unchanged
-- [ ] `ALL /gh/*` → forward to `https://api.github.com/*` with the **PAT injected**
+**Status: code complete** (proxy 12 tests; web 281 tests + lint + build all green
+with the flag off ⇒ unchanged). Pending: the live end-to-end smoke against a
+deployed proxy (`VITE_PROXY_URL` set), which needs the deploy.
+- [x] `ALL /gh/*` → forward to `https://api.github.com/*` with the **PAT injected**
   server-side. **Scope it:** only the configured data repo
   (`{owner}/{repo}` from env) and the paths the app actually uses (contents, git
   refs/commits/trees/blobs). Reject anything else — the proxy must not be a general

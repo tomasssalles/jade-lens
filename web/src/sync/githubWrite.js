@@ -10,6 +10,7 @@
 // conflict signal the sync/stash layer acts on.
 
 import { parseRepoUrl, fetchBlobs } from '../github.js';
+import { githubBase, githubAuthHeaders } from '../githubTransport.js';
 
 const GIT_FILE_MODE = '100644'; // regular, non-executable file
 
@@ -31,10 +32,9 @@ export class GitHubWriteError extends Error {
 }
 
 async function api(path, pat, { method = 'GET', body } = {}) {
-  const headers = { Accept: 'application/vnd.github+json' };
-  if (pat) headers.Authorization = `Bearer ${pat}`;
+  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(pat) };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  return fetch(`https://api.github.com${path}`, {
+  return fetch(`${githubBase()}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),

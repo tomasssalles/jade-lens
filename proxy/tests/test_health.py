@@ -31,20 +31,20 @@ def test_protected_path_rejects_bad_token() -> None:
 
 
 def test_valid_token_passes_auth() -> None:
-    # No /gh route exists yet, so a valid token yields 404 (not 401) — which
-    # proves the request got past the auth layer.
-    r = make_client().get("/gh/anything", headers={"Authorization": f"Bearer {TOKEN}"})
+    # A missing route yields 404 (not 401) with a valid token — which proves the
+    # request got past the auth layer.
+    r = make_client().get("/nope", headers={"Authorization": f"Bearer {TOKEN}"})
     assert r.status_code == 404
 
 
 def test_x_proxy_token_header_accepted() -> None:
-    r = make_client().get("/gh/anything", headers={"X-Proxy-Token": TOKEN})
+    r = make_client().get("/nope", headers={"X-Proxy-Token": TOKEN})
     assert r.status_code == 404
 
 
 def test_cors_preflight_allowed_origin_needs_no_token() -> None:
     r = make_client().options(
-        "/gh/anything",
+        "/nope",
         headers={
             "Origin": ORIGIN,
             "Access-Control-Request-Method": "GET",

@@ -22,6 +22,11 @@ class Settings:
     # localhost dev origin). Empty = no cross-origin browser access.
     allowed_origins: list[str] = field(default_factory=list)
 
+    # GitHub PAT, injected server-side on /gh forwards. The browser never sees it.
+    github_pat: str = ""
+    # The single data repo the /gh route is scoped to, as "owner/repo".
+    data_repo: str = ""
+
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
@@ -31,4 +36,6 @@ class Settings:
                 for o in os.environ.get("ALLOWED_ORIGINS", "").split(",")
                 if o.strip()
             ],
+            github_pat=os.environ.get("GITHUB_PAT", ""),
+            data_repo=os.environ.get("DATA_REPO", ""),
         )

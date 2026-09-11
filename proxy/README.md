@@ -6,8 +6,9 @@ token. Runtime: **Starlette** on **Cloud Run** (EU, scale-to-zero).
 
 Plan & rationale: `../docs/planning/proxy-implementation-plan.md`.
 
-**Phase 0 (this):** app shell only — `GET /healthz`, caller-auth on every other
-route, CORS locked to the app origin(s). GitHub/LLM/STT routes come later.
+**Built so far:** `GET /healthz`, caller-auth on every other route, CORS locked
+to the app origin(s), and `/gh/{path}` — a forwarder to api.github.com with the
+PAT injected, scoped to the single configured `DATA_REPO`. LLM/STT come later.
 
 ## Local dev
 
@@ -27,6 +28,8 @@ Checks: `uv run ruff check .` · `uv run mypy app` · `uv run pytest`.
 |---|---|
 | `PROXY_TOKEN` | Shared bearer token the web app must send (`Authorization: Bearer …` or `X-Proxy-Token`). Auth fails closed if unset. |
 | `ALLOWED_ORIGINS` | Comma-separated browser origins allowed by CORS. |
+| `GITHUB_PAT` | PAT injected on `/gh` forwards. Never sent to the browser. |
+| `DATA_REPO` | `owner/repo` the `/gh` route is scoped to. |
 | `PORT` | Set by Cloud Run (default 8080). |
 
 ## Deploy (Cloud Run)

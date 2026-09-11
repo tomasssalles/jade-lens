@@ -1,3 +1,5 @@
+import { githubBase, githubAuthHeaders } from './githubTransport.js'
+
 // Parse `https://github.com/<owner>/<repo>` (tolerates trailing `/` and
 // `.git`). Returns `{ owner, repo }` or `null` if it can't be parsed.
 export function parseRepoUrl(url) {
@@ -7,9 +9,8 @@ export function parseRepoUrl(url) {
 }
 
 function ghFetch(path, pat) {
-  const headers = { Accept: 'application/vnd.github+json' }
-  if (pat) headers.Authorization = `Bearer ${pat}`
-  return fetch(`https://api.github.com${path}`, { headers })
+  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(pat) }
+  return fetch(`${githubBase()}${path}`, { headers })
 }
 
 // Decode a GitHub blob's base64 `content` field (newline-wrapped) into a

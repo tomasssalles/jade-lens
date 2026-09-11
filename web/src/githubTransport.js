@@ -1,27 +1,23 @@
-// GitHub transport selection — the Phase 1 proxy-migration flag.
-//
-// When VITE_PROXY_URL is set, every GitHub API call routes through the secrets
-// proxy (`${PROXY_URL}/gh/...`) and authenticates with the proxy caller token;
-// the GitHub PAT lives server-side and is ignored here. When it's unset, calls
-// go straight to api.github.com with the PAT (the pre-proxy behavior) — so with
-// the flag off the app is byte-for-byte unchanged.
+// GitHub transport. All GitHub calls go through the secrets proxy — the browser
+// no longer holds a GitHub PAT or talks to api.github.com directly. The proxy
+// base URL is configured once at startup (and on settings save) from the stored
+// config; the proxy caller token is passed per call and sent as the bearer.
 
-const PROXY_URL = (import.meta.env.VITE_PROXY_URL || '').replace(/\/$/, '')
-const PROXY_TOKEN = import.meta.env.VITE_PROXY_TOKEN || ''
+let proxyBaseUrl = ''
 
-export function proxyEnabled() {
-  return PROXY_URL !== ''
+// Set the proxy base URL (from config). Call at app startup and after Settings
+// save, before any GitHub request.
+export function configureGithubProxy(proxyUrl) {
+  proxyBaseUrl = (proxyUrl || '').replace(/\/$/, '')
 }
 
-// Base URL for GitHub API paths (paths themselves are unchanged: `/repos/...`).
+// Base for GitHub API paths; paths themselves are unchanged (`/repos/...`), the
+// proxy strips `/gh` and forwards to api.github.com.
 export function githubBase() {
-  return proxyEnabled() ? `${PROXY_URL}/gh` : 'https://api.github.com'
+  return `${proxyBaseUrl}/gh`
 }
 
-// Auth header: the proxy caller token in proxy mode, the GitHub PAT otherwise.
-export function githubAuthHeaders(pat) {
-  if (proxyEnabled()) {
-    return PROXY_TOKEN ? { Authorization: `Bearer ${PROXY_TOKEN}` } : {}
-  }
-  return pat ? { Authorization: `Bearer ${pat}` } : {}
+// Auth header carrying the proxy caller token (not the GitHub PAT).
+export function githubAuthHeaders(token) {
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }

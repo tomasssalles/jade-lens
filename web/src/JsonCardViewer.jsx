@@ -520,7 +520,7 @@ function SidecarPreview({ sidecarPath, onWikilinkClick }) {
     async function load() {
       try {
         const cfg = await getConfig()
-        const text = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, sidecarPath)
+        const text = await getFileContent(cfg.githubRepoUrl, cfg.proxyToken, sidecarPath)
         if (!cancelled) setState({ loading: false, text })
       } catch {
         if (!cancelled) setState({ loading: false, text: null })

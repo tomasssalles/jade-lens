@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { getConfig, saveConfig } from './config'
 import { checkRepoAccess } from './github'
+import { configureGithubProxy } from './githubTransport'
 import EyeIcon from './assets/eye.svg?react'
 import EyeOffIcon from './assets/eye-off.svg?react'
 
 export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
   const [githubRepoUrl, setGithubRepoUrl] = useState('')
-  const [githubPat, setGithubPat] = useState('')
-  const [loaded, setLoaded] = useState({ githubRepoUrl: '', githubPat: '' })
-  const [showPat, setShowPat] = useState(false)
+  const [proxyUrl, setProxyUrl] = useState('')
+  const [proxyToken, setProxyToken] = useState('')
+  const [loaded, setLoaded] = useState({ githubRepoUrl: '', proxyUrl: '', proxyToken: '' })
+  const [showToken, setShowToken] = useState(false)
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
   const [checking, setChecking] = useState(false)
@@ -17,10 +19,12 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
     getConfig().then(cfg => {
       const next = {
         githubRepoUrl: cfg.githubRepoUrl ?? '',
-        githubPat: cfg.githubPat ?? '',
+        proxyUrl: cfg.proxyUrl ?? '',
+        proxyToken: cfg.proxyToken ?? '',
       }
       setGithubRepoUrl(next.githubRepoUrl)
-      setGithubPat(next.githubPat)
+      setProxyUrl(next.proxyUrl)
+      setProxyToken(next.proxyToken)
       setLoaded(next)
     }).catch(() => setSaveError('Failed to load config'))
   }, [])
@@ -29,6 +33,12 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
     const errs = {}
     if (!githubRepoUrl.startsWith('https://github.com/')) {
       errs.githubRepoUrl = 'Must start with https://github.com/'
+    }
+    if (!proxyUrl.startsWith('https://')) {
+      errs.proxyUrl = 'Must start with https://'
+    }
+    if (proxyToken === '') {
+      errs.proxyToken = 'Required'
     }
     return errs
   }
@@ -43,12 +53,14 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
     setErrors({})
     setChecking(true)
     try {
-      const result = await checkRepoAccess(githubRepoUrl, githubPat)
+      // Point the transport at this proxy so checkRepoAccess goes through it.
+      configureGithubProxy(proxyUrl)
+      const result = await checkRepoAccess(githubRepoUrl, proxyToken)
       if (!result.ok) {
         setSaveError(result.reason)
         return
       }
-      await saveConfig({ githubRepoUrl, githubPat })
+      await saveConfig({ githubRepoUrl, proxyUrl, proxyToken })
       setSaveError(null)
       showToast?.('Settings saved')
       onSuccess?.()
@@ -60,7 +72,9 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
   }
 
   const unchanged =
-    githubRepoUrl === loaded.githubRepoUrl && githubPat === loaded.githubPat
+    githubRepoUrl === loaded.githubRepoUrl &&
+    proxyUrl === loaded.proxyUrl &&
+    proxyToken === loaded.proxyToken
 
   return (
     <form onSubmit={handleSubmit}>
@@ -75,25 +89,35 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
         {errors.githubRepoUrl && <span className="field-error">{errors.githubRepoUrl}</span>}
       </label>
       <label>
-        GitHub PAT <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional for public repos)</span>
+        Proxy URL
+        <input
+          type="url"
+          value={proxyUrl}
+          onChange={e => { setProxyUrl(e.target.value); setErrors(v => ({ ...v, proxyUrl: null })) }}
+        />
+        {errors.proxyUrl && <span className="field-error">{errors.proxyUrl}</span>}
+      </label>
+      <label>
+        Proxy token
         <div className="pat-wrapper">
           <input
-            type={showPat ? 'text' : 'password'}
-            value={githubPat}
-            onChange={e => { setGithubPat(e.target.value); setErrors(v => ({ ...v, githubPat: null })) }}
+            type={showToken ? 'text' : 'password'}
+            value={proxyToken}
+            onChange={e => { setProxyToken(e.target.value); setErrors(v => ({ ...v, proxyToken: null })) }}
           />
           <button
             type="button"
             className="pat-toggle"
-            onClick={() => setShowPat(v => !v)}
-            aria-label={showPat ? 'Hide PAT' : 'Show PAT'}
+            onClick={() => setShowToken(v => !v)}
+            aria-label={showToken ? 'Hide token' : 'Show token'}
           >
-            {showPat ? <EyeOffIcon /> : <EyeIcon />}
+            {showToken ? <EyeOffIcon /> : <EyeIcon />}
           </button>
         </div>
-        {errors.githubPat && <span className="field-error">{errors.githubPat}</span>}
+        {errors.proxyToken && <span className="field-error">{errors.proxyToken}</span>}
         <span className="field-warning">
-          Stored as plain text in this browser. Any web app served from the same domain can read it.
+          Stored as plain text in this browser. It authorizes your proxy — revoke and
+          reissue it there if it leaks.
         </span>
       </label>
       {jadeConfig && (

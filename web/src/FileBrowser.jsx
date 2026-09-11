@@ -113,7 +113,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, o
       return initQueueFromRead(getQueue(), {
         repoUrl: cfg.githubRepoUrl,
         branch,
-        pat: cfg.githubPat,
+        pat: cfg.proxyToken,
         contentMap,
         truncated,
       })
@@ -143,7 +143,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, o
 
     async function refreshInBackground(cfg, cached) {
       try {
-        const { items: newItems, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
+        const { items: newItems, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.proxyToken)
         if (cancelled) return
 
         // SHA comparison: classify changes
@@ -163,7 +163,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, o
 
         // Fetch only changed/new blobs
         const freshContent = contentChanged
-          ? await fetchBlobs(cfg.githubRepoUrl, cfg.githubPat, changedItems)
+          ? await fetchBlobs(cfg.githubRepoUrl, cfg.proxyToken, changedItems)
           : new Map()
         if (cancelled) return
 
@@ -238,9 +238,9 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, o
         }
 
         // 3. No cache: full fetch.
-        const { items, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.githubPat)
+        const { items, branch, truncated } = await getRepoTree(cfg.githubRepoUrl, cfg.proxyToken)
         if (cancelled) return
-        const map = await fetchBlobs(cfg.githubRepoUrl, cfg.githubPat, items)
+        const map = await fetchBlobs(cfg.githubRepoUrl, cfg.proxyToken, items)
         if (cancelled) return
         setCachedRepo({
           repoUrl: cfg.githubRepoUrl, branch, items,
@@ -263,7 +263,7 @@ export default function FileBrowser({ onFileOpen, onJadeConfig, onDataVersion, o
     if (content === undefined) {
       try {
         const cfg = await getConfig()
-        content = await getFileContent(cfg.githubRepoUrl, cfg.githubPat, path)
+        content = await getFileContent(cfg.githubRepoUrl, cfg.proxyToken, path)
       } catch (err) {
         setError(err.message)
         return

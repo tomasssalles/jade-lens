@@ -8,7 +8,13 @@ import {
   GitHubWriteError,
 } from './githubWrite.js';
 
+import { configureGithubProxy } from '../githubTransport.js';
+
 const REPO = 'https://github.com/o/r';
+// All GitHub calls now go through the proxy; configure a known base for URL
+// assertions.
+configureGithubProxy('https://proxy.test');
+const GH = 'https://proxy.test/gh';
 
 function res(status, data) {
   return { ok: status >= 200 && status < 300, status, json: async () => data };
@@ -68,7 +74,7 @@ describe('commitFileMap', () => {
     expect(result).toEqual({ commitSha: 'commit2', treeSha: 'tree2', changed: true });
 
     // Order: tree, commit, ref.
-    expect(calls.map((c) => `${c.method} ${c.url.replace('https://api.github.com', '')}`)).toEqual([
+    expect(calls.map((c) => `${c.method} ${c.url.replace(GH, '')}`)).toEqual([
       'POST /repos/o/r/git/trees',
       'POST /repos/o/r/git/commits',
       'PATCH /repos/o/r/git/refs/heads/main',

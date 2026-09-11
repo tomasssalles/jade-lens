@@ -43,7 +43,7 @@ export default function StashView({ onClose, onChange, showToast }) {
     setBusy(path)
     try {
       const cfg = await getConfig()
-      await resolveStashEntry(path, { pat: cfg.githubPat })
+      await resolveStashEntry(path, { pat: cfg.proxyToken })
       await refresh()
     } catch (err) {
       showToast?.(`Could not resolve: ${err.message}`)

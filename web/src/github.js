@@ -8,9 +8,9 @@ export function parseRepoUrl(url) {
   return { owner: match[1], repo: match[2] }
 }
 
-function ghFetch(path, pat) {
-  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(pat) }
-  return fetch(`${githubBase()}${path}`, { headers })
+function ghFetch(path, proxy) {
+  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(proxy) }
+  return fetch(`${githubBase(proxy)}${path}`, { headers })
 }
 
 // Decode a GitHub blob's base64 `content` field (newline-wrapped) into a
@@ -47,39 +47,40 @@ const BLOB_FETCH_CONCURRENCY = 8
 // Largest blob we'll fetch and cache, in bytes. Bigger files are skipped.
 const MAX_BLOB_BYTES = 200_000
 
-// Check that the PAT can reach the configured repo. Returns
+// Check that the proxy can reach the configured repo. Returns
 // `{ ok: true }` on success, `{ ok: false, reason }` otherwise.
-export async function checkRepoAccess(repoUrl, pat) {
+export async function checkRepoAccess(repoUrl, proxy) {
   const parsed = parseRepoUrl(repoUrl)
   if (!parsed) return { ok: false, reason: 'Could not parse repo URL' }
 
   let res
   try {
-    res = await ghFetch(`/repos/${parsed.owner}/${parsed.repo}`, pat)
+    res = await ghFetch(`/repos/${parsed.owner}/${parsed.repo}`, proxy)
   } catch {
     return { ok: false, reason: 'Network error — check your connection' }
   }
 
   if (res.ok) return { ok: true }
-  if (res.status === 401) return { ok: false, reason: 'PAT was rejected by GitHub' }
-  if (res.status === 404) return { ok: false, reason: pat ? 'Repo not found, or PAT lacks access to it' : 'Repo not found or not accessible' }
-  return { ok: false, reason: `GitHub returned ${res.status}` }
+  if (res.status === 401) return { ok: false, reason: 'Proxy rejected the request — check the proxy token' }
+  if (res.status === 403) return { ok: false, reason: 'Proxy forbade the request — check the proxy URL and its repo scope' }
+  if (res.status === 404) return { ok: false, reason: 'Repo not found, or the proxy PAT lacks access to it' }
+  return { ok: false, reason: `Proxy/GitHub returned ${res.status}` }
 }
 
 // Fetch the full recursive file tree for the repo's default branch.
 // Returns `{ items, branch, truncated }`.
-export async function getRepoTree(repoUrl, pat) {
+export async function getRepoTree(repoUrl, proxy) {
   const parsed = parseRepoUrl(repoUrl)
   if (!parsed) throw new Error('Could not parse repo URL')
   const { owner, repo } = parsed
 
-  const repoRes = await ghFetch(`/repos/${owner}/${repo}`, pat)
+  const repoRes = await ghFetch(`/repos/${owner}/${repo}`, proxy)
   if (!repoRes.ok) throw new Error(`GitHub returned ${repoRes.status}`)
   const { default_branch } = await repoRes.json()
 
   const treeRes = await ghFetch(
     `/repos/${owner}/${repo}/git/trees/${default_branch}?recursive=1`,
-    pat,
+    proxy,
   )
   if (!treeRes.ok) throw new Error(`GitHub returned ${treeRes.status}`)
   const { tree, truncated } = await treeRes.json()
@@ -89,14 +90,14 @@ export async function getRepoTree(repoUrl, pat) {
 // Fetch blob contents for a given list of tree items, capped at
 // BLOB_FETCH_CONCURRENCY requests in flight. Returns a Map<path, string>.
 // Files over MAX_BLOB_BYTES and failed fetches are silently omitted.
-export async function fetchBlobs(repoUrl, pat, items) {
+export async function fetchBlobs(repoUrl, proxy, items) {
   const parsed = parseRepoUrl(repoUrl)
   if (!parsed) throw new Error('Could not parse repo URL')
   const { owner, repo } = parsed
 
   const blobs = items.filter(item => item.type === 'blob' && (item.size ?? 0) <= MAX_BLOB_BYTES)
   const results = await mapWithConcurrency(blobs, BLOB_FETCH_CONCURRENCY, item =>
-    ghFetch(`/repos/${owner}/${repo}/git/blobs/${item.sha}`, pat)
+    ghFetch(`/repos/${owner}/${repo}/git/blobs/${item.sha}`, proxy)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
       .then(({ content }) => decodeBase64Utf8(content))
   )
@@ -108,13 +109,13 @@ export async function fetchBlobs(repoUrl, pat, items) {
 }
 
 // Fetch the text content of a single file. Returns a string.
-export async function getFileContent(repoUrl, pat, path) {
+export async function getFileContent(repoUrl, proxy, path) {
   const parsed = parseRepoUrl(repoUrl)
   if (!parsed) throw new Error('Could not parse repo URL')
   const { owner, repo } = parsed
 
   const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-  const res = await ghFetch(`/repos/${owner}/${repo}/contents/${encodedPath}`, pat)
+  const res = await ghFetch(`/repos/${owner}/${repo}/contents/${encodedPath}`, proxy)
   if (!res.ok) throw new Error(`GitHub returned ${res.status}`)
   const data = await res.json()
 

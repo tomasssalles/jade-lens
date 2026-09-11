@@ -8,12 +8,9 @@ import {
   GitHubWriteError,
 } from './githubWrite.js';
 
-import { configureGithubProxy } from '../githubTransport.js';
-
 const REPO = 'https://github.com/o/r';
-// All GitHub calls now go through the proxy; configure a known base for URL
-// assertions.
-configureGithubProxy('https://proxy.test');
+// All GitHub calls go through the proxy; a known descriptor for URL assertions.
+const PROXY = { url: 'https://proxy.test', token: 'tok' };
 const GH = 'https://proxy.test/gh';
 
 function res(status, data) {
@@ -62,7 +59,7 @@ describe('commitFileMap', () => {
       throw new Error(`unexpected ${opts.method} ${url}`);
     });
 
-    const result = await commitFileMap(REPO, 'pat', {
+    const result = await commitFileMap(REPO, PROXY, {
       branch: 'main',
       baseCommitSha: 'commit1',
       baseTreeSha: 'tree1',
@@ -95,7 +92,7 @@ describe('commitFileMap', () => {
 
   it('is a no-op (no network) when there are no changes', async () => {
     global.fetch = vi.fn();
-    const result = await commitFileMap(REPO, 'pat', {
+    const result = await commitFileMap(REPO, PROXY, {
       branch: 'main',
       baseCommitSha: 'commit1',
       baseTreeSha: 'tree1',
@@ -116,7 +113,7 @@ describe('commitFileMap', () => {
     });
 
     await expect(
-      commitFileMap(REPO, 'pat', {
+      commitFileMap(REPO, PROXY, {
         branch: 'main',
         baseCommitSha: 'stale',
         baseTreeSha: 'tree1',
@@ -135,7 +132,7 @@ describe('commitFileMap', () => {
       throw new Error('unexpected');
     });
 
-    const err = await commitFileMap(REPO, 'pat', {
+    const err = await commitFileMap(REPO, PROXY, {
       branch: 'main',
       baseCommitSha: 'c1',
       baseTreeSha: 't1',
@@ -156,7 +153,7 @@ describe('getBranchHead', () => {
       if (url.endsWith('/git/commits/c1')) return res(200, { tree: { sha: 't1' } });
       throw new Error(`unexpected ${url}`);
     });
-    expect(await getBranchHead(REPO, 'pat')).toEqual({
+    expect(await getBranchHead(REPO, PROXY)).toEqual({
       branch: 'main',
       commitSha: 'c1',
       treeSha: 't1',
@@ -171,7 +168,7 @@ describe('getBranchHead', () => {
       if (url.endsWith('/git/commits/c9')) return res(200, { tree: { sha: 't9' } });
       throw new Error(`unexpected ${url}`);
     });
-    const head = await getBranchHead(REPO, 'pat', 'claude-ai');
+    const head = await getBranchHead(REPO, PROXY, 'claude-ai');
     expect(head).toEqual({ branch: 'claude-ai', commitSha: 'c9', treeSha: 't9' });
     expect(seen.some((u) => u.endsWith('/repos/o/r'))).toBe(false);
   });

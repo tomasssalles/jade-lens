@@ -102,11 +102,11 @@ export class OpQueue {
    * conflict signal) and reports it — Phase 2 turns that into a stash. Any other
    * error propagates with the base left at the last successful push.
    *
-   * @param {{pat: string, commit?: typeof commitFileMap}} opts
+   * @param {{proxy: string, commit?: typeof commitFileMap}} opts
    *   `commit` is injectable for tests; defaults to the real GitHub write.
    * @returns {Promise<{pushed: number, conflicted: boolean}>}
    */
-  async push({ pat, commit = commitFileMap }) {
+  async push({ proxy, commit = commitFileMap }) {
     let state = await this.getState();
     if (!state) return { pushed: 0, conflicted: false };
 
@@ -119,7 +119,7 @@ export class OpQueue {
 
       let result;
       try {
-        result = await commit(state.repoUrl, pat, {
+        result = await commit(state.repoUrl, proxy, {
           branch: state.branch,
           baseCommitSha: state.baseCommitSha,
           baseTreeSha: state.baseTreeSha,
@@ -153,26 +153,26 @@ export class OpQueue {
    * failure after it leaves the stashed work safely recorded on the remote, and
    * a failure before it leaves the queue fully intact for a retry.
    *
-   * @param {{pat: string, fetchRemote?: typeof fetchRemoteState, commit?: typeof commitFileMap}} opts
+   * @param {{proxy: string, fetchRemote?: typeof fetchRemoteState, commit?: typeof commitFileMap}} opts
    * @returns {Promise<{pushed: number, stashed: number, conflicted: boolean}>}
    */
-  async sync({ pat, fetchRemote = fetchRemoteState, commit = commitFileMap }) {
+  async sync({ proxy, fetchRemote = fetchRemoteState, commit = commitFileMap }) {
     const state = await this.getState();
     if (!state) return { pushed: 0, stashed: 0, conflicted: false };
 
-    const remote = await fetchRemote(state.repoUrl, pat, state.branch);
+    const remote = await fetchRemote(state.repoUrl, proxy, state.branch);
 
     // A truncated remote tree is a partial view; treating missing files as
     // deletions would spuriously stash. Skip conflict processing and only push
     // what we can (the §6.1 truncation-guard concern, conservative side).
     if (remote.truncated) {
-      const r = await this.push({ pat, commit });
+      const r = await this.push({ proxy, commit });
       return { ...r, stashed: 0 };
     }
 
     // Remote unchanged → nothing to reconcile; just push the queue.
     if (remote.commitSha === state.baseCommitSha) {
-      const r = await this.push({ pat, commit });
+      const r = await this.push({ proxy, commit });
       return { ...r, stashed: 0 };
     }
 
@@ -195,7 +195,7 @@ export class OpQueue {
       }
       let result;
       try {
-        result = await commit(state.repoUrl, pat, {
+        result = await commit(state.repoUrl, proxy, {
           branch: state.branch,
           baseCommitSha,
           baseTreeSha,
@@ -223,7 +223,7 @@ export class OpQueue {
       workingMap: replayBatches(baseMap, plan.keptQueue),
     });
 
-    const r = await this.push({ pat, commit });
+    const r = await this.push({ proxy, commit });
     return { ...r, stashed };
   }
 
@@ -237,17 +237,17 @@ export class OpQueue {
    * the current synced base; any pending queued batches re-parent on the result.
    *
    * @param {string} stashPath - the `.jade/stash/<…>.json` path to remove.
-   * @param {{pat: string, commit?: typeof commitFileMap}} opts
+   * @param {{proxy: string, commit?: typeof commitFileMap}} opts
    * @returns {Promise<{removed: boolean}>} false if the entry was already gone.
    */
-  async resolveStash(stashPath, { pat, commit = commitFileMap }) {
+  async resolveStash(stashPath, { proxy, commit = commitFileMap }) {
     const state = await this.#requireState();
     if (!state.baseMap.has(stashPath)) return { removed: false };
 
     const newMap = new Map(state.baseMap);
     newMap.delete(stashPath);
 
-    const result = await commit(state.repoUrl, pat, {
+    const result = await commit(state.repoUrl, proxy, {
       branch: state.branch,
       baseCommitSha: state.baseCommitSha,
       baseTreeSha: state.baseTreeSha,
@@ -277,16 +277,16 @@ export class OpQueue {
    * @param {{operations: Array<object>, commitMessage?: string, timestamp: string}} batch
    * @param {Map<string,string>} ancestorMap - pristine ancestor content for the
    *   files the batch touches (the stash entry's self-contained "before").
-   * @param {{pat: string, commit?: typeof commitFileMap}} opts
+   * @param {{proxy: string, commit?: typeof commitFileMap}} opts
    * @returns {Promise<{stashPath: string}>}
    */
-  async stashDraftBatch(batch, ancestorMap, { pat, commit = commitFileMap }) {
+  async stashDraftBatch(batch, ancestorMap, { proxy, commit = commitFileMap }) {
     const state = await this.#requireState();
     const stashPath = stashFilename(batch.timestamp);
     const newMap = new Map(state.baseMap);
     newMap.set(stashPath, serializeStashEntry(buildStashEntry(batch, ancestorMap)));
 
-    const result = await commit(state.repoUrl, pat, {
+    const result = await commit(state.repoUrl, proxy, {
       branch: state.branch,
       baseCommitSha: state.baseCommitSha,
       baseTreeSha: state.baseTreeSha,

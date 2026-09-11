@@ -39,11 +39,11 @@ export function getDraftStore() {
  * work) and then removed. Requires an initialised queue — without one there's no
  * base to stash onto, so drafts are kept untouched for a later pass.
  *
- * @param {{getCurrentContent: (path: string) => Promise<string|undefined>, pat: string}} args
+ * @param {{getCurrentContent: (path: string) => Promise<string|undefined>, proxy: string}} args
  * @returns {Promise<{restorable: object[], stashed: Array<{id: string, stashPath: string}>, discarded: string[], unsupported: string[], skipped?: boolean}>}
  */
 export async function reconcileDrafts(
-  { getCurrentContent, pat },
+  { getCurrentContent, proxy },
   { queue = getQueue(), store = getDraftStore(), commit } = {},
 ) {
   const result = { restorable: [], stashed: [], discarded: [], unsupported: [] };
@@ -59,7 +59,7 @@ export async function reconcileDrafts(
       result.discarded.push(draft.id);
     } else if (decision.action === 'stash') {
       const { stashPath } = await queue.stashDraftBatch(decision.batch, decision.ancestorMap, {
-        pat,
+        proxy,
         ...commitOpt,
       });
       await store.delete(draft.id);
@@ -84,13 +84,13 @@ export async function reconcileDrafts(
  * work, so an incidental re-read never clobbers a pending edit queue.
  *
  * @param {OpQueue} queue
- * @param {{repoUrl, branch, pat, contentMap: Map<string,string>, truncated?: boolean}} read
+ * @param {{repoUrl, branch, proxy, contentMap: Map<string,string>, truncated?: boolean}} read
  * @param {{getHead?: typeof getBranchHead}} [deps]
  * @returns {Promise<boolean>} whether the queue is now initialised for this repo.
  */
 export async function initQueueFromRead(
   queue,
-  { repoUrl, branch, pat, contentMap, truncated = false },
+  { repoUrl, branch, proxy, contentMap, truncated = false },
   { getHead = getBranchHead } = {},
 ) {
   if (truncated) return false;
@@ -101,7 +101,7 @@ export async function initQueueFromRead(
     return true;
   }
 
-  const head = await getHead(repoUrl, pat, branch);
+  const head = await getHead(repoUrl, proxy, branch);
   if (existing && existing.repoUrl === repoUrl && existing.baseCommitSha === head.commitSha) {
     // The queue is already at the remote head — keep its working content (which
     // reflects any just-synced edits) instead of resetting it from a re-read,
@@ -181,8 +181,8 @@ export async function getPendingCount(queue = getQueue()) {
 }
 
 /** Resolve (delete) a stash entry — both "Done" and "Won't do" route here. */
-export async function resolveStashEntry(path, { pat }, queue = getQueue()) {
-  return queue.resolveStash(path, { pat });
+export async function resolveStashEntry(path, { proxy }, queue = getQueue()) {
+  return queue.resolveStash(path, { proxy });
 }
 
 // Classify a write failure into a user-facing message. Auth problems are
@@ -190,10 +190,10 @@ export async function resolveStashEntry(path, { pat }, queue = getQueue()) {
 // silent (the app works offline and sync resumes — docs/sync-and-conflicts.md §2).
 function classifyEditError(err) {
   if (err instanceof GitHubWriteError && err.status === 403) {
-    return 'Your GitHub token can’t write to this repo (read-only, or missing “Contents: write”). The change is saved locally — update the PAT in Settings to sync.';
+    return 'The proxy’s GitHub token can’t write to this repo (read-only, or missing “Contents: write”). The change is saved locally — fix it on the proxy to sync.';
   }
   if (err instanceof GitHubWriteError && err.status === 401) {
-    return 'GitHub rejected your token (expired or invalid). The change is saved locally — update the PAT in Settings to sync.';
+    return 'The proxy rejected the request (bad or expired proxy token). The change is saved locally — check the proxy token in Settings to sync.';
   }
   if (err instanceof GitHubWriteError) {
     return `Could not sync the change (GitHub returned ${err.status}). It is saved locally and will retry.`;
@@ -204,8 +204,8 @@ function classifyEditError(err) {
 // Push the queue (push → on non-fast-forward, full sync that stashes), then
 // classify the outcome. Shared by commitEdit and syncPending so both report the
 // same {outcome, error} for the same failure.
-async function flushQueue(queue, { pat, commit, fetchRemote }) {
-  const pushOpts = { pat, ...(commit ? { commit } : {}) };
+async function flushQueue(queue, { proxy, commit, fetchRemote }) {
+  const pushOpts = { proxy, ...(commit ? { commit } : {}) };
   const syncOpts = { ...pushOpts, ...(fetchRemote ? { fetchRemote } : {}) };
   try {
     let result = await queue.push(pushOpts);
@@ -241,7 +241,7 @@ async function flushQueue(queue, { pat, commit, fetchRemote }) {
  * @returns {Promise<{workingMap, outcome: 'synced'|'stashed'|'pending', stashed: number, error: string|null}>}
  */
 export async function commitEdit(
-  { repoUrl, branch, pat, operations, commitMessage, contentMap },
+  { repoUrl, branch, proxy, operations, commitMessage, contentMap },
   { queue = getQueue(), commit, fetchRemote, getHead } = {},
 ) {
   const state = await queue.getState();
@@ -249,13 +249,13 @@ export async function commitEdit(
     if (!contentMap) throw new Error('Edit queue is not initialised for this repo');
     await initQueueFromRead(
       queue,
-      { repoUrl, branch, pat, contentMap },
+      { repoUrl, branch, proxy, contentMap },
       getHead ? { getHead } : undefined,
     );
   }
 
   await queue.enqueue({ operations, commitMessage });
-  return flushQueue(queue, { pat, commit, fetchRemote });
+  return flushQueue(queue, { proxy, commit, fetchRemote });
 }
 
 /**
@@ -263,10 +263,10 @@ export async function commitEdit(
  * the same classified shape as commitEdit, plus `hadPending` (false when the
  * queue was empty / for another repo, so the caller can stay silent).
  */
-export async function syncPending({ repoUrl, pat }, { queue = getQueue(), commit, fetchRemote } = {}) {
+export async function syncPending({ repoUrl, proxy }, { queue = getQueue(), commit, fetchRemote } = {}) {
   const state = await queue.getState();
   if (!state || state.repoUrl !== repoUrl || state.queue.length === 0) {
     return { workingMap: state?.workingMap ?? null, outcome: 'synced', stashed: 0, error: null, hadPending: false };
   }
-  return { ...(await flushQueue(queue, { pat, commit, fetchRemote })), hadPending: true };
+  return { ...(await flushQueue(queue, { proxy, commit, fetchRemote })), hadPending: true };
 }

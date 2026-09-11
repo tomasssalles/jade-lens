@@ -39,8 +39,8 @@ function createBatch(path, content, ts) {
 function recordingCommit() {
   const calls = [];
   let n = 0;
-  const commit = vi.fn(async (repoUrl, pat, args) => {
-    calls.push({ repoUrl, pat, args });
+  const commit = vi.fn(async (repoUrl, proxy, args) => {
+    calls.push({ repoUrl, proxy, args });
     n += 1;
     return { commitSha: `commit${n}`, treeSha: `tree${n}`, changed: true };
   });
@@ -111,7 +111,7 @@ describe("OpQueue.push", () => {
     await q.enqueue(createBatch("b.md", "B\n", "2026-06-01T00:00:01.000Z"));
     const { commit, calls } = recordingCommit();
 
-    const res = await q.push({ pat: "tok", commit });
+    const res = await q.push({ proxy: "tok", commit });
 
     expect(res).toEqual({ pushed: 2, conflicted: false });
     expect(calls).toHaveLength(2);
@@ -137,7 +137,7 @@ describe("OpQueue.push", () => {
     const working = (await q.getState()).workingMap;
     const { commit, calls } = recordingCommit();
 
-    await q.push({ pat: "tok", commit });
+    await q.push({ proxy: "tok", commit });
 
     const lastPushedMap = calls[1].args.newMap;
     expect(lastPushedMap).toEqual(working);
@@ -154,7 +154,7 @@ describe("OpQueue.push", () => {
     await q.enqueue(createBatch("b.md", "B\n", "2026-06-01T00:00:01.000Z"));
     const { commit, calls } = recordingCommit();
 
-    await q.push({ pat: "tok", commit });
+    await q.push({ proxy: "tok", commit });
 
     // First push: base has no log; newMap has one line.
     expect(calls[0].args.baseMap.has(LOG_PATH)).toBe(false);
@@ -183,7 +183,7 @@ describe("OpQueue.push", () => {
       return { commitSha: `commit${n}`, treeSha: `tree${n}`, changed: true };
     });
 
-    const res = await q.push({ pat: "tok", commit });
+    const res = await q.push({ proxy: "tok", commit });
 
     expect(res).toEqual({ pushed: 1, conflicted: true });
     const state = await q.getState();
@@ -202,7 +202,7 @@ describe("OpQueue.push", () => {
       throw new GitHubWriteError("boom", 500);
     });
 
-    await expect(q.push({ pat: "tok", commit })).rejects.toThrow(
+    await expect(q.push({ proxy: "tok", commit })).rejects.toThrow(
       GitHubWriteError,
     );
     const state = await q.getState();
@@ -213,7 +213,7 @@ describe("OpQueue.push", () => {
   it("is a no-op on an empty queue", async () => {
     const q = await freshQueue();
     const commit = vi.fn();
-    const res = await q.push({ pat: "tok", commit });
+    const res = await q.push({ proxy: "tok", commit });
     expect(res).toEqual({ pushed: 0, conflicted: false });
     expect(commit).not.toHaveBeenCalled();
   });

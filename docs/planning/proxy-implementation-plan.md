@@ -103,8 +103,10 @@ deployed proxy (`VITE_PROXY_URL` set), which needs the deploy.
 ### Phase 2 — Remove all GitHub/PAT from the browser
 **Status: code complete** (web 281 tests + lint + build green). The PAT is gone
 from config, Settings, and every call site; the browser holds only the proxy
-token (+ repo URL + proxy URL). The transport is proxy-only (base configured at
-startup from `cfg.proxyUrl`; no direct-GitHub path, no Vite flag).
+token (+ repo URL + proxy URL). The transport is proxy-only and **dependency-
+injected**: every GitHub/sync call takes an explicit `proxy = { url, token }`
+object (built by `proxyFromConfig`), no module state or Vite flag — hermetic for
+tests.
 - [x] Delete the direct-`api.github.com` code path and the flag once Phase 1 is
   proven.
 - [ ] Remove **PAT** storage, entry UI, and any references from the app; Settings

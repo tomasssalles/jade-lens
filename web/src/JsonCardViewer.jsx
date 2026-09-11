@@ -7,6 +7,7 @@ import { isSidecarPath, truncateMarkdownPreview } from './mutation/sidecar'
 import { getContentFromCache } from './repoCache'
 import { getConfig } from './config'
 import { getFileContent } from './github'
+import { proxyFromConfig } from './githubTransport'
 import FileBreadcrumb from './FileBreadcrumb'
 import MarkdownRenderer from './MarkdownRenderer'
 import DateNode from './nodes/DateNode'
@@ -520,7 +521,7 @@ function SidecarPreview({ sidecarPath, onWikilinkClick }) {
     async function load() {
       try {
         const cfg = await getConfig()
-        const text = await getFileContent(cfg.githubRepoUrl, cfg.proxyToken, sidecarPath)
+        const text = await getFileContent(cfg.githubRepoUrl, proxyFromConfig(cfg), sidecarPath)
         if (!cancelled) setState({ loading: false, text })
       } catch {
         if (!cancelled) setState({ loading: false, text: null })

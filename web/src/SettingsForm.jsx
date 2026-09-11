@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getConfig, saveConfig } from './config'
 import { checkRepoAccess } from './github'
-import { configureGithubProxy } from './githubTransport'
 import EyeIcon from './assets/eye.svg?react'
 import EyeOffIcon from './assets/eye-off.svg?react'
 
@@ -53,9 +52,7 @@ export default function SettingsForm({ onSuccess, showToast, jadeConfig }) {
     setErrors({})
     setChecking(true)
     try {
-      // Point the transport at this proxy so checkRepoAccess goes through it.
-      configureGithubProxy(proxyUrl)
-      const result = await checkRepoAccess(githubRepoUrl, proxyToken)
+      const result = await checkRepoAccess(githubRepoUrl, { url: proxyUrl, token: proxyToken })
       if (!result.ok) {
         setSaveError(result.reason)
         return

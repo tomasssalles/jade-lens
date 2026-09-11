@@ -3,7 +3,7 @@ import './App.css'
 import './Settings.css'
 import { getConfig, isConfigValid } from './config'
 import { getFileContent } from './github'
-import { configureGithubProxy } from './githubTransport'
+import { proxyFromConfig } from './githubTransport'
 import { DEFAULT_VIEWER_SETTINGS, getViewerSettings, saveViewerSettings, applySettingsCssVars } from './viewerSettings'
 import { TimeFormatContext } from './TimeFormatContext'
 import { getContentFromCache, getPreloadedRepo, getCachedRepo, parseJadeConfig, updateCachedFile, SUPPORTED_DATA_FORMAT_VERSION } from './repoCache'
@@ -62,7 +62,6 @@ function App() {
 
     getConfig()
       .then(async cfg => {
-        configureGithubProxy(cfg.proxyUrl)
         if (!isConfigValid(cfg)) {
           history.replaceState({ page: 'setup' }, '', '#setup')
           setPage('setup')
@@ -131,7 +130,7 @@ function App() {
     if (content === undefined) {
       try {
         const cfg = await getConfig()
-        content = await getFileContent(cfg.githubRepoUrl, cfg.proxyToken, path)
+        content = await getFileContent(cfg.githubRepoUrl, proxyFromConfig(cfg), path)
       } catch {
         showToast(`Could not load ${path}`)
         return
@@ -158,7 +157,7 @@ function App() {
       res = await commitEdit({
         repoUrl: cfg.githubRepoUrl,
         branch: cached?.branch,
-        pat: cfg.proxyToken,
+        proxy: proxyFromConfig(cfg),
         operations: batch.operations,
         commitMessage: batch.commitMessage,
         contentMap: cached?.repoUrl === cfg.githubRepoUrl ? cached.contentMap : undefined,
@@ -225,7 +224,7 @@ function App() {
         if (content === undefined) {
           try {
             const cfg = await getConfig()
-            content = await getFileContent(cfg.githubRepoUrl, cfg.proxyToken, path)
+            content = await getFileContent(cfg.githubRepoUrl, proxyFromConfig(cfg), path)
           } catch {
             setPage('main'); setFileView(null); return
           }
@@ -266,7 +265,7 @@ function App() {
       let cfg
       try { cfg = await getConfig() } catch { return }
       if (state.repoUrl !== cfg.githubRepoUrl) return
-      try { await q.sync({ pat: cfg.proxyToken }) } catch { return }
+      try { await q.sync({ proxy: proxyFromConfig(cfg) }) } catch { return }
       await refreshStatus()
       setSyncTick(t => t + 1) // working map may have gained/lost files — refresh the tree
       const after = await q.getState()
@@ -291,7 +290,7 @@ function App() {
     try { cfg = await getConfig() } catch { return }
     let result
     try {
-      result = await syncPending({ repoUrl: cfg.githubRepoUrl, pat: cfg.proxyToken })
+      result = await syncPending({ repoUrl: cfg.githubRepoUrl, proxy: proxyFromConfig(cfg) })
     } catch { return }
     if (!result.hadPending) return // nothing was pending → stay silent
 

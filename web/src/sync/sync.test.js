@@ -36,7 +36,7 @@ function createBatch(path, content, ts) {
 function recordingCommit({ failOn = 0 } = {}) {
   const calls = [];
   let n = 0;
-  const commit = vi.fn(async (repoUrl, pat, args) => {
+  const commit = vi.fn(async (repoUrl, proxy, args) => {
     n += 1;
     if (n === failOn) throw new PushConflictError();
     calls.push({ args });
@@ -95,7 +95,7 @@ describe("OpQueue.sync — no remote change", () => {
     const { commit, calls } = recordingCommit();
 
     const res = await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({ commitSha: "base000" }),
       commit,
     });
@@ -117,7 +117,7 @@ describe("OpQueue.sync — remote advanced, no conflict (fast-forward rebase)", 
     const { commit, calls } = recordingCommit();
 
     const res = await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({
         commitSha: "remoteC",
         treeSha: "remoteT",
@@ -169,7 +169,7 @@ describe("OpQueue.sync — conflict → stash", () => {
     const { commit, calls } = recordingCommit();
 
     const res = await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({
         commitSha: "remoteC",
         treeSha: "remoteT",
@@ -202,7 +202,7 @@ describe("OpQueue.sync — conflict → stash", () => {
     const { q, remoteMap } = await setupConflict();
     const { commit, calls } = recordingCommit();
     await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({
         commitSha: "remoteC",
         treeSha: "remoteT",
@@ -233,7 +233,7 @@ describe("OpQueue.sync — conflict → stash", () => {
     const { q, remoteMap } = await setupConflict();
     const { commit } = recordingCommit();
     await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({
         commitSha: "remoteC",
         treeSha: "remoteT",
@@ -256,7 +256,7 @@ describe("OpQueue.sync — conflict → stash", () => {
     const { commit } = recordingCommit({ failOn: 1 }); // the stash commit 422s
 
     const res = await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({
         commitSha: "remoteC",
         treeSha: "remoteT",
@@ -279,7 +279,7 @@ describe("OpQueue.resolveStash", () => {
     const q = await freshQueue(baseMap({ [STASH]: "{}\n", "notes.md": "x\n" }));
     const { commit, calls } = recordingCommit();
 
-    const res = await q.resolveStash(STASH, { pat: "t", commit });
+    const res = await q.resolveStash(STASH, { proxy: "t", commit });
 
     expect(res).toEqual({ removed: true });
     expect(calls).toHaveLength(1);
@@ -295,7 +295,7 @@ describe("OpQueue.resolveStash", () => {
     const q = await freshQueue();
     const commit = vi.fn();
     const res = await q.resolveStash(".jade/stash/missing.json", {
-      pat: "t",
+      proxy: "t",
       commit,
     });
     expect(res).toEqual({ removed: false });
@@ -307,7 +307,7 @@ describe("OpQueue.resolveStash", () => {
     await q.enqueue(createBatch("new.md", "N\n", "2026-06-01T00:00:00.000Z"));
     const { commit } = recordingCommit();
 
-    await q.resolveStash(STASH, { pat: "t", commit });
+    await q.resolveStash(STASH, { proxy: "t", commit });
 
     const state = await q.getState();
     expect(state.queue).toHaveLength(1);
@@ -323,7 +323,7 @@ describe("OpQueue.sync — truncated remote", () => {
     const { commit, calls } = recordingCommit();
 
     const res = await q.sync({
-      pat: "t",
+      proxy: "t",
       fetchRemote: remoteOf({ commitSha: "remoteC", truncated: true }),
       commit,
     });

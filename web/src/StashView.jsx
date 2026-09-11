@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import ArrowLeftIcon from './assets/arrow-left.svg?react'
 import { getConfig } from './config'
 import { getStashEntries, resolveStashEntry } from './sync/syncController'
+import { proxyFromConfig } from './githubTransport'
 import { describeOperation } from './sync/stash'
 import './Settings.css'
 import './StashView.css'
@@ -43,7 +44,7 @@ export default function StashView({ onClose, onChange, showToast }) {
     setBusy(path)
     try {
       const cfg = await getConfig()
-      await resolveStashEntry(path, { pat: cfg.proxyToken })
+      await resolveStashEntry(path, { proxy: proxyFromConfig(cfg) })
       await refresh()
     } catch (err) {
       showToast?.(`Could not resolve: ${err.message}`)

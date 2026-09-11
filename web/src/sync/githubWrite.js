@@ -31,10 +31,10 @@ export class GitHubWriteError extends Error {
   }
 }
 
-async function api(path, pat, { method = 'GET', body } = {}) {
-  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(pat) };
+async function api(path, proxy, { method = 'GET', body } = {}) {
+  const headers = { Accept: 'application/vnd.github+json', ...githubAuthHeaders(proxy) };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  return fetch(`${githubBase()}${path}`, {
+  return fetch(`${githubBase(proxy)}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -58,23 +58,23 @@ function ownerRepo(repoUrl) {
  * Resolve the current head of `branch` (default branch if omitted).
  * @returns {{branch: string, commitSha: string, treeSha: string}}
  */
-export async function getBranchHead(repoUrl, pat, branch) {
+export async function getBranchHead(repoUrl, proxy, branch) {
   const { owner, repo } = ownerRepo(repoUrl);
 
   let resolvedBranch = branch;
   if (!resolvedBranch) {
-    const repoInfo = await readJson(await api(`/repos/${owner}/${repo}`, pat), 'get repo');
+    const repoInfo = await readJson(await api(`/repos/${owner}/${repo}`, proxy), 'get repo');
     resolvedBranch = repoInfo.default_branch;
   }
 
   const ref = await readJson(
-    await api(`/repos/${owner}/${repo}/git/ref/heads/${resolvedBranch}`, pat),
+    await api(`/repos/${owner}/${repo}/git/ref/heads/${resolvedBranch}`, proxy),
     'get ref',
   );
   const commitSha = ref.object.sha;
 
   const commit = await readJson(
-    await api(`/repos/${owner}/${repo}/git/commits/${commitSha}`, pat),
+    await api(`/repos/${owner}/${repo}/git/commits/${commitSha}`, proxy),
     'get commit',
   );
   return { branch: resolvedBranch, commitSha, treeSha: commit.tree.sha };
@@ -88,14 +88,14 @@ export async function getBranchHead(repoUrl, pat, branch) {
  *
  * @returns {{branch, commitSha, treeSha, contentMap: Map<string,string>, truncated: boolean}}
  */
-export async function fetchRemoteState(repoUrl, pat, branch) {
-  const head = await getBranchHead(repoUrl, pat, branch);
+export async function fetchRemoteState(repoUrl, proxy, branch) {
+  const head = await getBranchHead(repoUrl, proxy, branch);
   const { owner, repo } = ownerRepo(repoUrl);
   const treeData = await readJson(
-    await api(`/repos/${owner}/${repo}/git/trees/${head.treeSha}?recursive=1`, pat),
+    await api(`/repos/${owner}/${repo}/git/trees/${head.treeSha}?recursive=1`, proxy),
     'get tree',
   );
-  const contentMap = await fetchBlobs(repoUrl, pat, treeData.tree ?? []);
+  const contentMap = await fetchBlobs(repoUrl, proxy, treeData.tree ?? []);
   return {
     branch: head.branch,
     commitSha: head.commitSha,
@@ -138,7 +138,7 @@ export function computeTreeChanges(baseMap, newMap) {
  */
 export async function commitFileMap(
   repoUrl,
-  pat,
+  proxy,
   { branch, baseCommitSha, baseTreeSha, baseMap, newMap, message },
 ) {
   const { owner, repo } = ownerRepo(repoUrl);
@@ -149,7 +149,7 @@ export async function commitFileMap(
   }
 
   const tree = await readJson(
-    await api(`/repos/${owner}/${repo}/git/trees`, pat, {
+    await api(`/repos/${owner}/${repo}/git/trees`, proxy, {
       method: 'POST',
       body: { base_tree: baseTreeSha, tree: changes },
     }),
@@ -157,14 +157,14 @@ export async function commitFileMap(
   );
 
   const commit = await readJson(
-    await api(`/repos/${owner}/${repo}/git/commits`, pat, {
+    await api(`/repos/${owner}/${repo}/git/commits`, proxy, {
       method: 'POST',
       body: { message, tree: tree.sha, parents: [baseCommitSha] },
     }),
     'create commit',
   );
 
-  const refRes = await api(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, pat, {
+  const refRes = await api(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, proxy, {
     method: 'PATCH',
     body: { sha: commit.sha, force: false },
   });

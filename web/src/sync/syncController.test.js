@@ -20,7 +20,7 @@ function fakeHead(overrides = {}) {
 const read = (extra) => ({
   repoUrl: 'https://github.com/o/r',
   branch: 'main',
-  pat: 'tok',
+  proxy: 'tok',
   contentMap: baseMap({
     'notes.md': 'x\n',
     'Index.json': '[\n  {\n    "File": "[[notes.md]]",\n    "Scope": "user"\n  }\n]\n',
@@ -101,7 +101,7 @@ describe('commitEdit', () => {
     return {
       repoUrl,
       branch: 'main',
-      pat: 'tok',
+      proxy: 'tok',
       operations,
       commitMessage,
       contentMap: baseMap({
@@ -195,7 +195,7 @@ describe('syncPending', () => {
   it('reports hadPending=false when the queue is empty', async () => {
     const q = new OpQueue(createMemoryQueueStore());
     await initQueueFromRead(q, read(), { getHead: fakeHead() });
-    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit: vi.fn() });
+    const res = await syncPending({ repoUrl, proxy: 'tok' }, { queue: q, commit: vi.fn() });
     expect(res.hadPending).toBe(false);
     expect(res.outcome).toBe('synced');
   });
@@ -203,7 +203,7 @@ describe('syncPending', () => {
   it('pushes pending work and reports synced', async () => {
     const q = await queueWithPending();
     const commit = vi.fn(async () => ({ commitSha: 'c1', treeSha: 't1', changed: true }));
-    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit });
+    const res = await syncPending({ repoUrl, proxy: 'tok' }, { queue: q, commit });
     expect(res).toMatchObject({ hadPending: true, outcome: 'synced', error: null });
     expect((await q.getState()).queue).toHaveLength(0);
   });
@@ -213,7 +213,7 @@ describe('syncPending', () => {
     const commit = vi.fn(async () => {
       throw new GitHubWriteError('forbidden', 403);
     });
-    const res = await syncPending({ repoUrl, pat: 'tok' }, { queue: q, commit });
+    const res = await syncPending({ repoUrl, proxy: 'tok' }, { queue: q, commit });
     expect(res.hadPending).toBe(true);
     expect(res.outcome).toBe('pending');
     expect(res.error).toMatch(/read-only|write/i);
@@ -231,7 +231,7 @@ describe('initQueueFromRead — already at head', () => {
       timestamp: 't',
     });
     const commit = vi.fn(async () => ({ commitSha: 'synced1', treeSha: 'tt', changed: true }));
-    await q.push({ pat: 'tok', commit }); // base advances to synced1; workingMap keeps new.md
+    await q.push({ proxy: 'tok', commit }); // base advances to synced1; workingMap keeps new.md
 
     // A re-read reports the same head with a (stale) content map — must be ignored.
     const ok = await initQueueFromRead(

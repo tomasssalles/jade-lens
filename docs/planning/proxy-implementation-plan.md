@@ -25,9 +25,13 @@ browser keeps only a single **revocable caller token**.
   genuinely benefit. (Cold start is masked by the on-focus pre-warm, so this is for
   dependency leanness, not startup speed.)
 - **Lean dependency core:** `uvicorn + starlette + httpx`. **No Google LLM SDK** —
-  call Gemini's REST/SSE endpoint with `httpx` directly. The heavy
-  `google-cloud-speech`/`grpcio` stack lands **only** in the STT path (Phase 5) and
-  is **lazy-imported** so it never weighs the common LLM/GitHub cold path.
+  call Gemini's REST/SSE endpoint with `httpx` directly. STT (Phase 5) needs
+  `google-cloud-speech`/`grpcio`; lazy-import it (import inside the STT handler).
+  Be honest about what that buys: it trims only cold-start **import time** (modest,
+  and largely moot given the pre-warm) — the **image still carries grpcio**, so
+  image size and install time are unchanged. Truly excluding grpcio from the main
+  image would require a **separate STT service**, which is overkill at this scale;
+  one image is fine.
 - **Stateless forwarder** — no DB, no repo clone. It injects the right secret per
   destination: GitHub PAT → `api.github.com`; LLM key → provider; STT → Google
   (via the Cloud Run **service-account identity**, no key to store).
@@ -124,8 +128,9 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 ### Phase 5 — STT streaming (Google Cloud, WebSocket ↔ gRPC)
 - [ ] `WS /stt/stream`: accept mic audio chunks from the browser, bridge to Google
   **`streaming_recognize`** (gRPC bidi) via `google-cloud-speech`, stream **interim
-  transcripts** back over the WS. **Lazy-import** the STT module so `grpcio` loads
-  only when a stream opens — the LLM/GitHub cold path stays lean. Auth via the
+  transcripts** back over the WS. **Lazy-import** the STT module (import inside the
+  handler) so `grpcio` loads only when a stream opens — a free micro-optimization on
+  cold-start *import time* only; the image still includes grpcio regardless. Auth via the
   **Cloud Run service-account identity** (no key). EU endpoint/region. *(Alternative
   if you'd rather avoid gRPC entirely: a WebSocket-based STT provider such as
   Deepgram, EU region — at the cost of leaving Google.)*

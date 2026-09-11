@@ -14,10 +14,20 @@ was about to add a **second browser secret** (the LLM key). Instead, stand up a
 browser keeps only a single **revocable caller token**.
 
 **Shape (decided):**
-- **FastAPI (Python)** on **Google Cloud Run**, **EU region**, **scale-to-zero**.
-  Chosen over Cloudflare Workers because Google STT **streaming** is gRPC-bidi,
-  which Workers can't do; FastAPI is the superset (LLM/GitHub over `httpx`, STT
-  streaming over a browser↔proxy WebSocket bridged to Google gRPC).
+- **Starlette (Python, ASGI)** on **Google Cloud Run**, **EU region**,
+  **scale-to-zero**. A Python ASGI app was chosen over Cloudflare Workers because
+  Google STT **streaming** is gRPC-bidi, which Workers can't do; Python is the
+  superset (LLM/GitHub over `httpx`, STT streaming over a browser↔proxy WebSocket
+  bridged to Google gRPC). **Starlette, not full FastAPI:** a forwarder uses almost
+  none of FastAPI's validation/OpenAPI/DI — Starlette gives the same runtime
+  (routing, CORS/auth middleware, `StreamingResponse`, WebSockets) with fewer deps
+  and a smaller image; add a Pydantic model only in the one or two spots that
+  genuinely benefit. (Cold start is masked by the on-focus pre-warm, so this is for
+  dependency leanness, not startup speed.)
+- **Lean dependency core:** `uvicorn + starlette + httpx`. **No Google LLM SDK** —
+  call Gemini's REST/SSE endpoint with `httpx` directly. The heavy
+  `google-cloud-speech`/`grpcio` stack lands **only** in the STT path (Phase 5) and
+  is **lazy-imported** so it never weighs the common LLM/GitHub cold path.
 - **Stateless forwarder** — no DB, no repo clone. It injects the right secret per
   destination: GitHub PAT → `api.github.com`; LLM key → provider; STT → Google
   (via the Cloud Run **service-account identity**, no key to store).
@@ -47,8 +57,9 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 **first** so we prove the app is unchanged before removing anything.
 
 ### Phase 0 — Proxy skeleton + deploy pipeline (de-risk infra first)
-- [ ] `proxy/` FastAPI app: `GET /healthz` only, `Dockerfile` (`python-slim`,
-  uvicorn), `pydantic-settings` config from env.
+- [ ] `proxy/` **Starlette** app: `GET /healthz` only, `Dockerfile`
+  (`python-slim`, uvicorn), env config (stdlib, or `pydantic-settings` if the
+  validation is worth the dep). Core deps: `uvicorn + starlette + httpx`.
 - [ ] **Caller-auth middleware:** require a shared bearer token (`PROXY_TOKEN`) on
   every route except `/healthz`; reject otherwise (anti-open-relay foundation).
 - [ ] **CORS:** allow only the app origin(s) (`ALLOWED_ORIGINS` env; the GitHub
@@ -101,8 +112,9 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 
 ### Phase 4 — LLM route with streaming (Gemini first) + usage logging
 - [ ] Provider-agnostic **adapter interface** (`ChatProvider`); implement **Gemini**
-  (key from Secret Manager). `POST /llm/chat` streams the provider's **SSE**
-  straight back to the browser (passthrough; CPU-light, fits Cloud Run/free tiers).
+  via **raw `httpx`** against its REST/SSE endpoint (key from Secret Manager) — **no
+  Google LLM SDK**. `POST /llm/chat` streams the provider's **SSE** straight back to
+  the browser (passthrough; CPU-light, fits Cloud Run/free tiers).
 - [ ] Wire the **chat UI** (`web/chat.md`) to consume the stream into bubbles.
 - [ ] **Usage logging (shared util):** structured JSON to **Cloud Logging** per
   call — `{ts, route, provider, model, key_id (masked, e.g. ***234), input_chars,
@@ -111,9 +123,12 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 
 ### Phase 5 — STT streaming (Google Cloud, WebSocket ↔ gRPC)
 - [ ] `WS /stt/stream`: accept mic audio chunks from the browser, bridge to Google
-  **`streaming_recognize`** (gRPC bidi), stream **interim transcripts** back over
-  the WS. Auth via the **Cloud Run service-account identity** (no key). EU
-  endpoint/region.
+  **`streaming_recognize`** (gRPC bidi) via `google-cloud-speech`, stream **interim
+  transcripts** back over the WS. **Lazy-import** the STT module so `grpcio` loads
+  only when a stream opens — the LLM/GitHub cold path stays lean. Auth via the
+  **Cloud Run service-account identity** (no key). EU endpoint/region. *(Alternative
+  if you'd rather avoid gRPC entirely: a WebSocket-based STT provider such as
+  Deepgram, EU region — at the cost of leaving Google.)*
 - [ ] Confirm scale-to-zero keeps the instance alive for the duration of an active
   WS/stream; set Cloud Run request timeout to cover the ~5-min window.
 - [ ] Mic control in the chat UI; feed final transcript into the input.

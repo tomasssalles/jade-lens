@@ -1,0 +1,6 @@
+# Runtime dependencies for the Docker image. Mirror of pyproject.toml's
+# [project.dependencies] — keep in sync. Dev/test tooling lives only in
+# pyproject.toml (not needed at runtime).
+starlette>=0.37
+uvicorn[standard]>=0.30
+httpx>=0.27

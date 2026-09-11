@@ -1,0 +1,47 @@
+name: Proxy CI/CD
+
+on:
+  push:
+    paths: ["proxy/**", ".github/workflows/proxy-deploy.yml"]
+  pull_request:
+    paths: ["proxy/**", ".github/workflows/proxy-deploy.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: proxy
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy app
+      - run: uv run pytest -q
+
+  deploy:
+    needs: test
+    # Deploy only from main, and only once GCP is configured (see proxy/README.md).
+    # Until the GCP_PROJECT variable is set, this job is skipped.
+    if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: jadelens-proxy
+          source: proxy  # repo-relative; Cloud Build uses proxy/Dockerfile
+          region: ${{ vars.GCP_REGION }}
+          # Runtime secrets (PROXY_TOKEN, …) are set on the service via Secret
+          # Manager, not here — see proxy/README.md.

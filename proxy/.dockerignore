@@ -1,0 +1,12 @@
+tests/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+pyproject.toml
+uv.lock
+README.md

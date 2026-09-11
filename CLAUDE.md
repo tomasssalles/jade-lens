@@ -36,6 +36,7 @@ All documentation lives under **`docs/`** — **read `docs/README.md` first**; i
 ## Response style
 
 - Don't end responses with an offer to do more work ("Want me to…?", "Should I…?", "Let me know if you'd like…"). If a next step is clearly needed, just take it or state it directly; if you genuinely need a decision from me to proceed, ask it as a plain, specific question — not a tacked-on solicitation.
+- **Be concise. Verbosity costs me time and attention.** Make the point once and move on. Don't repeat my own arguments back to me before responding to them. Don't recap at the end of a response — I read the whole thing. Cut preamble, restatement, and summary sections.
 
 ## Branch policy
 

@@ -26,12 +26,15 @@ browser keeps only a single **revocable caller token**.
   dependency leanness, not startup speed.)
 - **Lean dependency core:** `uvicorn + starlette + httpx`. **No Google LLM SDK** —
   call Gemini's REST/SSE endpoint with `httpx` directly. STT (Phase 5) needs
-  `google-cloud-speech`/`grpcio`; lazy-import it (import inside the STT handler).
-  Be honest about what that buys: it trims only cold-start **import time** (modest,
-  and largely moot given the pre-warm) — the **image still carries grpcio**, so
-  image size and install time are unchanged. Truly excluding grpcio from the main
-  image would require a **separate STT service**, which is overkill at this scale;
-  one image is fine.
+  `google-cloud-speech`/`grpcio`; **import it eagerly at startup — do NOT lazy-import
+  it.** The on-focus pre-warm masks *startup*, so an eager top-level import folds the
+  ~few-hundred-ms grpc import into the masked cold start and keeps it **off the first
+  speech request**; a lazy (in-handler) import would un-mask it onto exactly that hot
+  path. **General principle: with a pre-warm, put one-time work at startup, not
+  deferred onto the first real request.** (Import strategy doesn't affect image size
+  or install time — grpcio is in the image regardless; excluding it would need a
+  separate STT service, overkill at this scale. And the eager import is worth it only
+  if grpc import is actually a few hundred ms — measure when building STT.)
 - **Stateless forwarder** — no DB, no repo clone. It injects the right secret per
   destination: GitHub PAT → `api.github.com`; LLM key → provider; STT → Google
   (via the Cloud Run **service-account identity**, no key to store).
@@ -128,9 +131,10 @@ Each step: implement → test → commit → push to `claude-ai`. GitHub is rout
 ### Phase 5 — STT streaming (Google Cloud, WebSocket ↔ gRPC)
 - [ ] `WS /stt/stream`: accept mic audio chunks from the browser, bridge to Google
   **`streaming_recognize`** (gRPC bidi) via `google-cloud-speech`, stream **interim
-  transcripts** back over the WS. **Lazy-import** the STT module (import inside the
-  handler) so `grpcio` loads only when a stream opens — a free micro-optimization on
-  cold-start *import time* only; the image still includes grpcio regardless. Auth via the
+  transcripts** back over the WS. **Import `google-cloud-speech` eagerly at startup**
+  (top-level, not inside the handler): the on-focus pre-warm masks startup, so eager
+  import keeps the grpc import off the first speech request — a lazy import would move
+  it onto that hot path. Auth via the
   **Cloud Run service-account identity** (no key). EU endpoint/region. *(Alternative
   if you'd rather avoid gRPC entirely: a WebSocket-based STT provider such as
   Deepgram, EU region — at the cost of leaving Google.)*

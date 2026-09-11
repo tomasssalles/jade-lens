@@ -115,7 +115,11 @@ tests.
   the caller token.
 
 ### Phase 3 — Docs & README
-- [ ] `security-and-trust.md`: document the proxy credential model — all secrets
+**Status: done.** `security-and-trust.md` rewritten to the proxy credential model
+(current stance + sharing limitation + framing note for the future-hardening
+sections); README carries a transition status flagging the proxy migration and the
+"difficult to share" consequence.
+- [x] `security-and-trust.md`: document the proxy credential model — all secrets
   server-side, one revocable/scoped browser caller token, anti-open-relay
   (token + repo scoping), spend caps as the residual-risk mitigation, and the
   sharing implication.

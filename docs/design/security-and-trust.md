@@ -3,10 +3,10 @@
 Two related concerns shape how far a user can rely on JADE LENS with sensitive
 data: **safety** (the technical attack surface) and **trust** (what a careful
 auditor concludes from code, docs, and hosting boundaries). They correlate but
-move independently; good moves push both. Only the **v0.1.0 stance** below is
-built — the hardening is intended/future. The complementary per-record protection
-of the data itself is the "protected-data tier" (future work, summarised at the
-end).
+move independently; good moves push both. The **current stance** below (the
+secrets proxy) is built; the further hardening is intended/future. The
+complementary per-record protection of the data itself is the "protected-data
+tier" (future work, summarised at the end).
 
 ## The cross-origin storage exposure problem
 
@@ -17,21 +17,54 @@ barrier).
 
 **GitHub Pages user pages share one origin across all projects under a username**
 (`<username>.github.io`). So anything else the same operator hosts under that
-username can read JADE LENS's stored credentials, load JADE LENS same-origin to
+username can read JADE LENS's stored credential, load JADE LENS same-origin to
 capture state, or stand up a convincing lookalike. Same-origin phishing defeats
 the usual defenses (URL warnings, anti-phishing filters, password-manager domain
 matching, WebAuthn RP-ID binding) because they all key on origin. This is the
-central safety issue in the default GitHub Pages hosting story.
+central safety issue in the default GitHub Pages hosting story. The credential now
+exposed there is the **revocable proxy token** (below), not a long-lived PAT —
+which shrinks, but does not eliminate, the blast radius.
 
-## v0.1.0 stance: plaintext PAT, visible warning, single user *(built)*
+## Current stance: the secrets proxy *(built)*
 
-The data-repo credential is a fine-grained **GitHub Personal Access Token (PAT)**,
-stored unencrypted in IndexedDB. Acceptable for v0.1.0 because there's a single
-user (the operator), nothing else deployed at the same `<username>.github.io`, and
-the exposure is bounded by the operator's own future deployments — a discipline
-issue, not a structural one. The settings UI carries the threat in one line under
-the PAT field (`web/src/SettingsForm.jsx`): *"Stored as plain text in this
-browser. Any web app served from the same domain can read it."*
+The browser holds **no GitHub PAT and no LLM/STT keys**. Those live server-side on
+a **thin, stateless secrets proxy** each user self-hosts (see
+[proxy/README.md](../../proxy/README.md) and
+[proxy-implementation-plan.md](../planning/proxy-implementation-plan.md)). The only
+secret in the browser is a **proxy caller token** — a bearer credential the app
+sends on every request; the proxy validates it, injects the real secrets, and
+forwards (GitHub calls scoped to the one configured `owner/repo`; LLM/STT later).
+It is stored unencrypted in IndexedDB alongside the repo URL and proxy URL. The
+settings UI carries the threat in one line (`web/src/SettingsForm.jsx`): *"Stored
+as plain text in this browser. It authorizes your proxy — revoke and reissue it
+there if it leaks."*
+
+Why this is a smaller exposure than a browser-held PAT: the on-device secret is now
+a **revocable, scoped, capped delegate**, not the irreplaceable keys. A leak is
+repaired by **rotating the token on the proxy** (seconds); the underlying PAT and
+provider keys never leave the proxy and don't rotate on a browser leak. Provider
+**spend caps** bound the billing exposure of the LLM/STT keys. And the proxy is not
+an open relay: it rejects any request without the caller token and confines GitHub
+forwards to the single configured repo, so a stolen token — or a found proxy URL —
+can't wield the PAT beyond that repo or spend past the caps.
+
+**Framing note for the sections below:** they were written for a PAT-in-browser
+model. With the proxy, the on-device credential is the **proxy token**, so "encrypt
+the PAT", "re-auth to change the PAT", and "recover by rotating the PAT" now apply
+to the proxy token; the real PAT/keys sit on the proxy and rotate at their
+providers only if the proxy itself is compromised.
+
+## Sharing: the proxy is per-user *(temporary limitation)*
+
+The proxy holds one user's secrets and is locked to them by the caller token.
+Sharing the app therefore never shares your secrets — but a second user must bring
+their own: **each user self-hosts their own proxy** (own PAT/keys/token). A
+browser-key fallback (each user pasting raw PAT/keys into their own browser) was
+deliberately rejected as unfair to non-technical users — it re-exposes the raw
+secrets we just moved server-side. Consequence: the app is **currently difficult to
+share with non-technical users**, since the hardened path requires deploying a
+proxy. Flagged as a temporary status in the README; the open question is how simple
+proxy self-hosting can be made (one-command deploy).
 
 ## Hosting model for a multi-user / sensitive future
 
@@ -91,7 +124,10 @@ A GitHub App with installation tokens would shrink the credential window to
 ~1-hour tokens, but the App's private key can't live in a static SPA — it needs a
 backend to mint tokens, which breaks "no server-side code we operate"
 ([jadelens.md](jadelens.md)) and adds a strongly-trusted operator to the chain.
-Not on the roadmap unless trust/safety pressure justifies it.
+Not on the roadmap unless trust/safety pressure justifies it. (The secrets proxy
+above is not this: it's a thin, stateless, **user-self-hosted** forwarder holding
+no data — the *maintainer* still operates no server; a self-hoster's trust chain
+is just their own box.)
 
 | Auth scheme | Long-lived token on device | Adds maintainer to trust chain | Backend | UX |
 |---|---|---|---|---|

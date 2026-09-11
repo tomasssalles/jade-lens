@@ -46,6 +46,8 @@ jadelens init /path/where/to/clone/data-repo
 
 ## Security & privacy
 
+> **⚠️ In transition (unreleased).** The app is moving to a self-hosted **secrets proxy**: the browser will no longer store a GitHub PAT — it holds only a *revocable proxy token*, and your real secrets (the GitHub PAT, and later the LLM/STT keys) live on a thin proxy **you** run. That's a security improvement (a leaked browser token is revoked on the proxy in seconds; the real keys never leave it), but it makes the app **currently difficult to share with non-technical users**, since each person must self-host their own proxy — a browser-key fallback was deliberately rejected as unfair. Proxy setup docs are coming; the notes below still describe the previous PAT-based flow.
+
 JADE LENS is built to keep your data yours, and to keep the amount of trust you have to place in me (the developer) as small as possible:
 
 - **The code is public** — Anyone can read exactly what it does. If you don't code, ask your favorite AI to go over [the repository](https://github.com/tomasssalles/jade-lens) and analyse how safe it is.
